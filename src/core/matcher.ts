@@ -1,0 +1,64 @@
+import type { Episode, FileMatch, MatchCandidate } from './types';
+import { parseReleaseTags } from './releaseTags';
+
+const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
+
+export function normalizeTitle(value: string): string[] {
+  return value
+    .normalize('NFKD')
+    .replace(/[’']/g, '')
+    .toLowerCase()
+    .replace(/\b(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})\b/g, ' ')
+    .replace(/\b(?:2160p|1080p|720p|576p|480p|web[ ._-]?dl|web[ ._-]?rip|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token && !stopWords.has(token));
+}
+
+function titleSimilarity(filename: string, title: string): number {
+  const left = new Set(normalizeTitle(filename));
+  const right = new Set(normalizeTitle(title));
+  if (!left.size || !right.size) return 0;
+  const intersection = [...right].filter((token) => left.has(token)).length;
+  const precision = intersection / left.size;
+  const recall = intersection / right.size;
+  // Extra filename tokens are expected (show, group and technical metadata),
+  // so title recall matters much more than filename precision.
+  return recall * 0.85 + precision * 0.15;
+}
+
+function numberedEpisode(filename: string): { season: number; episode: number } | undefined {
+  const match = filename.match(/\bS(\d{1,2})E(\d{1,3})\b/i) ?? filename.match(/\b(\d{1,2})x(\d{1,3})\b/i);
+  return match ? { season: Number(match[1]), episode: Number(match[2]) } : undefined;
+}
+
+export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true): MatchCandidate[] {
+  const numbered = numberedEpisode(filename);
+  return episodes
+    .map((episode) => {
+      const reasons: string[] = [];
+      let score = 0;
+      if (numbered?.season === episode.season && numbered.episode === episode.number) {
+        score += 0.45;
+        reasons.push('season and episode number');
+      }
+      if (useTitle) {
+        const similarity = titleSimilarity(filename, episode.title);
+        score += similarity * 0.65;
+        if (similarity >= 0.5) reasons.push(`title ${Math.round(similarity * 100)}%`);
+      }
+      return { episode, score: Math.min(score, 1), reasons };
+    })
+    .filter(({ score }) => score > 0.12)
+    .sort((a, b) => b.score - a.score);
+}
+
+export function matchFile(path: string, episodes: Episode[], useTitle = true): FileMatch {
+  const filename = path.split(/[\\/]/).pop() ?? path;
+  const alternatives = rankEpisodes(filename, episodes, useTitle);
+  const match = alternatives[0];
+  const margin = match ? match.score - (alternatives[1]?.score ?? 0) : 0;
+  const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= 0.78 && margin >= 0.12 ? 'confident' : 'review';
+  return { path, filename, tags: parseReleaseTags(filename), match, alternatives: alternatives.slice(1, 4), status };
+}
