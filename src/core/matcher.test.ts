@@ -26,4 +26,13 @@ describe('episode matcher', () => {
   it('normalizes punctuation and noise', () => {
     expect(normalizeTitle("The.Off-Site.Meeting.720p.WEBRip")).toEqual(['off', 'site', 'meeting']);
   });
+
+  it('matches files from different seasons in a combined episode catalogue', () => {
+    const combined = [
+      { id: 's1', season: 1, number: 2, title: 'An Early Episode' },
+      { id: 's4', season: 4, number: 2, title: 'A Later Episode' },
+    ];
+    expect(matchFile('Show.S01E02.mkv', combined).match?.episode.id).toBe('s1');
+    expect(matchFile('Show.S04E02.mkv', combined).match?.episode.id).toBe('s4');
+  });
 });

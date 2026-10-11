@@ -6,9 +6,11 @@
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"vite\" \"npm:dev:electron\"",
-    "dev:electron": "wait-on tcp:5173 && electron .",
-    "build": "tsc -b && vite build && tsc -p electron/tsconfig.json",
+    "dev": "npm run build:electron && concurrently -k \"vite\" \"npm:electron:watch\"",
+    "dev:electron": "npm run dev",
+    "electron:watch": "node scripts/dev-electron.mjs",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "tsc -b && vite build && npm run build:electron",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run test && npm run build"

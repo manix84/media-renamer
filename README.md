@@ -18,15 +18,20 @@ A confidence-first desktop renamer for TV episodes, designed as a modern replace
 This first scaffold includes:
 
 - an Electron + React + TypeScript desktop shell;
-- native file selection and drag-and-drop UI;
+- native file/folder selection and recursive drag-and-drop import;
+- immediate ordered display of every imported video, including pending and unmatched files;
+- automatic show-name inference from imported episode filenames;
+- literal-first title-and-year search with a structured year fallback;
 - `S01E02` and `1x02` number matching;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
 - parsing for BluRay, WEB-DL, WEBRip, HDTV, DVDRip, TVRip, resolution, video/audio codecs, channels, release group, and common flags;
-- deterministic output-name formatting; and
+- deterministic output-name formatting;
+- background-worker matching with visible per-file progress;
+- a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
 
-The UI uses demo metadata while provider adapters and safe filesystem execution are built.
+The UI searches TMDB and normalizes live show, season, and episode metadata. Safe filesystem execution is still intentionally disabled.
 
 ## Run it
 
@@ -34,8 +39,23 @@ Requires a current Node.js release.
 
 ```bash
 npm install
+cp .env.example .env
 npm run dev
 ```
+
+`npm run dev:electron` is also available as an explicit alias for the complete desktop development stack. Both commands compile the Electron main/preload code, start Vite, and launch the app. Changes under `electron/` automatically recompile and restart Electron so the renderer and preload bridge cannot drift out of sync.
+
+Add a TMDB v4 API Read Access Token to `.env` before starting the app:
+
+```dotenv
+TMDB_ACCESS_TOKEN=your_long_read_access_token_here
+```
+
+Create or retrieve the token under your TMDB account's **Settings → API** page. Do not add a `Bearer ` prefix. The token is read only by Electron's main process and is not exposed to the renderer. `.env` is ignored by Git.
+
+Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are first resolved through TMDB's external-ID endpoint. When TMDB has no cross-reference, the app uses `TVDB_API_KEY` (and optional `TVDB_SUBSCRIBER_PIN`) to retrieve the title from TVDB, then locates the corresponding TMDB show.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 Run all current checks:
 
@@ -59,9 +79,11 @@ Future matching evidence can include duration, air date, embedded title, adjacen
 
 ### Milestone 1 — useful TV renamer
 
-- TMDB TV search/details/episode adapter and local metadata cache
+- [x] TMDB TV search/details/episode adapter
+- local metadata cache
 - TVDB adapter when credentials are configured
-- show/season browser, file import, candidate alternatives, and manual rematching
+- [x] whole-show episode browser grouped by season, and file import
+- candidate alternatives and manual rematching
 - configurable name templates with live examples
 - preflight collision/invalid-character checks
 - atomic rename/move plan, JSON log, and undo
@@ -94,4 +116,4 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 ## Next implementation slice
 
-Build the TMDB adapter and searchable show picker, then replace `src/demo.ts` with normalized provider data. Before enabling the final Rename button, add `RenamePlan` preflight and operation logging; preview-only UI is intentional until those safety rails exist.
+Add `RenamePlan` preflight, collision and invalid-character validation, operation logging, and undo before enabling the final Rename button. Preview-only UI is intentional until those safety rails exist.

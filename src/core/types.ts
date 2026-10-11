@@ -8,6 +8,29 @@ export interface Episode {
   airDate?: string;
 }
 
+export interface ShowSearchResult {
+  id: string;
+  name: string;
+  year?: number;
+  overview: string;
+  posterUrl?: string;
+}
+
+export interface SeasonSummary {
+  number: number;
+  name: string;
+  episodeCount: number;
+  airDate?: string;
+}
+
+export interface ShowDetails extends ShowSearchResult {
+  seasons: SeasonSummary[];
+}
+
+export interface ProviderStatus {
+  configured: boolean;
+}
+
 export interface ReleaseTags {
   source: Source;
   resolution?: string;
