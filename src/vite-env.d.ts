@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Episode, ProviderStatus, ShowDetails, ShowSearchResult } from './core/types';
+import type { Episode, MediaTechnicalTags, ProviderStatus, ShowDetails, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 declare global {
@@ -11,6 +11,7 @@ declare global {
       pickFolders(): Promise<string[]>;
       expandPaths(paths: string[]): Promise<string[]>;
       pathForFile(file: File): string;
+      probeMedia(filePath: string): Promise<MediaTechnicalTags>;
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;
       getShow(showId: string): Promise<ShowDetails>;

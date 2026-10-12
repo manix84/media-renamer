@@ -3,6 +3,7 @@ const IMAGE_ROOT = 'https://image.tmdb.org/t/p/w342';
 
 export interface TmdbShowSearchResult {
   id: string;
+  tvdbId?: string;
   name: string;
   year?: number;
   overview: string;
@@ -35,6 +36,8 @@ type RawShow = {
   overview?: string;
   poster_path?: string | null;
 };
+
+type RawExternalIds = { tvdb_id?: number | null };
 
 type RawSeason = {
   season_number: number;
@@ -114,9 +117,13 @@ export class TmdbClient {
   }
 
   async getShow(showId: string): Promise<TmdbShowDetails> {
-    const data = await this.request<RawShow & { seasons: RawSeason[] }>(`/tv/${encodeURIComponent(showId)}`);
+    const data = await this.request<RawShow & { seasons: RawSeason[]; external_ids?: RawExternalIds }>(
+      `/tv/${encodeURIComponent(showId)}`,
+      new URLSearchParams({ append_to_response: 'external_ids' }),
+    );
     return {
       ...normalizeShow(data),
+      tvdbId: data.external_ids?.tvdb_id ? String(data.external_ids.tvdb_id) : undefined,
       seasons: data.seasons
         .filter((season) => season.episode_count > 0)
         .map((season) => ({

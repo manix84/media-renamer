@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchFile, normalizeTitle } from './matcher';
-import { parseReleaseTags } from './releaseTags';
+import { applyReleaseOverrides, parseReleaseTags } from './releaseTags';
 
 const episodes = [
   { id: '1', season: 2, number: 7, title: 'The Security Guard' },
@@ -13,6 +13,30 @@ describe('release tag parser', () => {
     expect(parseReleaseTags('Show.S02E08.1080p.WEB-DL.DDP5.1.x265.PROPER-GRP.mkv')).toMatchObject({
       source: 'WEB-DL', resolution: '1080p', videoCodec: 'x265', audioCodec: 'DDP', channels: '5.1', flags: ['PROPER'], group: 'GRP',
     });
+  });
+
+  it('detects AI upscaling and release details from ancestor folders', () => {
+    expect(parseReleaseTags('/TV/Star Trek Voyager S03 AI Upscale 720p x265/Star Trek - S03E01 - Basics.mkv')).toMatchObject({
+      resolution: '720p', videoCodec: 'x265', flags: ['AI Upscale'], group: undefined,
+    });
+  });
+
+  it('can override uncertain source and AI-upscale metadata across a batch', () => {
+    const detected = parseReleaseTags('/TV/Show AI Upscaled/Show.S01E01.mkv');
+    expect(applyReleaseOverrides(detected, { source: 'DVD', aiUpscale: false })).toMatchObject({ source: 'DVD', flags: [] });
+    expect(applyReleaseOverrides(detected, { source: 'DVD', aiUpscale: true })).toMatchObject({ source: 'DVD', flags: ['AI Upscale'] });
+  });
+
+  it.each([
+    ['Anime.S01E01v2.1080p.mkv', 'REPACK'],
+    ['Anime.S05E10v3.1080p.mkv', 'REPACK'],
+    ['Anime.01x02v4.1080p.mkv', 'REPACK'],
+  ])('treats an attached anime version as a repack: %s', (filename, flag) => {
+    expect(parseReleaseTags(filename).flags).toContain(flag);
+  });
+
+  it('does not treat a first-version episode as a repack', () => {
+    expect(parseReleaseTags('Anime.S01E01v1.1080p.mkv').flags).not.toContain('REPACK');
   });
 });
 

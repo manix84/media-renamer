@@ -60,5 +60,5 @@ export function matchFile(path: string, episodes: Episode[], useTitle = true): F
   const match = alternatives[0];
   const margin = match ? match.score - (alternatives[1]?.score ?? 0) : 0;
   const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= 0.78 && margin >= 0.12 ? 'confident' : 'review';
-  return { path, filename, tags: parseReleaseTags(filename), match, alternatives: alternatives.slice(1, 4), status };
+  return { path, filename, tags: parseReleaseTags(path), match, alternatives: alternatives.slice(1, 4), status };
 }

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   pickFolders: (): Promise<string[]> => ipcRenderer.invoke('folders:pick'),
   expandPaths: (paths: string[]): Promise<string[]> => ipcRenderer.invoke('files:expand-paths', paths),
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
+  probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
   providerStatus: () => ipcRenderer.invoke('tmdb:status'),
   searchShows: (query: string) => ipcRenderer.invoke('tmdb:search-shows', query),
   getShow: (showId: string) => ipcRenderer.invoke('tmdb:get-show', showId),

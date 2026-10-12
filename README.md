@@ -25,8 +25,11 @@ This first scaffold includes:
 - `S01E02` and `1x02` number matching;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
-- parsing for BluRay, WEB-DL, WEBRip, HDTV, DVDRip, TVRip, resolution, video/audio codecs, channels, release group, and common flags;
-- deterministic output-name formatting;
+- parsing for BluRay, WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels;
+- guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
+- parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
+- anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;
+- editable multiline, Mustache-style output-name templates that produce single-line names with live rename previews;
 - background-worker matching with visible per-file progress;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
@@ -35,7 +38,7 @@ The UI searches TMDB and normalizes live show, season, and episode metadata. Saf
 
 ## Run it
 
-Requires a current Node.js release.
+Requires a current Node.js release and `ffprobe` on `PATH` (installed with FFmpeg). Set `FFPROBE_PATH` when the executable lives elsewhere.
 
 ```bash
 npm install
@@ -75,6 +78,18 @@ Every imported file is ranked against the selected show's episodes. Evidence is 
 
 Future matching evidence can include duration, air date, embedded title, adjacent-file ordering, absolute/anime numbering, and multi-episode ranges. Provider ordering is metadata, not ground truth.
 
+## Filename templates
+
+Episode names use a Mustache-style template that can be laid out and indented like a script while always producing a single-line filename. After rendering, every run of whitespace becomes one space and leading or trailing whitespace is removed. Other text outside `{{…}}` is literal, so brackets and parentheses need no escaping. `{{#value}}…{{/value}}` includes optional content when a value exists; an `episodes` section repeats for every episode in a merged file. The built-in format is:
+
+```text
+{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} -
+  {{episode.range}} -
+  {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}
+```
+
+The syntax-highlighted editor lives in the right-side Preferences drawer, shows a two-episode output immediately, and reports incomplete, mismatched, or unknown tags without breaking rename previews. A collapsible reference alongside it documents every available variable and the variable, section, and inverted-section syntax. Templates are retained locally between launches. The default appends the show's canonical TVDB ID as `{tvdb-74550}` when TMDB supplies that cross-reference.
+
 ## Delivery plan
 
 ### Milestone 1 — useful TV renamer
@@ -84,13 +99,14 @@ Future matching evidence can include duration, air date, embedded title, adjacen
 - TVDB adapter when credentials are configured
 - [x] whole-show episode browser grouped by season, and file import
 - candidate alternatives and manual rematching
-- configurable name templates with live examples
+- [x] configurable name templates with live examples
 - preflight collision/invalid-character checks
 - atomic rename/move plan, JSON log, and undo
 
 ### Milestone 2 — resilient matching and tags
 
-- duration and media-stream evidence through `ffprobe`
+- [x] video/audio stream detection through `ffprobe`
+- duration evidence through `ffprobe`
 - multi-episode, specials, absolute ordering, and anime filename patterns
 - editable release-tag vocabulary and aliases
 - folder parsing, per-show rules, and saved matching decisions

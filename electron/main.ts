@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TmdbClient } from './tmdb.js';
 import { TvdbClient } from './tvdb.js';
-import { expandMediaPaths } from './mediaFiles.js';
+import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
+import { probeMedia } from './mediaProbe.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
@@ -42,6 +43,11 @@ function tvdb(): TvdbClient {
 function textArgument(value: unknown, name: string): string {
   if (typeof value !== 'string' || !value.trim() || value.length > 200) throw new Error(`Invalid ${name}.`);
   return value.trim();
+}
+
+function mediaPathArgument(value: unknown): string {
+  if (typeof value !== 'string' || !path.isAbsolute(value) || value.length > 32_768 || !isVideoFile(value)) throw new Error('Invalid media file path.');
+  return value;
 }
 
 function createWindow() {
@@ -149,6 +155,7 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 });
 
 ipcMain.handle('tmdb:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) }));
+ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
   const client = tmdb();
@@ -157,7 +164,8 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   if (results.length || !tvdbId) return results;
   const series = await tvdb().getSeries(tvdbId);
   const candidates = await client.searchShows(series.name);
-  return series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
+  const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
+  return ranked.map((candidate) => ({ ...candidate, tvdbId }));
 });
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => tmdb().getShow(textArgument(showId, 'show ID')));
 ipcMain.handle('tmdb:get-season-episodes', (_event, showId: unknown, season: unknown) => {

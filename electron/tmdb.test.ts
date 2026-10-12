@@ -15,6 +15,20 @@ describe('TMDB adapter', () => {
     expect(fetcher).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer secret-token' }) }));
   });
 
+  it('loads the TVDB cross-reference with show details', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 42,
+      name: 'Example',
+      seasons: [],
+      external_ids: { tvdb_id: 74550 },
+    }), { status: 200 }));
+    const details = await new TmdbClient('token', fetcher).getShow('42');
+    expect(details.tvdbId).toBe('74550');
+    const url = fetcher.mock.calls[0][0] as URL;
+    expect(url.pathname).toBe('/3/tv/42');
+    expect(url.searchParams.get('append_to_response')).toBe('external_ids');
+  });
+
   it('resolves a TVDB-prefixed ID through TMDB external IDs', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ tv_results: [{ id: 99, name: 'External Show', first_air_date: '2001-01-01' }] }), { status: 200 }));
     const results = await new TmdbClient('token', fetcher).searchShows('tvdb-48271');

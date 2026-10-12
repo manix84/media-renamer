@@ -1,4 +1,4 @@
-export type Source = 'BluRay' | 'WEB-DL' | 'WEBRip' | 'HDTV' | 'DVDRip' | 'TVRip' | 'Unknown';
+export type Source = 'BluRay' | 'DVD' | 'WEB-DL' | 'WEBRip' | 'HDTV' | 'DVDRip' | 'TVRip' | 'Unknown';
 
 export interface Episode {
   id: string;
@@ -10,6 +10,7 @@ export interface Episode {
 
 export interface ShowSearchResult {
   id: string;
+  tvdbId?: string;
   name: string;
   year?: number;
   overview: string;
@@ -40,6 +41,8 @@ export interface ReleaseTags {
   flags: string[];
   group?: string;
 }
+
+export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>>;
 
 export interface MatchCandidate {
   episode: Episode;

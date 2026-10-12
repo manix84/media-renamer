@@ -1,14 +1,49 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, LoaderCircle, Monitor, Moon, Search, Sparkles, SquareTerminal, Sun, Tv, X } from 'lucide-react';
-import { formatEpisode } from './core/formatter';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
+import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Tv, X } from 'lucide-react';
+import { DEFAULT_EPISODE_TEMPLATE, formatEpisode, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, templateError } from './core/formatter';
+import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { Episode, FileMatch, ProviderStatus, ShowDetails, ShowSearchResult } from './core/types';
+import type { Episode, FileMatch, MediaTechnicalTags, ProviderStatus, ShowDetails, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming'; completed: number; total: number };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
+type TemplateField = { name: string; description: string; example: string };
+type FileViewMode = 'detailed' | 'summary' | 'compact';
+
+const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
+  { label: 'Show', fields: [
+    { name: 'show.name', description: 'Series title', example: 'Show Name' },
+    { name: 'show.year', description: 'Premiere year, when known', example: '2026' },
+    { name: 'show.tvdbId', description: 'Canonical TVDB series ID', example: '74550' },
+  ] },
+  { label: 'Episode', fields: [
+    { name: 'episode.range', description: 'Combined season and episode range', example: 'S01E01-E02' },
+    { name: 'episodes', description: 'Repeating section for merged episodes', example: '2 items' },
+    { name: 'title', description: 'Title inside an episodes section', example: 'Episode 1' },
+    { name: 'code', description: 'Episode code inside an episodes section', example: 'S01E01' },
+    { name: 'season', description: 'Unpadded season number', example: '1' },
+    { name: 'seasonPadded', description: 'Two-digit season number', example: '01' },
+    { name: 'number', description: 'Unpadded episode number', example: '1' },
+    { name: 'numberPadded', description: 'Two-digit episode number', example: '01' },
+    { name: 'first', description: 'True for the first repeated episode', example: 'true' },
+    { name: 'last', description: 'True for the last repeated episode', example: 'false' },
+  ] },
+  { label: 'Release', fields: [
+    { name: 'technical', description: 'Detected video/audio details plus release tags', example: '1080p WEB-DL H.264 AAC 2.0' },
+    { name: 'release.resolution', description: 'Video resolution', example: '1080p' },
+    { name: 'release.source', description: 'Release source', example: 'WEB-DL' },
+    { name: 'release.videoCodec', description: 'Video codec', example: 'H.264' },
+    { name: 'release.audioCodec', description: 'Audio codec', example: 'AAC' },
+    { name: 'release.channels', description: 'Audio channel layout', example: '2.0' },
+    { name: 'release.group', description: 'Release group', example: 'GROUP' },
+    { name: 'release.flags', description: 'Detected flags', example: 'AI Upscale' },
+  ] },
+];
+
+const SOURCE_OPTIONS: Source[] = ['DVD', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip'];
 
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -19,10 +54,44 @@ function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
+function highlightedTemplate(template: string): ReactNode[] {
+  return template.split(/({{[^{}]*}})/g).filter(Boolean).map((part, index) => {
+    if (!part.startsWith('{{')) return <span key={index}>{part}</span>;
+    const marker = part.match(/^{{\s*([#\/^])/)?.[1];
+    return <span className={marker ? 'template-section' : 'template-variable'} key={index}>{part}</span>;
+  });
+}
+
+function TemplateEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const highlight = useRef<HTMLPreElement>(null);
+  const syncScroll = (event: UIEvent<HTMLTextAreaElement>) => {
+    if (!highlight.current) return;
+    highlight.current.scrollTop = event.currentTarget.scrollTop;
+    highlight.current.scrollLeft = event.currentTarget.scrollLeft;
+  };
+  return <div className="template-editor">
+    <pre ref={highlight} aria-hidden="true">{highlightedTemplate(value)}{'\n'}</pre>
+    <textarea aria-label="Episode filename template" value={value} onChange={(event) => onChange(event.target.value)} onScroll={syncScroll} spellCheck={false}/>
+  </div>;
+}
+
 export default function App() {
   const { preference, setPreference } = useTheme();
   const [paths, setPaths] = useState<string[]>([]);
   const [titleMatching, setTitleMatching] = useState(true);
+  const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
+  const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
+  const [refreshConfirmation, setRefreshConfirmation] = useState(false);
+  const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
+    const saved = localStorage.getItem('media-renamer-file-view-mode');
+    return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
+  });
+  const [episodeTemplate, setEpisodeTemplate] = useState(() => {
+    const saved = localStorage.getItem('media-renamer-episode-template');
+    return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
+  });
   const [provider, setProvider] = useState<ProviderStatus>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ShowSearchResult[]>([]);
@@ -30,6 +99,8 @@ export default function App() {
   const [show, setShow] = useState<ShowDetails>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
+  const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
+  const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [error, setError] = useState<string>();
@@ -40,13 +111,83 @@ export default function App() {
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const autoSelectResult = useRef(false);
+  const probedPaths = useRef(new Set<string>());
+  const probeRuns = useRef<Record<string, number>>({});
 
   const addDebug = useCallback((level: DebugLevel, message: string, detail?: string) => {
     window.mediaRenamer?.appendDebug({ level, message, detail });
   }, []);
 
+  const inspectMedia = useCallback(async (targets: string[]) => {
+    if (!window.mediaRenamer?.probeMedia || !targets.length) return;
+    const jobs = targets.map((path) => {
+      probedPaths.current.add(path);
+      const run = (probeRuns.current[path] ?? 0) + 1;
+      probeRuns.current[path] = run;
+      return { path, run };
+    });
+    setProbeStates((current) => ({ ...current, ...Object.fromEntries(targets.map((path) => [path, 'loading' as const])) }));
+    addDebug('info', `Inspecting ${targets.length} media file${targets.length === 1 ? '' : 's'}`, 'Reading embedded video and audio stream metadata with ffprobe.');
+    let cursor = 0;
+
+    const inspectNext = async () => {
+      while (true) {
+        const job = jobs[cursor++];
+        if (!job) return;
+        const filename = filenameFromPath(job.path);
+        try {
+          const detected = await window.mediaRenamer!.probeMedia(job.path);
+          if (probeRuns.current[job.path] !== job.run) continue;
+          setTechnicalTags((current) => ({ ...current, [job.path]: detected }));
+          setProbeStates((current) => ({ ...current, [job.path]: 'complete' }));
+          const summary = [detected.resolution, detected.videoCodec, detected.audioCodec, detected.channels].filter(Boolean).join(' · ');
+          addDebug('success', `Inspected ${filename}`, summary || 'No video or audio streams were detected.');
+        } catch (reason) {
+          if (probeRuns.current[job.path] !== job.run) continue;
+          const message = errorMessage(reason);
+          setProbeStates((current) => ({ ...current, [job.path]: 'error' }));
+          addDebug('warning', `Could not inspect ${filename}`, `${message} Filename-derived release tags will be used.`);
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, () => inspectNext()));
+  }, [addDebug]);
+
   const confident = matches.filter((item) => item.status === 'confident').length;
   const matchesByPath = new Map(matches.map((item) => [item.path, item]));
+  const formatError = templateError(episodeTemplate);
+  const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
+    source: sourceOverride === 'auto' ? undefined : sourceOverride,
+    aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
+  });
+  const formatExample = formatError ? undefined : formatEpisode(episodeTemplate, 'Show Name', 2026, [
+    { id: 'example-1', season: 1, number: 1, title: 'Episode 1' },
+    { id: 'example-2', season: 1, number: 2, title: 'Episode 2' },
+  ], exampleTags, '74550');
+  const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-episode-template', episodeTemplate);
+  }, [episodeTemplate]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-file-view-mode', fileViewMode);
+  }, [fileViewMode]);
+
+  useEffect(() => {
+    if (!window.mediaRenamer?.probeMedia) return;
+    const pending = paths.filter((path) => !probedPaths.current.has(path));
+    if (!pending.length) return;
+    void inspectMedia(pending);
+  }, [inspectMedia, paths]);
+
+  useEffect(() => {
+    if (!preferencesOpen && !refreshConfirmation && !batchMetadataOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setBatchMetadataOpen(false); } };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [preferencesOpen, refreshConfirmation, batchMetadataOpen]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -168,7 +309,7 @@ export default function App() {
         addDebug('error', `Could not load ${result.name}`, 'The metadata provider returned no show details.');
         return;
       }
-      setShow(details);
+      setShow({ ...details, tvdbId: details.tvdbId ?? result.tvdbId });
       const seasons = await Promise.all(details.seasons.map((item) => window.mediaRenamer?.getSeasonEpisodes(details.id, item.number) ?? []));
       if (seasonSequence.current === sequence) {
         const loadedEpisodes = seasons.flat().sort((left, right) => left.season - right.season || left.number - right.number);
@@ -282,11 +423,7 @@ export default function App() {
         <div className="brand"><span className="brand-mark"><Tv size={18} /></span> Media Renamer <span className="beta">ALPHA</span></div>
         <nav><button className="nav-active"><Tv size={15}/> TV</button><button disabled><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
         <div className="topbar-actions">
-          <div className="theme-switcher" role="group" aria-label="Appearance">
-            {([['system', Monitor, 'Automatic appearance'], ['light', Sun, 'Light appearance'], ['dark', Moon, 'Dark appearance']] as const).map(([value, Icon, label]) => (
-              <button key={value} className={preference === value ? 'active' : ''} aria-label={label} title={label} aria-pressed={preference === value} onClick={() => setPreference(value)}><Icon size={15}/></button>
-            ))}
-          </div>
+          <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label="Open preferences" title="Preferences" onClick={() => setPreferencesOpen(true)}><Settings size={18}/></button>
           <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
         </div>
       </header>
@@ -331,25 +468,46 @@ export default function App() {
           <section className="match-panel panel">
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">MATCH &amp; REVIEW</p><h2>{paths.length} imported files</h2></div>
-              <div className="add-actions"><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
+              <div className="add-actions"><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
             </div>
-            <label className="matching-option"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label>
+            {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
+              <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
+              <p>Auto keeps filename and parent-folder evidence. Use an override when the source material does not identify itself.</p>
+              <div className="metadata-overrides">
+                <label><span><strong>Source</strong><small>For example, an otherwise unidentified DVD encode.</small></span><select value={sourceOverride} onChange={(event) => setSourceOverride(event.target.value as Source | 'auto')}><option value="auto">Auto detect</option>{SOURCE_OPTIONS.map((source) => <option value={source} key={source}>{source}</option>)}</select></label>
+                <label><span><strong>AI Upscale</strong><small>Auto checks filenames and every parent folder.</small></span><select value={aiUpscaleOverride} onChange={(event) => setAiUpscaleOverride(event.target.value as 'auto' | 'on' | 'off')}><option value="auto">Auto detect</option><option value="on">Yes</option><option value="off">No</option></select></label>
+              </div>
+              {(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <button className="clear-overrides" onClick={() => { setSourceOverride('auto'); setAiUpscaleOverride('auto'); }}>Clear overrides</button>}
+            </aside></>}
             {work && <div className="work-status" role="status" aria-live="polite">
               <LoaderCircle className="spin" size={18}/>
               <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
               {work.total > 0 && <progress value={work.completed} max={work.total}/>}
             </div>}
-            <div className="match-list">
+            <div className={`match-list view-${fileViewMode}`}>
               {paths.map((path) => {
                 const item = matchesByPath.get(path);
                 const filename = item?.filename ?? filenameFromPath(path);
-                const output = item?.match && show ? formatEpisode(show.name, show.year, item.match.episode, item.tags) : 'No suggested name';
+                const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
+                  source: sourceOverride === 'auto' ? undefined : sourceOverride,
+                  aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
+                }) : undefined;
+                const probeState = probeStates[path];
+                const inspecting = probeState === 'loading';
+                const output = item?.match && show && tags && !formatError ? formatEpisode(episodeTemplate, show.name, show.year, item.match.episode, tags, show.tvdbId) : formatError ? 'Fix the filename template' : 'No suggested name';
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
                 const status = item?.status ?? 'pending';
+                const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 return <article className="match-row" key={path}>
-                  <div className={`status-dot ${status}`}>{status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
-                  <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span></div></div>
-                  <div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{status}</small></div>
+                  <div className={`status-dot ${inspecting ? 'inspecting' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
+                  <div className="file-content">
+                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}</div></div>
+                    {fileViewMode === 'detailed' && <div className="file-details">
+                      {item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
+                      <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
+                    </div>}
+                  </div>
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : status}</small></div><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
                 </article>;
               })}
             </div>
@@ -359,6 +517,54 @@ export default function App() {
       </main>
 
       <footer><div><span className="legend confident"></span>{confident} ready <span className="legend review"></span>{paths.length - confident} need review <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled>Export plan</button><button className="primary" disabled>Rename {confident} files <ChevronRight size={16}/></button></div></footer>
+
+      {refreshConfirmation && <div className="confirmation-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Cancel media refresh" onClick={() => setRefreshConfirmation(false)}/>
+        <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="refresh-title" aria-describedby="refresh-description">
+          <span className="confirmation-icon"><RefreshCw size={20}/></span>
+          <h2 id="refresh-title">Refresh all media information?</h2>
+          <p id="refresh-description">This will read the video and audio streams for all {paths.length} imported file{paths.length === 1 ? '' : 's'}. It may take a while for large libraries.</p>
+          <div><button className="secondary" autoFocus onClick={() => setRefreshConfirmation(false)}>Cancel</button><button className="primary" onClick={() => { setRefreshConfirmation(false); void inspectMedia(paths); }}><RefreshCw size={15}/> Refresh all</button></div>
+        </section>
+      </div>}
+
+      {preferencesOpen && <div className="preferences-layer">
+        <button className="preferences-backdrop" aria-label="Close preferences" onClick={() => setPreferencesOpen(false)}/>
+        <aside className="preferences-panel" aria-label="Preferences">
+          <div className="preferences-heading"><div><p className="eyebrow">SETTINGS</p><h2>Preferences</h2></div><button className="icon-button" aria-label="Close preferences" onClick={() => setPreferencesOpen(false)}><X size={18}/></button></div>
+          <section className="preference-section"><h3>Appearance</h3><p>Choose how Media Renamer looks.</p><div className="theme-switcher" role="group" aria-label="Appearance">
+            {([['system', Monitor, 'Automatic'], ['light', Sun, 'Light'], ['dark', Moon, 'Dark']] as const).map(([value, Icon, label]) => (
+              <button key={value} className={preference === value ? 'active' : ''} aria-label={`${label} appearance`} aria-pressed={preference === value} onClick={() => setPreference(value)}><Icon size={15}/><span>{label}</span></button>
+            ))}
+          </div></section>
+          <section className="preference-section"><h3>File list</h3><p>Choose how much information each imported file displays.</p><div className="view-mode-switcher" role="group" aria-label="File list view">
+            {([['detailed', 'Detailed', 'Match evidence and detected media tags'], ['summary', 'Summary', 'Current filename and proposed filename'], ['compact', 'Compact', 'Short rows for larger batches']] as const).map(([value, label, description]) => (
+              <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
+            ))}
+          </div></section>
+          <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
+          <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
+            <div className="format-heading"><span><h3>Filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>
+            <TemplateEditor value={episodeTemplate} onChange={setEpisodeTemplate}/>
+            {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code></small>}
+            {formatExample && <div className="format-preview"><span>Output</span><strong>{formatExample}.mkv</strong></div>}
+            <details className="template-reference">
+              <summary>Template reference <span>{TEMPLATE_FIELDS.reduce((total, group) => total + group.fields.length, 0)} variables</span></summary>
+              <div className="syntax-legend">
+                <div><code>{'{{field}}'}</code><span>Insert a value</span></div>
+                <div><code>{'{{#field}}…{{/field}}'}</code><span>Show when present, or repeat a list</span></div>
+                <div><code>{'{{^field}}…{{/field}}'}</code><span>Show when empty or false</span></div>
+              </div>
+              {TEMPLATE_FIELDS.map((group) => <section className="variable-group" key={group.label}>
+                <h4>{group.label}</h4>
+                <div className="variable-list">{group.fields.map((field) => <div className="variable-row" key={field.name}>
+                  <code>{`{{${field.name}}}`}</code><span>{field.description}</span><samp>{field.example}</samp>
+                </div>)}</div>
+              </section>)}
+            </details>
+          </section>
+        </aside>
+      </div>}
 
       {debugDocked && (
         <DebugPanel entries={debugEntries} mode="docked" dockPosition={dockPosition} onDockPositionChange={setDockPosition} onResizeStart={beginDockResize} onClear={() => void window.mediaRenamer?.clearDebugEntries()} onPopout={() => {
