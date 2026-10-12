@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, LoaderCircle, Search, Sparkles, SquareTerminal, Tv, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, LoaderCircle, Monitor, Moon, Search, Sparkles, SquareTerminal, Sun, Tv, X } from 'lucide-react';
 import { formatEpisode } from './core/formatter';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import type { Episode, FileMatch, ProviderStatus, ShowDetails, ShowSearchResult } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
+import { useTheme } from './theme';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming'; completed: number; total: number };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
@@ -19,6 +20,7 @@ function filenameFromPath(filePath: string): string {
 }
 
 export default function App() {
+  const { preference, setPreference } = useTheme();
   const [paths, setPaths] = useState<string[]>([]);
   const [titleMatching, setTitleMatching] = useState(true);
   const [provider, setProvider] = useState<ProviderStatus>();
@@ -279,7 +281,14 @@ export default function App() {
       <header className="topbar">
         <div className="brand"><span className="brand-mark"><Tv size={18} /></span> Media Renamer <span className="beta">ALPHA</span></div>
         <nav><button className="nav-active"><Tv size={15}/> TV</button><button disabled><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
-        <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
+        <div className="topbar-actions">
+          <div className="theme-switcher" role="group" aria-label="Appearance">
+            {([['system', Monitor, 'Automatic appearance'], ['light', Sun, 'Light appearance'], ['dark', Moon, 'Dark appearance']] as const).map(([value, Icon, label]) => (
+              <button key={value} className={preference === value ? 'active' : ''} aria-label={label} title={label} aria-pressed={preference === value} onClick={() => setPreference(value)}><Icon size={15}/></button>
+            ))}
+          </div>
+          <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
+        </div>
       </header>
 
       <main>
