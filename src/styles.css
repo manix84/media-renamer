@@ -151,17 +151,29 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .plan-status.blocked { border-color: #57462b; background: #292318; color: #e0ad4e; }
 .plan-status strong, .plan-status small { display: block; } .plan-status strong { color: #cbd7d1; font-size: 11px; } .plan-status small { margin-top: 2px; color: #718096; font-size: 9px; }
 .match-list { padding: 0 12px; }
-.match-row { min-height: 82px; display: grid; grid-template-columns: 30px 1fr 109px; align-items: center; gap: 10px; border-top: 1px solid #242a36; }
-.view-detailed .match-row { min-height: 112px; }
+.match-row { position: relative; min-height: 82px; display: grid; grid-template-columns: 30px 1fr 109px; align-items: center; gap: 10px; border-top: 1px solid #242a36; }
+.match-row:hover, .match-row.preview-pinned { z-index: 5; }
+.view-detailed .match-row { min-height: 112px; padding-top: 15px; padding-bottom: 15px; }
 .view-compact .match-row { min-height: 52px; }
 .status-dot { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 800; } .status-dot svg { width: 13px; }
 .status-dot.confident { background: #153a2e; color: #54d59d; } .status-dot.review { background: #44371d; color: #efbd52; } .status-dot.unmatched { background: #452327; color: #ff7d87; }
 .status-dot.confirmed { background: #252044; color: #a997ff; }
 .status-dot.pending { background: #252d3b; color: #8490a5; }
 .status-dot.inspecting { background: #202e49; color: #79a9f4; }
-.file-content { min-width: 0; }
+.file-content { position: relative; min-width: 0; border-radius: 5px; outline: none; }
+.file-content:focus-visible { box-shadow: 0 0 0 2px #7162d455; }
 .file-pair { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 25px minmax(0, 1fr); align-items: center; gap: 6px; font-size: 11px; }
 .original, .proposed { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .original { color: #737d91; display: flex; align-items: center; gap: 7px; } .proposed { color: #dbe0eb; } .proposed span { color: #606a7f; } .proposed em { margin-left: 7px; color: #7399d4; font-size: 9px; font-style: normal; } .proposed em.probe-error { color: #c58b61; } .proposed em.plan-error { color: #d9a64d; } .arrow { color: #475164; display: grid; place-items: center; }
+.view-detailed .original, .view-detailed .proposed { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.view-detailed .original { align-items: flex-start; } .view-detailed .original svg { flex: 0 0 auto; margin-top: 1px; } .view-detailed .original span { min-width: 0; }
+.filename-preview { position: absolute; z-index: 8; top: calc(100% - 2px); right: 0; left: 0; padding: 11px 36px 11px 12px; border: 1px solid #3a4356; border-radius: 9px; background: #111620f5; box-shadow: 0 14px 40px #000a; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-3px); transition: opacity .12s ease .22s, visibility 0s linear .34s, transform .12s ease .22s; }
+.filename-preview::before { content: ''; position: absolute; top: -5px; left: 48%; width: 8px; height: 8px; border-top: 1px solid #3a4356; border-left: 1px solid #3a4356; background: #111620; transform: rotate(45deg); }
+.filename-preview > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: baseline; gap: 8px; } .filename-preview > div + div { margin-top: 8px; padding-top: 8px; border-top: 1px solid #282f3d; }
+.filename-preview span { color: #707b8f; font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.filename-preview code { color: #cbd3e2; font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow-wrap: anywhere; user-select: text; }
+.filename-preview button { position: absolute; top: 7px; right: 7px; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #7d879a; cursor: pointer; } .filename-preview button:hover { color: #e0e6f3; background: #272e3d; }
+.match-list:not(.view-detailed):not(.has-pinned-preview) .match-row:hover .filename-preview, .match-list:not(.view-detailed):not(.has-pinned-preview) .file-content:focus-within .filename-preview, .match-row.preview-pinned .filename-preview { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: .22s, 0s, .22s; }
+.match-row.preview-pinned .filename-preview { transition-delay: 0s; }
 .file-details { min-width: 0; margin-top: 12px; padding-left: 22px; display: flex; align-items: center; gap: 12px; color: #68748a; font-size: 9px; }
 .match-reasons { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .match-reasons.has-error { color: #d9a64d; }
@@ -306,6 +318,12 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .proposed span, [data-theme="light"] .arrow { color: #818ba0; }
 [data-theme="light"] .proposed em { color: #4977b2; } [data-theme="light"] .proposed em.probe-error { color: #a15d33; }
 [data-theme="light"] .proposed em.plan-error, [data-theme="light"] .match-reasons.has-error { color: #986713; }
+[data-theme="light"] .file-content:focus-visible { box-shadow: 0 0 0 2px #7162d43d; }
+[data-theme="light"] .filename-preview { border-color: #ccd3df; background: #fffffff7; box-shadow: 0 14px 40px #25324a35; }
+[data-theme="light"] .filename-preview::before { border-color: #ccd3df; background: #fff; }
+[data-theme="light"] .filename-preview > div + div { border-color: #dfe3ea; }
+[data-theme="light"] .filename-preview span { color: #68758a; } [data-theme="light"] .filename-preview code { color: #303b50; }
+[data-theme="light"] .filename-preview button { color: #68758a; } [data-theme="light"] .filename-preview button:hover { color: #40329f; background: #ebe8fb; }
 [data-theme="light"] .file-details { color: #68758a; } [data-theme="light"] .detail-tags small { background: #edf0f4; color: #596579; }
 [data-theme="light"] .score strong { color: #455166; }
 [data-theme="light"] .score small, [data-theme="light"] .empty-state { color: #69758b; }

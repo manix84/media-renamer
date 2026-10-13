@@ -34,6 +34,7 @@ This first scaffold includes:
 - a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, and JSON export;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
+- complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;
 - background-worker matching with visible per-file progress;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
