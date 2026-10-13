@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
 import { TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
@@ -36,6 +37,7 @@ function tmdb(): TmdbClient {
 }
 
 let tvdbClient: TvdbClient | undefined;
+const aniListClient = new AniListClient();
 function tvdb(): TvdbClient {
   const apiKey = localEnv('TVDB_API_KEY');
   if (!apiKey) throw new Error('This TVDB ID is not mapped by TMDB. Add TVDB_API_KEY to .env to resolve it directly.');
@@ -183,11 +185,29 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   const client = tmdb();
   const results = await client.searchShows(search);
   const tvdbId = search.match(/^tvdb-(\d+)$/i)?.[1];
-  if (results.length || !tvdbId) return results;
-  const series = await tvdb().getSeries(tvdbId);
-  const candidates = await client.searchShows(series.name);
-  const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
-  return ranked.map((candidate) => ({ ...candidate, tvdbId }));
+  if (results.length) return results;
+  if (tvdbId) {
+    const series = await tvdb().getSeries(tvdbId);
+    const candidates = series.tmdbId ? await client.searchShows(`tmdb-${series.tmdbId}`) : await client.searchShows(series.name);
+    const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
+    return ranked.map((candidate) => ({ ...candidate, tvdbId }));
+  }
+  if (!localEnv('TVDB_API_KEY')) return [];
+  try {
+    const aliases = await aniListClient.searchAnimeTitles(search);
+    for (const alias of aliases) {
+      const seriesMatches = await tvdb().searchSeries(alias);
+      for (const match of seriesMatches.slice(0, 3)) {
+        const series = await tvdb().getSeries(match.id);
+        if (!series.tmdbId) continue;
+        const [candidate] = await client.searchShows(`tmdb-${series.tmdbId}`);
+        if (candidate) return [{ ...candidate, tvdbId: series.id }];
+      }
+    }
+  } catch {
+    // Optional anime alias discovery must not turn an empty search into an error.
+  }
+  return [];
 });
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => tmdb().getShow(textArgument(showId, 'show ID')));
 ipcMain.handle('tmdb:get-season-episodes', (_event, showId: unknown, season: unknown) => {

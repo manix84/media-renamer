@@ -1,12 +1,16 @@
 const API_ROOT = 'https://api4.thetvdb.com/v4';
 
 type LoginResponse = { data: { token: string } };
-type SeriesResponse = { data: { id: number; name: string; year?: string; firstAired?: string } };
+type RemoteId = { id?: string; sourceName?: string; type?: number };
+type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
+type SeriesResponse = { data: RawSeries };
+type SearchResponse = { data?: RawSeries[] };
 
 export interface TvdbSeries {
   id: string;
   name: string;
   year?: number;
+  tmdbId?: string;
 }
 
 export class TvdbClient {
@@ -32,7 +36,7 @@ export class TvdbClient {
   }
 
   async getSeries(seriesId: string): Promise<TvdbSeries> {
-    const response = await this.fetcher(`${API_ROOT}/series/${encodeURIComponent(seriesId)}`, {
+    const response = await this.fetcher(`${API_ROOT}/series/${encodeURIComponent(seriesId)}/extended`, {
       headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
     });
     if (response.status === 404) throw new Error(`TVDB series ${seriesId} was not found.`);
@@ -40,6 +44,22 @@ export class TvdbClient {
     const { data } = await response.json() as SeriesResponse;
     const rawYear = data.year || data.firstAired?.slice(0, 4);
     const year = rawYear ? Number(rawYear) : undefined;
-    return { id: String(data.id), name: data.name.trim(), year: Number.isFinite(year) ? year : undefined };
+    const remoteIds = data.remoteIds ?? data.remote_ids ?? [];
+    const tmdbId = remoteIds.find((remote) => /themoviedb|movie.?database|tmdb/i.test(remote.sourceName ?? ''))?.id;
+    return { id: String(data.id), name: data.name.trim(), year: Number.isFinite(year) ? year : undefined, tmdbId };
+  }
+
+  async searchSeries(query: string): Promise<TvdbSeries[]> {
+    const params = new URLSearchParams({ query, type: 'series', limit: '5' });
+    const response = await this.fetcher(`${API_ROOT}/search?${params}`, {
+      headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
+    });
+    if (!response.ok) throw new Error(`TVDB search failed (${response.status}).`);
+    const { data = [] } = await response.json() as SearchResponse;
+    return data.map((series) => {
+      const rawYear = series.year || series.firstAired?.slice(0, 4);
+      const year = rawYear ? Number(rawYear) : undefined;
+      return { id: String(series.tvdb_id ?? series.id), name: series.name.trim(), year: Number.isFinite(year) ? year : undefined };
+    });
   }
 }
