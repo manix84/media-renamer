@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
@@ -119,6 +119,7 @@ export default function App() {
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
+  const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
   const [companionScan, setCompanionScan] = useState<CompanionScan>({ byVideo: {}, ambiguous: [] });
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
@@ -136,6 +137,26 @@ export default function App() {
   const autoSelectResult = useRef(false);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
+  const fileDropDepth = useRef(0);
+
+  const enterFileDropTarget = (event: ReactDragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    fileDropDepth.current += 1;
+    setFileDropActive(true);
+  };
+
+  const leaveFileDropTarget = (event: ReactDragEvent<HTMLElement>) => {
+    fileDropDepth.current = Math.max(0, fileDropDepth.current - 1);
+    if (fileDropDepth.current === 0) setFileDropActive(false);
+  };
+
+  const dropFilesOnPanel = (event: ReactDragEvent<HTMLElement>) => {
+    event.preventDefault();
+    fileDropDepth.current = 0;
+    setFileDropActive(false);
+    if (event.dataTransfer.files.length) void addDroppedItems(event.dataTransfer.files);
+  };
 
   const addDebug = useCallback((level: DebugLevel, message: string, detail?: string) => {
     window.mediaRenamer?.appendDebug({ level, message, detail });
@@ -675,7 +696,7 @@ export default function App() {
             </div>
           </aside>
 
-          <section className="match-panel panel">
+          <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">MATCH &amp; REVIEW</p><h2>{paths.length} imported files</h2></div>
               <div className="add-actions"><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
@@ -698,7 +719,7 @@ export default function App() {
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
               <span><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {companionCount} companion{companionCount === 1 ? '' : 's'} · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}</small></span>
             </div>}
-            <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
+            {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {paths.map((path) => {
                 const item = matchesByPath.get(path);
                 const filename = item?.filename ?? filenameFromPath(path);
@@ -742,8 +763,9 @@ export default function App() {
                   <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}</small></div><button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
                 </article>;
               })}
-            </div>
-            <button className="dropzone" onClick={addFiles} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addDroppedItems(event.dataTransfer.files); }}><FolderOpen size={24}/><span>Drop files or folders here</span><small>or click to choose video files</small></button>
+            </div>}
+            {paths.length === 0 && <button className="dropzone dropzone-empty" onClick={addFiles}><FolderOpen size={30}/><span>Drop files or folders anywhere in this panel</span><small>or click to choose video files</small></button>}
+            {paths.length > 0 && <div className="drop-target-overlay" aria-hidden="true"><FolderPlus size={30}/><strong>Add files or folders</strong><small>Drop anywhere in this panel</small></div>}
           </section>
         </section>
       </main>
