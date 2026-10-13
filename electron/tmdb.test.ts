@@ -74,4 +74,19 @@ describe('TMDB adapter', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(results[0]?.name).toBe('Literal (2000)');
   });
+
+  it('finds a long punctuation-sensitive title through shorter title segments', async () => {
+    const fullTitle = 'Now That I Can Control Reality With A Mouse Cursor Im Gonna Click Away On The Girls';
+    const canonicalTitle = "Now That I Can Control Reality With A Mouse Cursor, I'm Gonna Click Away On The Girls!";
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 1, name: 'Weak Unrelated Result' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 90, name: canonicalTitle, first_air_date: '2026-10-04' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
+
+    const results = await new TmdbClient('token', fetcher).searchShows(fullTitle);
+
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect((fetcher.mock.calls[1][0] as URL).searchParams.get('query')).toBe('Now That I Can Control Reality With A Mouse Cursor');
+    expect(results[0]).toMatchObject({ id: '90', name: canonicalTitle, year: 2026 });
+  });
 });

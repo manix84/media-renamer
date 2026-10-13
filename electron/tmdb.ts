@@ -72,6 +72,32 @@ export function normalizeShow(show: RawShow): TmdbShowSearchResult {
   };
 }
 
+function titleWords(value: string): string[] {
+  return value.normalize('NFKD').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+}
+
+function titleSimilarity(query: string, candidate: string): number {
+  const queryWords = new Set(titleWords(query));
+  const candidateWords = new Set(titleWords(candidate));
+  if (!queryWords.size || !candidateWords.size) return 0;
+  const shared = [...queryWords].filter((word) => candidateWords.has(word)).length;
+  return (2 * shared) / (queryWords.size + candidateWords.size);
+}
+
+function longTitleFallbacks(query: string): string[] {
+  const words = query.trim().split(/\s+/);
+  if (words.length < 10) return [];
+  return [words.slice(0, 10).join(' '), words.slice(-10).join(' ')].filter((value, index, values) => value !== query && values.indexOf(value) === index);
+}
+
+function mergeAndRank(query: string, groups: TmdbShowSearchResult[][]): TmdbShowSearchResult[] {
+  const unique = new Map<string, TmdbShowSearchResult>();
+  for (const result of groups.flat()) if (!unique.has(result.id)) unique.set(result.id, result);
+  return [...unique.values()]
+    .sort((left, right) => titleSimilarity(query, right.name) - titleSimilarity(query, left.name))
+    .slice(0, 10);
+}
+
 export class TmdbClient {
   constructor(private readonly accessToken: string, private readonly fetcher: typeof fetch = fetch) {}
 
@@ -112,11 +138,16 @@ export class TmdbClient {
     if (tmdbId) return [normalizeShow(await this.request<RawShow>(`/tv/${tmdbId}`))];
 
     const literalResults = await this.searchByTitle(query);
-    if (literalResults.length) return literalResults;
+    const strongestLiteralMatch = Math.max(0, ...literalResults.map((result) => titleSimilarity(query, result.name)));
+    if (literalResults.length && strongestLiteralMatch >= 0.72) return literalResults;
 
     const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/);
-    if (!datedTitle) return [];
-    return this.searchByTitle(datedTitle[1], datedTitle[2]);
+    if (datedTitle && !literalResults.length) return this.searchByTitle(datedTitle[1], datedTitle[2]);
+
+    const fallbackQueries = longTitleFallbacks(query);
+    if (!fallbackQueries.length) return literalResults;
+    const fallbackResults = await Promise.all(fallbackQueries.map((fallback) => this.searchByTitle(fallback)));
+    return mergeAndRank(query, [literalResults, ...fallbackResults]);
   }
 
   async getShow(showId: string): Promise<TmdbShowDetails> {
