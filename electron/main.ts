@@ -7,6 +7,7 @@ import { TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
+import { discoverMediaCompanions } from './mediaCompanions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
@@ -162,6 +163,10 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 
 ipcMain.handle('tmdb:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) }));
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
+ipcMain.handle('media:companions', (_event, values: unknown) => {
+  if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid media paths.');
+  return discoverMediaCompanions(values.map(mediaPathArgument));
+});
 ipcMain.handle('rename:preflight', (_event, items: unknown) => preflightRenameItems(items));
 ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid rename plan.');

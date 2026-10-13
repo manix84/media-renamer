@@ -1,10 +1,12 @@
-import type { RenamePlan, RenamePlanIssue, RenamePlanItem } from './types';
+import type { MediaCompanion, RenamePlan, RenamePlanIssue, RenamePlanItem } from './types';
 
 export interface RenamePlanInput {
   sourcePath: string;
   targetName?: string;
   targetDirectory?: string;
   configurationError?: string;
+  companionError?: string;
+  companions?: MediaCompanion[];
   matchStatus: RenamePlanItem['matchStatus'];
   confidence: number;
 }
@@ -31,6 +33,11 @@ function joinDirectory(directory: string, targetName: string): string {
 
 function issue(code: RenamePlanIssue['code'], severity: RenamePlanIssue['severity'], message: string, sourcePath: string, targetPath?: string): RenamePlanIssue {
   return { code, severity, message, sourcePath, targetPath };
+}
+
+function withoutExtension(filename: string): string {
+  const index = filename.lastIndexOf('.');
+  return index > 0 ? filename.slice(0, index) : filename;
 }
 
 export function filenameProblem(filename: string): string | undefined {
@@ -61,28 +68,46 @@ export function createRenamePlan(inputs: RenamePlanInput[]): RenamePlan {
       else if (targetPath.toLocaleLowerCase() === input.sourcePath.toLocaleLowerCase()) issues.push(issue('case-only-rename', 'warning', 'This rename changes only filename casing and may require an intermediate name.', input.sourcePath, targetPath));
     }
 
-    return { sourcePath: input.sourcePath, sourceName, targetPath, targetName: input.targetName, matchStatus: input.matchStatus, confidence: input.confidence, issues };
+    if (input.companionError) issues.push(issue('ambiguous-companion', 'error', input.companionError, input.sourcePath, targetPath));
+
+    const companions = (input.companions ?? []).map((companion) => {
+      const targetName = input.targetName ? `${withoutExtension(input.targetName)}${companion.suffix}` : undefined;
+      const companionTargetPath = targetName && targetPath ? input.targetDirectory ? joinDirectory(input.targetDirectory, targetName) : joinSibling(companion.path, targetName) : undefined;
+      const companionIssues: RenamePlanIssue[] = [];
+      if (targetName && companionTargetPath) {
+        const problem = filenameProblem(targetName);
+        if (problem) companionIssues.push(issue('invalid-filename', 'error', problem, companion.path, companionTargetPath));
+        if (companionTargetPath === companion.path) companionIssues.push(issue('no-change', 'warning', 'The companion file already has the proposed filename.', companion.path, companionTargetPath));
+        else if (companionTargetPath.toLocaleLowerCase() === companion.path.toLocaleLowerCase()) companionIssues.push(issue('case-only-rename', 'warning', 'This companion rename changes only filename casing.', companion.path, companionTargetPath));
+      }
+      return { sourcePath: companion.path, sourceName: basename(companion.path), targetPath: companionTargetPath, targetName, suffix: companion.suffix, kind: companion.kind, issues: companionIssues };
+    });
+
+    return { sourcePath: input.sourcePath, sourceName, targetPath, targetName: input.targetName, matchStatus: input.matchStatus, confidence: input.confidence, companions, issues };
   });
 
-  const targets = new Map<string, RenamePlanItem[]>();
+  const targets = new Map<string, Array<{ sourcePath: string; targetPath: string; issues: RenamePlanIssue[] }>>();
   for (const item of items) {
-    if (!item.targetPath) continue;
-    const key = item.targetPath.toLocaleLowerCase();
-    targets.set(key, [...(targets.get(key) ?? []), item]);
+    for (const target of [item, ...item.companions]) {
+      if (!target.targetPath) continue;
+      const key = target.targetPath.toLocaleLowerCase();
+      targets.set(key, [...(targets.get(key) ?? []), { sourcePath: target.sourcePath, targetPath: target.targetPath, issues: target.issues }]);
+    }
   }
   for (const duplicates of targets.values()) {
     if (duplicates.length < 2) continue;
-    for (const item of duplicates) item.issues.push(issue('duplicate-target', 'error', `${duplicates.length} files would use the same destination filename.`, item.sourcePath, item.targetPath));
+    for (const target of duplicates) target.issues.push(issue('duplicate-target', 'error', `${duplicates.length} files would use the same destination filename.`, target.sourcePath, target.targetPath));
   }
 
-  const issues = items.flatMap((item) => item.issues);
+  const itemIssues = (item: RenamePlanItem) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)];
+  const issues = items.flatMap(itemIssues);
   return {
     version: 1,
     items,
     destinationDirectories: [...new Set(items.flatMap((item) => item.targetPath && dirname(item.targetPath).toLocaleLowerCase() !== dirname(item.sourcePath).toLocaleLowerCase() ? [dirname(item.targetPath)] : []))],
     issues,
-    readyCount: items.filter((item) => item.targetPath && !item.issues.some((entry) => entry.severity === 'error' || entry.code === 'no-change')).length,
-    blockedCount: items.filter((item) => item.issues.some((entry) => entry.severity === 'error')).length,
+    readyCount: items.filter((item) => item.targetPath && !itemIssues(item).some((entry) => entry.severity === 'error' || entry.code === 'no-change')).length,
+    blockedCount: items.filter((item) => itemIssues(item).some((entry) => entry.severity === 'error')).length,
     warningCount: issues.filter((entry) => entry.severity === 'warning').length,
   };
 }

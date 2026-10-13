@@ -64,6 +64,14 @@ describe('episode filename templates', () => {
     expect(filename).toContain('[1080p WEB-DL H.264 AAC 2.0] {tvdb-74550}.mkv');
   });
 
+  it('can reserve a smaller byte budget for longer companion suffixes', () => {
+    const longEpisode = { ...episodes[0], title: 'A long episode title '.repeat(30) };
+    const filename = formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'Show', 2026, longEpisode, tags, '.mkv', '74550', 240);
+    const companion = `${filename.slice(0, -4)}.en.forced.srt`;
+    expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(240);
+    expect(new TextEncoder().encode(companion).length).toBeLessThanOrEqual(255);
+  });
+
   it('generates portable filenames using Windows-compatible character rules', () => {
     const unsafeEpisode = { ...episodes[0], title: 'Who? / What* <Again>.' };
     expect(formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'Star Trek: Voyager', 1995, unsafeEpisode, tags, '.mkv', '74550'))

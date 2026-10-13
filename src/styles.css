@@ -28,6 +28,9 @@ nav .nav-active { color: #eef2ff; background: #252b3a; box-shadow: inset 0 0 0 1
 .theme-switcher button.active { color: #eef2ff; background: #2b3242; box-shadow: inset 0 0 0 1px #384155; }
 main { width: min(1380px, calc(100% - 52px)); margin: 0 auto; flex: 1; }
 .hero { display: flex; align-items: end; justify-content: space-between; padding: 35px 2px 25px; }
+.show-identity { min-width: 0; display: flex; align-items: center; gap: 15px; }
+.show-poster { width: 62px; height: 92px; flex: 0 0 auto; border-radius: 8px; object-fit: cover; box-shadow: 0 9px 24px #0005; }
+.show-logo { display: block; width: auto; max-width: 260px; height: auto; max-height: 54px; margin: 0 0 8px; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 10px #0005); }
 .eyebrow { margin: 0 0 6px; color: #777f94; letter-spacing: .13em; font-size: 10px; font-weight: 760; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: 30px; letter-spacing: -.04em; } h1 span { color: #727b90; font-weight: 480; } .hero p:last-child { margin: 0; color: #778197; font-size: 13px; }
@@ -181,6 +184,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .match-reasons.has-error { color: #d9a64d; }
 .detail-tags { min-width: 0; display: flex; gap: 4px; overflow: hidden; }
 .detail-tags small { flex: 0 0 auto; padding: 2px 5px; border-radius: 4px; background: #202633; color: #8995aa; font-size: 8px; }
+.companion-files { margin-top: 9px; padding: 7px 9px; display: grid; gap: 6px; border: 1px solid #293141; border-radius: 7px; background: #0d121b; }
+.companion-files > div { min-width: 0; display: grid; grid-template-columns: 14px minmax(0, 1fr) 12px minmax(0, 1fr); align-items: center; gap: 6px; color: #68758a; font-size: 8px; }
+.companion-files svg { color: #8175d6; } .companion-files span, .companion-files strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .companion-files strong { color: #aeb8c9; font-weight: 500; }
+.companion-summary { margin-top: 4px; color: #766ab2; font-size: 8px; }
 .match-list.view-compact { padding-top: 0; }
 .view-compact .original svg { width: 13px; }
 .view-compact .score small { display: none; }
@@ -241,6 +248,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] nav .nav-active, [data-theme="light"] .theme-switcher button.active { color: #20283a; background: #fff; box-shadow: inset 0 0 0 1px #d7dce6, 0 1px 3px #24324a12; }
 [data-theme="light"] .icon-button:hover, [data-theme="light"] .icon-button.active, [data-theme="light"] .theme-switcher button:hover { color: #4d3faf; background: #ebe8fb; }
 [data-theme="light"] .eyebrow, [data-theme="light"] .hero p:last-child { color: #68738a; }
+[data-theme="light"] .show-poster { box-shadow: 0 9px 24px #25324a28; } [data-theme="light"] .show-logo { filter: drop-shadow(0 4px 10px #25324a24); }
 [data-theme="light"] h1 span { color: #5f6b81; }
 [data-theme="light"] .search, [data-theme="light"] .search-results { border-color: #d4d9e3; background: #fff; color: #6b7588; }
 [data-theme="light"] .search input { color: #172033; }
@@ -328,6 +336,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .filename-preview span { color: #68758a; } [data-theme="light"] .filename-preview code { color: #303b50; }
 [data-theme="light"] .filename-preview button { color: #68758a; } [data-theme="light"] .filename-preview button:hover { color: #40329f; background: #ebe8fb; }
 [data-theme="light"] .file-details { color: #68758a; } [data-theme="light"] .detail-tags small { background: #edf0f4; color: #596579; }
+[data-theme="light"] .companion-files { border-color: #d9dee7; background: #f8f9fb; } [data-theme="light"] .companion-files > div { color: #68758a; } [data-theme="light"] .companion-files strong { color: #435066; } [data-theme="light"] .companion-files svg { color: #6552bd; }
 [data-theme="light"] .score strong { color: #455166; }
 [data-theme="light"] .score small, [data-theme="light"] .empty-state { color: #69758b; }
 [data-theme="light"] .row-refresh, [data-theme="light"] .row-review { color: #69758a; } [data-theme="light"] .row-review.required { color: #9a6912; } [data-theme="light"] .row-refresh:hover:not(:disabled), [data-theme="light"] .row-review:hover:not(:disabled) { color: #40329f; background: #ebe8fb; }

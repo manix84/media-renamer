@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, FileCheck2, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { Episode, FileMatch, MatchCandidate, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
@@ -120,6 +120,7 @@ export default function App() {
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
+  const [companionScan, setCompanionScan] = useState<CompanionScan>({ byVideo: {}, ambiguous: [] });
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
   const [filesystemIssues, setFilesystemIssues] = useState<RenamePlanIssue[]>([]);
@@ -203,6 +204,11 @@ export default function App() {
     { id: 'example-2', season: 1, number: 2, title: 'Episode 2' },
   ], exampleTags, '74550');
   const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
+  const ambiguousCompanionsByVideo = useMemo(() => {
+    const result = new Map<string, string[]>();
+    for (const ambiguous of companionScan.ambiguous) for (const path of ambiguous.candidateVideoPaths) result.set(path, [...(result.get(path) ?? []), ambiguous.path]);
+    return result;
+  }, [companionScan.ambiguous]);
   const renamePlan = useMemo(() => createRenamePlan(paths.map((path) => {
     const item = matchesByPath.get(path);
     const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
@@ -210,32 +216,45 @@ export default function App() {
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     }) : undefined;
     const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
-    const targetName = item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId) : undefined;
+    const companions = companionScan.byVideo[path] ?? [];
+    const encoder = new TextEncoder();
+    const extensionBytes = encoder.encode(extension).length;
+    const longestCompanionSuffix = companions.reduce((longest, companion) => Math.max(longest, encoder.encode(companion.suffix).length), 0);
+    const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
+    const targetName = item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
       targetName,
       targetDirectory: destinationDirectory,
       configurationError: baseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
+      companions,
       matchStatus: confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: item?.match?.score ?? 0,
     };
-  })), [aiUpscaleOverride, baseFolder, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags]);
+  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, baseFolder, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags]);
   const preflightPlan = useMemo(() => {
-    const issues = [...renamePlan.issues, ...filesystemIssues];
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
     for (const issue of filesystemIssues) filesystemBySource.set(issue.sourcePath, [...(filesystemBySource.get(issue.sourcePath) ?? []), issue]);
-    const items = renamePlan.items.map((item) => ({ ...item, issues: [...item.issues, ...(filesystemBySource.get(item.sourcePath) ?? [])] }));
+    const items = renamePlan.items.map((item) => ({
+      ...item,
+      issues: [...item.issues, ...(filesystemBySource.get(item.sourcePath) ?? [])],
+      companions: item.companions.map((companion) => ({ ...companion, issues: [...companion.issues, ...(filesystemBySource.get(companion.sourcePath) ?? [])] })),
+    }));
+    const itemIssues = (item: typeof items[number]) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)];
+    const issues = items.flatMap(itemIssues);
     return {
       ...renamePlan,
       items,
       issues,
-      readyCount: items.filter((item) => item.targetPath && !item.issues.some((issue) => issue.severity === 'error' || issue.code === 'no-change')).length,
-      blockedCount: items.filter((item) => item.issues.some((issue) => issue.severity === 'error')).length,
+      readyCount: items.filter((item) => item.targetPath && !itemIssues(item).some((issue) => issue.severity === 'error' || issue.code === 'no-change')).length,
+      blockedCount: items.filter((item) => itemIssues(item).some((issue) => issue.severity === 'error')).length,
       warningCount: issues.filter((issue) => issue.severity === 'warning').length,
     };
   }, [filesystemIssues, renamePlan]);
-  const planIssuesByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, item.issues])), [preflightPlan]);
+  const planIssuesByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, [...item.issues, ...item.companions.flatMap((companion) => companion.issues)]])), [preflightPlan]);
   const planItemsByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, item])), [preflightPlan]);
+  const companionCount = preflightPlan.items.reduce((total, item) => total + item.companions.length, 0);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-episode-template', episodeTemplate);
@@ -255,7 +274,7 @@ export default function App() {
   }, [showFolderTemplate]);
 
   useEffect(() => {
-    const candidates = renamePlan.items.flatMap((item) => item.targetPath ? [{ sourcePath: item.sourcePath, targetPath: item.targetPath }] : []);
+    const candidates = renamePlan.items.flatMap((item) => [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []));
     if (!window.mediaRenamer?.preflightRenamePlan || !candidates.length) {
       setFilesystemIssues([]);
       setCheckingPlan(false);
@@ -273,6 +292,26 @@ export default function App() {
     }).finally(() => { if (active) setCheckingPlan(false); });
     return () => { active = false; };
   }, [addDebug, renamePlan]);
+
+  useEffect(() => {
+    if (!window.mediaRenamer?.discoverCompanions || !paths.length) {
+      setCompanionScan({ byVideo: {}, ambiguous: [] });
+      return;
+    }
+    let active = true;
+    window.mediaRenamer.discoverCompanions(paths).then((scan) => {
+      if (!active) return;
+      setCompanionScan(scan);
+      const count = Object.values(scan.byVideo).reduce((total, companions) => total + companions.length, 0);
+      if (count) addDebug('success', `Found ${count} companion file${count === 1 ? '' : 's'}`, 'Subtitles, metadata, and episode artwork will follow their parent videos.');
+      if (scan.ambiguous.length) addDebug('warning', `${scan.ambiguous.length} ambiguous companion file${scan.ambiguous.length === 1 ? '' : 's'}`, 'Review the competing video names before renaming.');
+    }).catch((reason) => {
+      if (!active) return;
+      const message = errorMessage(reason);
+      addDebug('warning', 'Could not scan companion files', message);
+    });
+    return () => { active = false; };
+  }, [addDebug, paths]);
 
   useEffect(() => {
     if (!window.mediaRenamer?.probeMedia) return;
@@ -529,6 +568,7 @@ export default function App() {
     setMatchOverrides({});
     setConfirmedPaths(new Set());
     setTechnicalTags({});
+    setCompanionScan({ byVideo: {}, ambiguous: [] });
     setProbeStates({});
     setFilesystemIssues([]);
     setSourceOverride('auto');
@@ -596,10 +636,14 @@ export default function App() {
 
       <main>
         <section className="hero">
-          <div>
-            <p className="eyebrow">ACTIVE SHOW</p>
-            <h1>{show ? <>{show.name} {show.year && <span>({show.year})</span>}</> : 'Choose a TV show'}</h1>
-            <p>{show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
+          <div className="show-identity">
+            {show?.posterUrl && <img className="show-poster" src={show.posterUrl} alt=""/>}
+            <div>
+              <p className="eyebrow">ACTIVE SHOW</p>
+              {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt=""/>}
+              <h1>{show ? <>{show.name} {show.year && <span>({show.year})</span>}</> : 'Choose a TV show'}</h1>
+              <p>{show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
+            </div>
           </div>
           <div className="show-search">
             <label className="search"><Search size={17}/><input value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching ? <LoaderCircle className="spin" size={16}/> : <kbd>⌘ K</kbd>}</label>
@@ -652,7 +696,7 @@ export default function App() {
             </div>}
             {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount ? 'blocked' : 'ready'}`} role="status" aria-live="polite">
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
-              <span><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or unmatched files must be resolved' : ' · No collisions detected'}</small></span>
+              <span><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {companionCount} companion{companionCount === 1 ? '' : 's'} · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}</small></span>
             </div>}
             <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {paths.map((path) => {
@@ -666,6 +710,7 @@ export default function App() {
                 const inspecting = probeState === 'loading';
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
                 const plannedTargetName = planItemsByPath.get(path)?.targetName;
+                const plannedCompanions = planItemsByPath.get(path)?.companions ?? [];
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : baseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
@@ -682,6 +727,12 @@ export default function App() {
                       {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
                       <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
                     </div>}
+                    {plannedCompanions.length > 0 && (fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
+                      {plannedCompanions.map((companion) => <div key={companion.sourcePath}>
+                        {companion.kind === 'subtitle' ? <Captions size={12}/> : companion.kind === 'artwork' ? <FileImage size={12}/> : <FileText size={12}/>}
+                        <span title={companion.sourceName}>{companion.sourceName}</span><ChevronRight size={11}/><strong title={companion.targetName}>{companion.targetName ?? 'Waiting for episode match'}</strong>
+                      </div>)}
+                    </div>)}
                     {fileViewMode !== 'detailed' && <div className="filename-preview" onClick={(event) => { event.stopPropagation(); if (!previewPinned) setPinnedPreviewPath(path); }}>
                       <div><span>Original</span><code>{filename}</code></div>
                       <div><span>Proposed</span><code>{fullProposedName}</code></div>

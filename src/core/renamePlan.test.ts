@@ -21,6 +21,26 @@ describe('rename plan', () => {
     expect(plan.issues[0].code).toBe('invalid-destination');
   });
 
+  it('plans companion files with preserved language and role suffixes', () => {
+    const plan = createRenamePlan([{
+      sourcePath: '/incoming/Old.mkv', targetDirectory: '/library/Show', targetName: 'Show - S01E01.mkv', matchStatus: 'confident', confidence: 1,
+      companions: [
+        { path: '/incoming/Old.en.forced.srt', suffix: '.en.forced.srt', kind: 'subtitle' },
+        { path: '/incoming/Old-thumb.jpg', suffix: '-thumb.jpg', kind: 'artwork' },
+      ],
+    }]);
+    expect(plan.items[0].companions.map((item) => item.targetPath)).toEqual([
+      '/library/Show/Show - S01E01.en.forced.srt',
+      '/library/Show/Show - S01E01-thumb.jpg',
+    ]);
+  });
+
+  it('blocks a video with an ambiguous companion', () => {
+    const plan = createRenamePlan([{ sourcePath: '/incoming/Old.mkv', targetName: 'New.mkv', matchStatus: 'confident', confidence: 1, companionError: 'A subtitle could belong to more than one video.' }]);
+    expect(plan.blockedCount).toBe(1);
+    expect(plan.issues.some((issue) => issue.code === 'ambiguous-companion')).toBe(true);
+  });
+
   it('blocks unresolved and duplicate destinations case-insensitively', () => {
     const plan = createRenamePlan([
       { sourcePath: '/shows/one.mkv', targetName: 'Same.mkv', matchStatus: 'confident', confidence: .9 },

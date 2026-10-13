@@ -1,5 +1,6 @@
 const API_ROOT = 'https://api.themoviedb.org/3';
 const IMAGE_ROOT = 'https://image.tmdb.org/t/p/w342';
+const LOGO_ROOT = 'https://image.tmdb.org/t/p/w500';
 
 export interface TmdbShowSearchResult {
   id: string;
@@ -8,6 +9,7 @@ export interface TmdbShowSearchResult {
   year?: number;
   overview: string;
   posterUrl?: string;
+  logoUrl?: string;
 }
 
 export interface TmdbSeasonSummary {
@@ -38,6 +40,7 @@ type RawShow = {
 };
 
 type RawExternalIds = { tvdb_id?: number | null };
+type RawImage = { file_path: string; iso_639_1?: string | null; vote_average?: number; width?: number };
 
 type RawSeason = {
   season_number: number;
@@ -117,12 +120,14 @@ export class TmdbClient {
   }
 
   async getShow(showId: string): Promise<TmdbShowDetails> {
-    const data = await this.request<RawShow & { seasons: RawSeason[]; external_ids?: RawExternalIds }>(
+    const data = await this.request<RawShow & { seasons: RawSeason[]; external_ids?: RawExternalIds; images?: { logos?: RawImage[] } }>(
       `/tv/${encodeURIComponent(showId)}`,
-      new URLSearchParams({ append_to_response: 'external_ids' }),
+      new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
     );
+    const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
     return {
       ...normalizeShow(data),
+      logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined,
       tvdbId: data.external_ids?.tvdb_id ? String(data.external_ids.tvdb_id) : undefined,
       seasons: data.seasons
         .filter((season) => season.episode_count > 0)

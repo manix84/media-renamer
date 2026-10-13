@@ -15,6 +15,7 @@ export interface ShowSearchResult {
   year?: number;
   overview: string;
   posterUrl?: string;
+  logoUrl?: string;
 }
 
 export interface SeasonSummary {
@@ -44,6 +45,11 @@ export interface ReleaseTags {
 
 export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>>;
 
+export type CompanionKind = 'subtitle' | 'metadata' | 'artwork';
+export interface MediaCompanion { path: string; suffix: string; kind: CompanionKind }
+export interface AmbiguousCompanion { path: string; candidateVideoPaths: string[] }
+export interface CompanionScan { byVideo: Record<string, MediaCompanion[]>; ambiguous: AmbiguousCompanion[] }
+
 export interface MatchCandidate {
   episode: Episode;
   score: number;
@@ -62,11 +68,21 @@ export interface FileMatch {
 export type RenameIssueSeverity = 'error' | 'warning';
 
 export interface RenamePlanIssue {
-  code: 'unresolved-match' | 'review-required' | 'invalid-destination' | 'invalid-filename' | 'duplicate-target' | 'no-change' | 'case-only-rename' | 'source-missing' | 'target-exists';
+  code: 'unresolved-match' | 'review-required' | 'ambiguous-companion' | 'invalid-destination' | 'invalid-filename' | 'duplicate-target' | 'no-change' | 'case-only-rename' | 'source-missing' | 'target-exists';
   severity: RenameIssueSeverity;
   message: string;
   sourcePath: string;
   targetPath?: string;
+}
+
+export interface RenameCompanionPlanItem {
+  sourcePath: string;
+  sourceName: string;
+  targetPath?: string;
+  targetName?: string;
+  suffix: string;
+  kind: CompanionKind;
+  issues: RenamePlanIssue[];
 }
 
 export interface RenamePlanItem {
@@ -76,6 +92,7 @@ export interface RenamePlanItem {
   targetName?: string;
   matchStatus: FileMatch['status'] | 'pending';
   confidence: number;
+  companions: RenameCompanionPlanItem[];
   issues: RenamePlanIssue[];
 }
 

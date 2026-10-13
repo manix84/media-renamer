@@ -35,6 +35,8 @@ This first scaffold includes:
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
 - complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;
+- companion-file discovery and planning for subtitles, NFO metadata, and named episode artwork, including preserved language/role suffixes and ambiguity blocking;
+- active-show poster and preferred English clear-logo artwork from TMDB when available;
 - background-worker matching with visible per-file progress;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
@@ -115,6 +117,7 @@ The syntax-highlighted editor lives in the right-side Preferences drawer, shows 
 - multi-episode, specials, absolute ordering, and anime filename patterns
 - editable release-tag vocabulary and aliases
 - folder parsing, per-show rules, and saved matching decisions
+- [x] companion-file planning for subtitles, NFO metadata, and episode artwork
 - [x] JSON dry-run export
 - NFO export
 

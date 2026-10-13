@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   expandPaths: (paths: string[]): Promise<string[]> => ipcRenderer.invoke('files:expand-paths', paths),
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
+  discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   exportRenamePlan: (plan: unknown): Promise<string | undefined> => ipcRenderer.invoke('rename:export-plan', plan),
   providerStatus: () => ipcRenderer.invoke('tmdb:status'),

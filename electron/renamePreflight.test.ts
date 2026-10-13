@@ -37,4 +37,11 @@ describe('filesystem rename preflight', () => {
     const { sourcePath } = await fixture();
     await expect(preflightRenameItems([{ sourcePath, targetPath: path.join(os.tmpdir(), 'elsewhere.mkv') }])).resolves.toEqual([]);
   });
+
+  it('accepts supported subtitle companion paths', async () => {
+    const { directory } = await fixture();
+    const sourcePath = path.join(directory, 'source.en.srt');
+    await fs.writeFile(sourcePath, 'subtitle');
+    await expect(preflightRenameItems([{ sourcePath, targetPath: path.join(directory, 'renamed.en.srt') }])).resolves.toEqual([]);
+  });
 });

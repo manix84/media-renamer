@@ -15,18 +15,24 @@ describe('TMDB adapter', () => {
     expect(fetcher).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer secret-token' }) }));
   });
 
-  it('loads the TVDB cross-reference with show details', async () => {
+  it('loads the TVDB cross-reference and preferred clear logo with show details', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 42,
       name: 'Example',
       seasons: [],
       external_ids: { tvdb_id: 74550 },
+      images: { logos: [
+        { file_path: '/untranslated.png', iso_639_1: null, vote_average: 9, width: 1000 },
+        { file_path: '/english.png', iso_639_1: 'en', vote_average: 7, width: 800 },
+      ] },
     }), { status: 200 }));
     const details = await new TmdbClient('token', fetcher).getShow('42');
     expect(details.tvdbId).toBe('74550');
+    expect(details.logoUrl).toBe('https://image.tmdb.org/t/p/w500/english.png');
     const url = fetcher.mock.calls[0][0] as URL;
     expect(url.pathname).toBe('/3/tv/42');
-    expect(url.searchParams.get('append_to_response')).toBe('external_ids');
+    expect(url.searchParams.get('append_to_response')).toBe('external_ids,images');
+    expect(url.searchParams.get('include_image_language')).toBe('en,null');
   });
 
   it('resolves a TVDB-prefixed ID through TMDB external IDs', async () => {

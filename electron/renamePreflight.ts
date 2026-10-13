@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isVideoFile } from './mediaFiles.js';
+import { isCompanionFile } from './mediaCompanions.js';
 
 type RenamePreflightItem = { sourcePath: string; targetPath: string };
 export type RenamePreflightIssue = { code: 'source-missing' | 'target-exists'; severity: 'error'; message: string; sourcePath: string; targetPath: string };
@@ -10,7 +11,7 @@ function renamePreflightItems(value: unknown): RenamePreflightItem[] {
   return value.map((candidate) => {
     if (!candidate || typeof candidate !== 'object') throw new Error('Invalid rename plan item.');
     const { sourcePath, targetPath } = candidate as { sourcePath?: unknown; targetPath?: unknown };
-    if (typeof sourcePath !== 'string' || typeof targetPath !== 'string' || !path.isAbsolute(sourcePath) || !path.isAbsolute(targetPath) || !isVideoFile(sourcePath) || !isVideoFile(targetPath)) throw new Error('Invalid rename plan path.');
+    if (typeof sourcePath !== 'string' || typeof targetPath !== 'string' || !path.isAbsolute(sourcePath) || !path.isAbsolute(targetPath) || (!isVideoFile(sourcePath) && !isCompanionFile(sourcePath)) || (!isVideoFile(targetPath) && !isCompanionFile(targetPath))) throw new Error('Invalid rename plan path.');
     return { sourcePath, targetPath };
   });
 }

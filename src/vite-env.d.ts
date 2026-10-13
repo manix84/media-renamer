@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Episode, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult } from './core/types';
+import type { CompanionScan, Episode, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 declare global {
@@ -13,6 +13,7 @@ declare global {
       expandPaths(paths: string[]): Promise<string[]>;
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
+      discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;
