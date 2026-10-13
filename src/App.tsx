@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, FileCheck2, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, TriangleAlert, Tv, X } from 'lucide-react';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { Episode, FileMatch, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
+import type { Episode, FileMatch, MatchCandidate, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
@@ -53,6 +53,10 @@ function errorMessage(error: unknown): string {
 
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
+}
+
+function episodeCode(episode: Episode): string {
+  return `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
 }
 
 function joinPath(directory: string, relativePath: string): string {
@@ -108,6 +112,11 @@ export default function App() {
   const [show, setShow] = useState<ShowDetails>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
+  const [matchOverrides, setMatchOverrides] = useState<Record<string, MatchCandidate>>({});
+  const [confirmedPaths, setConfirmedPaths] = useState<Set<string>>(() => new Set());
+  const [reviewingPath, setReviewingPath] = useState<string>();
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
@@ -165,7 +174,20 @@ export default function App() {
     await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, () => inspectNext()));
   }, [addDebug]);
 
-  const matchesByPath = new Map(matches.map((item) => [item.path, item]));
+  const automaticMatchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, item])), [matches]);
+  const matchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, matchOverrides[item.path] ? { ...item, match: matchOverrides[item.path] } : item])), [matchOverrides, matches]);
+  const reviewingItem = reviewingPath ? matchesByPath.get(reviewingPath) : undefined;
+  const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
+  const suggestedCandidates = useMemo(() => {
+    if (!reviewingItem) return [];
+    const candidates = [reviewingItem.match, reviewingAutomaticItem?.match, ...reviewingItem.alternatives].filter((candidate): candidate is MatchCandidate => Boolean(candidate));
+    return [...new Map(candidates.map((candidate) => [candidate.episode.id, candidate])).values()];
+  }, [reviewingAutomaticItem, reviewingItem]);
+  const reviewCandidates = useMemo(() => {
+    const search = reviewSearch.trim().toLocaleLowerCase();
+    if (!search) return suggestedCandidates;
+    return episodes.filter((episode) => `${episodeCode(episode)} ${episode.title}`.toLocaleLowerCase().includes(search)).slice(0, 100).map((episode) => suggestedCandidates.find((candidate) => candidate.episode.id === episode.id) ?? { episode, score: 1, reasons: ['manually selected'] });
+  }, [episodes, reviewSearch, suggestedCandidates]);
   const formatError = templateError(episodeTemplate);
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const showFolder = show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : undefined;
@@ -180,7 +202,7 @@ export default function App() {
   ], exampleTags, '74550');
   const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
   const renamePlan = useMemo(() => createRenamePlan(paths.map((path) => {
-    const item = matches.find((candidate) => candidate.path === path);
+    const item = matchesByPath.get(path);
     const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
@@ -192,10 +214,10 @@ export default function App() {
       targetName,
       targetDirectory: destinationDirectory,
       configurationError: baseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
-      matchStatus: item?.status ?? 'pending',
+      matchStatus: confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: item?.match?.score ?? 0,
     };
-  })), [aiUpscaleOverride, baseFolder, destinationDirectory, episodeTemplate, folderFormatError, formatError, matches, paths, show, sourceOverride, technicalTags]);
+  })), [aiUpscaleOverride, baseFolder, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags]);
   const preflightPlan = useMemo(() => {
     const issues = [...renamePlan.issues, ...filesystemIssues];
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -258,11 +280,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !batchMetadataOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setBatchMetadataOpen(false); } };
+    if (!preferencesOpen && !refreshConfirmation && !batchMetadataOpen && !reviewingPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setBatchMetadataOpen(false); setReviewingPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, batchMetadataOpen]);
+  }, [preferencesOpen, refreshConfirmation, batchMetadataOpen, reviewingPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -298,11 +320,17 @@ export default function App() {
   useEffect(() => {
     if (paths.length === 0 || episodes.length === 0) {
       setMatches([]);
+      setMatchOverrides({});
+      setConfirmedPaths(new Set());
+      setReviewingPath(undefined);
       setWork(undefined);
       return;
     }
 
     const worker = new Worker(new URL('./workers/matchWorker.ts', import.meta.url), { type: 'module' });
+    setMatchOverrides({});
+    setConfirmedPaths(new Set());
+    setReviewingPath(undefined);
     setWork({ operation: 'Importing', completed: 0, total: paths.length });
     addDebug('info', `Matching ${paths.length} file${paths.length === 1 ? '' : 's'}`, `Comparing against ${episodes.length} episodes in a background worker.`);
     worker.onmessage = (event: MessageEvent<{ type: 'progress'; completed: number; total: number } | { type: 'complete'; matches: FileMatch[] }>) => {
@@ -489,6 +517,21 @@ export default function App() {
     }
   }
 
+  function openMatchReview(path: string) {
+    const item = matchesByPath.get(path);
+    setReviewingPath(path);
+    setReviewSearch('');
+    setReviewCandidate(item?.match);
+  }
+
+  function confirmMatchReview() {
+    if (!reviewingPath || !reviewCandidate) return;
+    setMatchOverrides((current) => ({ ...current, [reviewingPath]: reviewCandidate }));
+    setConfirmedPaths((current) => new Set(current).add(reviewingPath));
+    addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${episodeCode(reviewCandidate.episode)} ${reviewCandidate.episode.title}`, reviewCandidate.reasons.join('; ') || 'Manually confirmed.');
+    setReviewingPath(undefined);
+  }
+
   function seasonHeading(number: number): string {
     const season = show?.seasons.find((item) => item.number === number);
     return formatSeasonLabel(season?.name, number);
@@ -601,11 +644,12 @@ export default function App() {
                 const plannedTargetName = planItemsByPath.get(path)?.targetName;
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : baseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
                 const status = item?.status ?? 'pending';
+                const confirmed = confirmedPaths.has(path);
                 const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 return <article className="match-row" key={path}>
-                  <div className={`status-dot ${inspecting ? 'inspecting' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
+                  <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
                   <div className="file-content">
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
@@ -613,7 +657,7 @@ export default function App() {
                       <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
                     </div>}
                   </div>
-                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : status}</small></div><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}</small></div><button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
                 </article>;
               })}
             </div>
@@ -632,6 +676,30 @@ export default function App() {
           <p id="refresh-description">This will read the video and audio streams for all {paths.length} imported file{paths.length === 1 ? '' : 's'}. It may take a while for large libraries.</p>
           <div><button className="secondary" autoFocus onClick={() => setRefreshConfirmation(false)}>Cancel</button><button className="primary" onClick={() => { setRefreshConfirmation(false); void inspectMedia(paths); }}><RefreshCw size={15}/> Refresh all</button></div>
         </section>
+      </div>}
+
+      {reviewingPath && reviewingItem && <div className="review-layer">
+        <button className="review-backdrop" aria-label="Close match review" onClick={() => setReviewingPath(undefined)}/>
+        <aside className="review-panel" aria-label="Review episode match">
+          <div className="review-heading"><div><p className="eyebrow">MATCH REVIEW</p><h2>Choose an episode</h2></div><button className="icon-button" aria-label="Close match review" onClick={() => setReviewingPath(undefined)}><X size={18}/></button></div>
+          <div className="review-file"><FileVideo size={17}/><span><strong>{reviewingItem.filename}</strong><small>Confirm the suggestion or search every episode in this show.</small></span></div>
+          <label className="review-search"><Search size={15}/><input value={reviewSearch} onChange={(event) => setReviewSearch(event.target.value)} placeholder="Search by S03E12 or episode title" autoFocus/></label>
+          <div className="review-results-heading"><strong>{reviewSearch.trim() ? 'Search results' : 'Suggested matches'}</strong><small>{reviewCandidates.length} episode{reviewCandidates.length === 1 ? '' : 's'}</small></div>
+          <div className="review-candidates">
+            {reviewCandidates.map((candidate) => {
+              const selected = reviewCandidate?.episode.id === candidate.episode.id;
+              const manual = candidate.reasons.includes('manually selected');
+              return <button key={candidate.episode.id} className={selected ? 'selected' : ''} onClick={() => setReviewCandidate(candidate)}>
+                <span className="candidate-code">{episodeCode(candidate.episode)}</span>
+                <span><strong>{candidate.episode.title}</strong><small>{manual ? 'Manual selection' : candidate.reasons.join(' · ') || 'No matching evidence'}</small></span>
+                <span className="candidate-score">{manual ? 'Manual' : `${Math.round(candidate.score * 100)}%`}</span>
+                {selected && <Check size={15}/>}
+              </button>;
+            })}
+            {reviewCandidates.length === 0 && <div className="review-empty">No episodes match that search.</div>}
+          </div>
+          <div className="review-footer"><span><FileCheck2 size={15}/> Confirmation is recorded for this matching run.</span><button className="primary" disabled={!reviewCandidate} onClick={confirmMatchReview}>Confirm match</button></div>
+        </aside>
       </div>}
 
       {preferencesOpen && <div className="preferences-layer">
