@@ -58,3 +58,33 @@ export interface FileMatch {
   alternatives: MatchCandidate[];
   status: 'confident' | 'review' | 'unmatched';
 }
+
+export type RenameIssueSeverity = 'error' | 'warning';
+
+export interface RenamePlanIssue {
+  code: 'unresolved-match' | 'review-required' | 'invalid-destination' | 'invalid-filename' | 'duplicate-target' | 'no-change' | 'case-only-rename' | 'source-missing' | 'target-exists';
+  severity: RenameIssueSeverity;
+  message: string;
+  sourcePath: string;
+  targetPath?: string;
+}
+
+export interface RenamePlanItem {
+  sourcePath: string;
+  sourceName: string;
+  targetPath?: string;
+  targetName?: string;
+  matchStatus: FileMatch['status'] | 'pending';
+  confidence: number;
+  issues: RenamePlanIssue[];
+}
+
+export interface RenamePlan {
+  version: 1;
+  items: RenamePlanItem[];
+  destinationDirectories: string[];
+  issues: RenamePlanIssue[];
+  readyCount: number;
+  blockedCount: number;
+  warningCount: number;
+}

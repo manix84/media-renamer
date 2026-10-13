@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Tv, X } from 'lucide-react';
-import { DEFAULT_EPISODE_TEMPLATE, formatEpisode, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, templateError } from './core/formatter';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
+import { AlertCircle, Check, ChevronRight, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, TriangleAlert, Tv, X } from 'lucide-react';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { Episode, FileMatch, MediaTechnicalTags, ProviderStatus, ShowDetails, ShowSearchResult, Source } from './core/types';
+import type { Episode, FileMatch, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
@@ -54,6 +55,12 @@ function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
 
+function joinPath(directory: string, relativePath: string): string {
+  if (!relativePath) return directory.replace(/[\\/]+$/, '');
+  const separator = directory.includes('\\') && !directory.includes('/') ? '\\' : '/';
+  return `${directory.replace(/[\\/]+$/, '')}${separator}${relativePath.replace(/[\\/]+/g, separator)}`;
+}
+
 function highlightedTemplate(template: string): ReactNode[] {
   return template.split(/({{[^{}]*}})/g).filter(Boolean).map((part, index) => {
     if (!part.startsWith('{{')) return <span key={index}>{part}</span>;
@@ -88,6 +95,8 @@ export default function App() {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
   });
+  const [baseFolder, setBaseFolder] = useState(() => localStorage.getItem('media-renamer-tv-base-folder') ?? '');
+  const [showFolderTemplate, setShowFolderTemplate] = useState(() => localStorage.getItem('media-renamer-show-folder-template') ?? DEFAULT_SHOW_FOLDER_TEMPLATE);
   const [episodeTemplate, setEpisodeTemplate] = useState(() => {
     const saved = localStorage.getItem('media-renamer-episode-template');
     return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
@@ -102,6 +111,8 @@ export default function App() {
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
+  const [filesystemIssues, setFilesystemIssues] = useState<RenamePlanIssue[]>([]);
+  const [checkingPlan, setCheckingPlan] = useState(false);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [error, setError] = useState<string>();
   const [debugDocked, setDebugDocked] = useState(true);
@@ -154,9 +165,11 @@ export default function App() {
     await Promise.all(Array.from({ length: Math.min(3, jobs.length) }, () => inspectNext()));
   }, [addDebug]);
 
-  const confident = matches.filter((item) => item.status === 'confident').length;
   const matchesByPath = new Map(matches.map((item) => [item.path, item]));
   const formatError = templateError(episodeTemplate);
+  const folderFormatError = showFolderTemplateError(showFolderTemplate);
+  const showFolder = show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : undefined;
+  const destinationDirectory = baseFolder && showFolder !== undefined ? joinPath(baseFolder, showFolder) : undefined;
   const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
     source: sourceOverride === 'auto' ? undefined : sourceOverride,
     aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
@@ -166,6 +179,39 @@ export default function App() {
     { id: 'example-2', season: 1, number: 2, title: 'Episode 2' },
   ], exampleTags, '74550');
   const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
+  const renamePlan = useMemo(() => createRenamePlan(paths.map((path) => {
+    const item = matches.find((candidate) => candidate.path === path);
+    const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
+      source: sourceOverride === 'auto' ? undefined : sourceOverride,
+      aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
+    }) : undefined;
+    const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
+    const targetName = item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId) : undefined;
+    return {
+      sourcePath: path,
+      targetName,
+      targetDirectory: destinationDirectory,
+      configurationError: baseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      matchStatus: item?.status ?? 'pending',
+      confidence: item?.match?.score ?? 0,
+    };
+  })), [aiUpscaleOverride, baseFolder, destinationDirectory, episodeTemplate, folderFormatError, formatError, matches, paths, show, sourceOverride, technicalTags]);
+  const preflightPlan = useMemo(() => {
+    const issues = [...renamePlan.issues, ...filesystemIssues];
+    const filesystemBySource = new Map<string, RenamePlanIssue[]>();
+    for (const issue of filesystemIssues) filesystemBySource.set(issue.sourcePath, [...(filesystemBySource.get(issue.sourcePath) ?? []), issue]);
+    const items = renamePlan.items.map((item) => ({ ...item, issues: [...item.issues, ...(filesystemBySource.get(item.sourcePath) ?? [])] }));
+    return {
+      ...renamePlan,
+      items,
+      issues,
+      readyCount: items.filter((item) => item.targetPath && !item.issues.some((issue) => issue.severity === 'error' || issue.code === 'no-change')).length,
+      blockedCount: items.filter((item) => item.issues.some((issue) => issue.severity === 'error')).length,
+      warningCount: issues.filter((issue) => issue.severity === 'warning').length,
+    };
+  }, [filesystemIssues, renamePlan]);
+  const planIssuesByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, item.issues])), [preflightPlan]);
+  const planItemsByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, item])), [preflightPlan]);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-episode-template', episodeTemplate);
@@ -174,6 +220,35 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-file-view-mode', fileViewMode);
   }, [fileViewMode]);
+
+  useEffect(() => {
+    if (baseFolder) localStorage.setItem('media-renamer-tv-base-folder', baseFolder);
+    else localStorage.removeItem('media-renamer-tv-base-folder');
+  }, [baseFolder]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-show-folder-template', showFolderTemplate);
+  }, [showFolderTemplate]);
+
+  useEffect(() => {
+    const candidates = renamePlan.items.flatMap((item) => item.targetPath ? [{ sourcePath: item.sourcePath, targetPath: item.targetPath }] : []);
+    if (!window.mediaRenamer?.preflightRenamePlan || !candidates.length) {
+      setFilesystemIssues([]);
+      setCheckingPlan(false);
+      return;
+    }
+    let active = true;
+    setCheckingPlan(true);
+    window.mediaRenamer.preflightRenamePlan(candidates).then((issues) => {
+      if (active) setFilesystemIssues(issues);
+    }).catch((reason) => {
+      if (!active) return;
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Rename preflight failed', message);
+    }).finally(() => { if (active) setCheckingPlan(false); });
+    return () => { active = false; };
+  }, [addDebug, renamePlan]);
 
   useEffect(() => {
     if (!window.mediaRenamer?.probeMedia) return;
@@ -364,6 +439,17 @@ export default function App() {
     }
   }
 
+  async function chooseBaseFolder() {
+    try {
+      const selected = await window.mediaRenamer?.pickDestinationFolder();
+      if (selected) setBaseFolder(selected);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not choose TV base folder', message);
+    }
+  }
+
   async function addDroppedItems(files: FileList) {
     const dropped = [...files].map((file) => window.mediaRenamer?.pathForFile(file)).filter((value): value is string => Boolean(value));
     if (!dropped.length) {
@@ -387,6 +473,19 @@ export default function App() {
       setError(message);
       setWork(undefined);
       addDebug('error', 'Drop scan failed', message);
+    }
+  }
+
+  async function exportPlan() {
+    if (!window.mediaRenamer?.exportRenamePlan || !paths.length || checkingPlan) return;
+    try {
+      const exportedPath = await window.mediaRenamer.exportRenamePlan({ ...preflightPlan, generatedAt: new Date().toISOString() });
+      if (exportedPath) addDebug('success', 'Exported rename plan', exportedPath);
+      else addDebug('info', 'Rename plan export cancelled');
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not export rename plan', message);
     }
   }
 
@@ -484,6 +583,10 @@ export default function App() {
               <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
               {work.total > 0 && <progress value={work.completed} max={work.total}/>}
             </div>}
+            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount ? 'blocked' : 'ready'}`} role="status" aria-live="polite">
+              {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
+              <span><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or unmatched files must be resolved' : ' · No collisions detected'}</small></span>
+            </div>}
             <div className={`match-list view-${fileViewMode}`}>
               {paths.map((path) => {
                 const item = matchesByPath.get(path);
@@ -494,16 +597,19 @@ export default function App() {
                 }) : undefined;
                 const probeState = probeStates[path];
                 const inspecting = probeState === 'loading';
-                const output = item?.match && show && tags && !formatError ? formatEpisode(episodeTemplate, show.name, show.year, item.match.episode, tags, show.tvdbId) : formatError ? 'Fix the filename template' : 'No suggested name';
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
+                const plannedTargetName = planItemsByPath.get(path)?.targetName;
+                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : baseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
+                const planIssues = planIssuesByPath.get(path) ?? [];
+                const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 return <article className="match-row" key={path}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
                   <div className="file-content">
-                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}</div></div>
+                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
-                      {item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
+                      {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
                       <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
                     </div>}
                   </div>
@@ -516,7 +622,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{confident} ready <span className="legend review"></span>{paths.length - confident} need review <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled>Export plan</button><button className="primary" disabled>Rename {confident} files <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled>Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {refreshConfirmation && <div className="confirmation-layer" role="presentation">
         <button className="confirmation-backdrop" aria-label="Cancel media refresh" onClick={() => setRefreshConfirmation(false)}/>
@@ -542,6 +648,11 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
+          <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>TV destination</h3><p>Optionally move renamed episodes into a show folder beneath a library base folder.</p>
+            <div className="destination-row"><span><strong>Base folder</strong><small>{baseFolder || 'Keep files beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder()}><FolderTree size={14}/>{baseFolder ? 'Change' : 'Choose'}</button>{baseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep files beside their sources" onClick={() => setBaseFolder('')}><X size={14}/></button>}</span></div>
+            <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Supports show.name, show.year, show.tvdbId, and nested folders.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
+            {folderFormatError ? <small className="format-error">{folderFormatError}</small> : baseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(baseFolder, show ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : formatShowFolder(showFolderTemplate, 'Show Name', 2026, '74550'))}</code></div>}
+          </section>
           <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
           <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
             <div className="format-heading"><span><h3>Filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>

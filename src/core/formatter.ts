@@ -5,6 +5,7 @@ export const PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE = `${PREVIOUS_DEFAULT_EPISOD
 export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} -
   {{episode.range}} -
   {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
+export const DEFAULT_SHOW_FOLDER_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}}';
 
 type TemplateValue = string | number | boolean | TemplateContext[] | TemplateContext | undefined;
 type TemplateContext = { [key: string]: TemplateValue };
@@ -112,8 +113,7 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
   };
 }
 
-export function formatEpisode(template: string, show: string, year: number | undefined, episode: Episode | Episode[], tags: ReleaseTags, tvdbId?: string): string {
-  const episodes = Array.isArray(episode) ? episode : [episode];
+function renderEpisode(template: string, show: string, year: number | undefined, episodes: Episode[], tags: ReleaseTags, tvdbId?: string): string {
   return renderNodes(parseTemplate(template), [templateContext(show, year, tvdbId, episodes, tags)])
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -124,19 +124,78 @@ export function formatEpisode(template: string, show: string, year: number | und
     .trim();
 }
 
+function portableFilenameBase(value: string): string {
+  const portable = value
+    .replace(/\s*[:/\\|]+\s*/g, ' - ')
+    .replace(/[<>"?*\u0000-\u001f]/g, '')
+    .replace(/[\t ]+/g, ' ')
+    .replace(/[ .]+$/g, '')
+    .trim();
+  const safe = portable || '_';
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(safe) ? `_${safe}` : safe;
+}
+
+export function formatEpisode(template: string, show: string, year: number | undefined, episode: Episode | Episode[], tags: ReleaseTags, tvdbId?: string): string {
+  return renderEpisode(template, show, year, Array.isArray(episode) ? episode : [episode], tags, tvdbId);
+}
+
+export function formatEpisodeFilename(template: string, show: string, year: number | undefined, episode: Episode | Episode[], tags: ReleaseTags, extension: string, tvdbId?: string, maximumBytes = 255): string {
+  const episodes = Array.isArray(episode) ? episode : [episode];
+  const encoder = new TextEncoder();
+  const filename = (items: Episode[]) => `${portableFilenameBase(renderEpisode(template, show, year, items, tags, tvdbId))}${extension}`;
+  const full = filename(episodes);
+  if (encoder.encode(full).length <= maximumBytes) return full;
+
+  const titles = episodes.map((item) => Array.from(item.title));
+  const renderWithLimit = (limit: number, ellipsis = true) => filename(episodes.map((item, index) => ({
+    ...item,
+    title: titles[index].length > limit ? `${titles[index].slice(0, limit).join('')}${ellipsis ? '…' : ''}` : item.title,
+  })));
+
+  let lower = 0;
+  let upper = Math.max(0, ...titles.map((title) => title.length));
+  let fitted: string | undefined;
+  while (lower <= upper) {
+    const limit = Math.floor((lower + upper) / 2);
+    const candidate = renderWithLimit(limit);
+    if (encoder.encode(candidate).length <= maximumBytes) {
+      fitted = candidate;
+      lower = limit + 1;
+    } else upper = limit - 1;
+  }
+
+  return fitted ?? renderWithLimit(0, false);
+}
+
+export function formatShowFolder(template: string, show: string, year: number | undefined, tvdbId?: string): string {
+  const rendered = renderNodes(parseTemplate(template), [{ show: { name: show, year, tvdbId } }])
+    .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
+    .replace(/[\t ]+/g, ' ').trim();
+  return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
+}
+
+function validationError(template: string, validNames: Set<string>): string | undefined {
+  const visit = (nodes: TemplateNode[]): string | undefined => {
+    for (const node of nodes) {
+      if (node.type !== 'text' && !validNames.has(node.name)) return `Unknown field “${node.name}”`;
+      if (node.type === 'section') {
+        const error = visit(node.children);
+        if (error) return error;
+      }
+    }
+    return undefined;
+  };
+  return visit(parseTemplate(template));
+}
+
 export function templateError(template: string): string | undefined {
   try {
-    const visit = (nodes: TemplateNode[]): string | undefined => {
-      for (const node of nodes) {
-        if (node.type !== 'text' && !VALID_NAMES.has(node.name)) return `Unknown field “${node.name}”`;
-        if (node.type === 'section') {
-          const error = visit(node.children);
-          if (error) return error;
-        }
-      }
-      return undefined;
-    };
-    return visit(parseTemplate(template));
+    return validationError(template, VALID_NAMES);
   }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
+export function showFolderTemplateError(template: string): string | undefined {
+  try { return validationError(template, new Set(['show.name', 'show.year', 'show.tvdbId'])); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
 }

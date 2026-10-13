@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Episode, MediaTechnicalTags, ProviderStatus, ShowDetails, ShowSearchResult } from './core/types';
+import type { Episode, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 declare global {
@@ -9,9 +9,12 @@ declare global {
       platform: string;
       pickFiles(): Promise<string[]>;
       pickFolders(): Promise<string[]>;
+      pickDestinationFolder(): Promise<string | undefined>;
       expandPaths(paths: string[]): Promise<string[]>;
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
+      preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
+      exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;
       getShow(showId: string): Promise<ShowDetails>;

@@ -6,6 +6,7 @@ import { TmdbClient } from './tmdb.js';
 import { TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
+import { preflightRenameItems } from './renamePreflight.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
@@ -117,6 +118,11 @@ ipcMain.handle('folders:pick', async () => {
   return result.canceled ? [] : expandMediaPaths(result.filePaths);
 });
 
+ipcMain.handle('destination:pick', async () => {
+  const result = await dialog.showOpenDialog({ title: 'Choose TV base folder', properties: ['openDirectory', 'createDirectory'] });
+  return result.canceled ? undefined : result.filePaths[0];
+});
+
 ipcMain.handle('files:expand-paths', (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000 || values.some((value) => typeof value !== 'string' || !path.isAbsolute(value))) {
     throw new Error('Invalid dropped file paths.');
@@ -156,6 +162,17 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 
 ipcMain.handle('tmdb:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) }));
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
+ipcMain.handle('rename:preflight', (_event, items: unknown) => preflightRenameItems(items));
+ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
+  if (!value || typeof value !== 'object') throw new Error('Invalid rename plan.');
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  if (serialized.length > 5_000_000) throw new Error('Rename plan is too large to export.');
+  const options = { title: 'Export rename plan', defaultPath: 'rename-plan.json', filters: [{ name: 'JSON', extensions: ['json'] }] };
+  const result = mainWindow ? await dialog.showSaveDialog(mainWindow, options) : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return undefined;
+  await fs.promises.writeFile(result.filePath, serialized, { encoding: 'utf8', flag: 'w' });
+  return result.filePath;
+});
 ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
   const client = tmdb();

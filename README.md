@@ -30,6 +30,9 @@ This first scaffold includes:
 - parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
 - anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;
 - editable multiline, Mustache-style output-name templates that produce single-line names with live rename previews;
+- portable, byte-safe output names that normalize Windows-forbidden characters and shorten episode titles when necessary while preserving the show name, technical tags, TVDB ID, and extension;
+- a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, and JSON export;
+- an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - background-worker matching with visible per-file progress;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
@@ -100,7 +103,7 @@ The syntax-highlighted editor lives in the right-side Preferences drawer, shows 
 - [x] whole-show episode browser grouped by season, and file import
 - candidate alternatives and manual rematching
 - [x] configurable name templates with live examples
-- preflight collision/invalid-character checks
+- [x] preflight collision/invalid-character checks
 - atomic rename/move plan, JSON log, and undo
 
 ### Milestone 2 — resilient matching and tags
@@ -110,7 +113,8 @@ The syntax-highlighted editor lives in the right-side Preferences drawer, shows 
 - multi-episode, specials, absolute ordering, and anime filename patterns
 - editable release-tag vocabulary and aliases
 - folder parsing, per-show rules, and saved matching decisions
-- NFO and dry-run export
+- [x] JSON dry-run export
+- NFO export
 
 ### Milestone 3 — movies and packaging
 
@@ -132,4 +136,4 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 ## Next implementation slice
 
-Add `RenamePlan` preflight, collision and invalid-character validation, operation logging, and undo before enabling the final Rename button. Preview-only UI is intentional until those safety rails exist.
+Add manual confirmation/rematching for review items, then execute validated plans with operation logging and undo before enabling the final Rename button. Preview-only UI remains intentional until those safety rails exist.

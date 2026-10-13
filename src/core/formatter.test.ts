@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EPISODE_TEMPLATE, formatEpisode, templateError } from './formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, showFolderTemplateError, templateError } from './formatter';
 import type { Episode, ReleaseTags } from './types';
 
 const tags: ReleaseTags = { source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', flags: [], audioCodec: 'AAC', channels: '2.0' };
@@ -44,6 +44,41 @@ describe('episode filename templates', () => {
     ].join('\n');
     expect(formatEpisode(template, 'Show Name', 2026, episodes, tags, '74550'))
       .toBe('Show Name (2026) - S01E01-E02 - Episode 1, Episode 2 [1080p WEB-DL H.264 AAC 2.0] {tvdb-74550}');
+  });
+
+  it('truncates episode titles by bytes while preserving protected filename data', () => {
+    const longEpisode = { ...episodes[0], title: 'A very long 🚀 episode title '.repeat(20) };
+    const filename = formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'Protected Show Name', 2026, longEpisode, tags, '.mkv', '74550');
+    expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(255);
+    expect(filename).toContain('Protected Show Name (2026)');
+    expect(filename).toContain('[1080p WEB-DL H.264 AAC 2.0]');
+    expect(filename).toContain('{tvdb-74550}.mkv');
+    expect(filename).toContain('…');
+  });
+
+  it('truncates each merged episode title without truncating the suffix', () => {
+    const merged = episodes.map((episode) => ({ ...episode, title: episode.title.repeat(40) }));
+    const filename = formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'Show', undefined, merged, tags, '.mkv', '74550');
+    expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(255);
+    expect(filename.match(/…/g)).toHaveLength(2);
+    expect(filename).toContain('[1080p WEB-DL H.264 AAC 2.0] {tvdb-74550}.mkv');
+  });
+
+  it('generates portable filenames using Windows-compatible character rules', () => {
+    const unsafeEpisode = { ...episodes[0], title: 'Who? / What* <Again>.' };
+    expect(formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'Star Trek: Voyager', 1995, unsafeEpisode, tags, '.mkv', '74550'))
+      .toBe('Star Trek - Voyager (1995) - S01E01 - Who - What Again. [1080p WEB-DL H.264 AAC 2.0] {tvdb-74550}.mkv');
+  });
+
+  it('guards Windows device names and trailing periods', () => {
+    expect(formatEpisodeFilename('{{show.name}}', 'CON.', undefined, episodes[0], tags, '.mkv'))
+      .toBe('_CON.mkv');
+  });
+
+  it('formats portable show folders and optional nested paths', () => {
+    expect(formatShowFolder(DEFAULT_SHOW_FOLDER_TEMPLATE, 'Star Trek: Voyager', 1995, '74550')).toBe('Star Trek - Voyager (1995)');
+    expect(formatShowFolder('TV/{{show.name}}/{{show.year}}', 'Show', 2026)).toBe('TV/Show/2026');
+    expect(showFolderTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
   });
 
   it('reports mismatched sections', () => {
