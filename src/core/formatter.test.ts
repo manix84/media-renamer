@@ -88,6 +88,9 @@ describe('episode filename templates', () => {
     expect(formatShowFolder('TV/{{show.name}}/{{show.year}}', 'Show', 2026)).toBe('TV/Show/2026');
     expect(formatShowFolder('{{show.name}} ({{show.year}})/Season {{season}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons (1989)/Season 5');
     expect(formatShowFolder('{{show.name}}/Season {{seasonPadded}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons/Season 05');
+    expect(formatShowFolder('{{show.name}}/{{seasonFolder}}', 'The Simpsons', 1989, '71663', 0)).toBe('The Simpsons/Specials');
+    expect(formatShowFolder('{{show.name}}/{{seasonFolder}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons/Season 5');
+    expect(formatShowFolder('{{#isSpecial}}Bonus Features{{/isSpecial}}{{^isSpecial}}Season {{season}}{{/isSpecial}}', 'The Simpsons', 1989, '71663', 0)).toBe('Bonus Features');
     expect(showFolderTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
   });
 
