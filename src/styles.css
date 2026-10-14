@@ -144,6 +144,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
 .poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; }
 .poster-preview-image { padding: 0; display: block; border: 0; background: transparent; line-height: 0; cursor: zoom-in; }
+.poster-preview-image:disabled { cursor: default; }
 .poster-preview-image img { display: block; width: auto; max-width: calc(100vw - 48px); height: auto; max-height: calc(100dvh - 112px); border-radius: 12px; object-fit: contain; box-shadow: 0 28px 90px #000d; }
 .poster-preview-dialog.zoomed { place-self: stretch; border-radius: 10px; }
 .poster-preview-dialog.zoomed .poster-preview-image { width: max-content; min-width: 100%; min-height: 100%; display: grid; place-items: center; cursor: zoom-out; }
