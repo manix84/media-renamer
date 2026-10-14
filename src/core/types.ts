@@ -29,6 +29,17 @@ export interface ShowDetails extends ShowSearchResult {
   seasons: SeasonSummary[];
 }
 
+export interface MovieSearchResult {
+  id: string;
+  name: string;
+  year?: number;
+  overview: string;
+  posterUrl?: string;
+  logoUrl?: string;
+}
+
+export type MovieDetails = MovieSearchResult;
+
 export interface ProviderStatus {
   configured: boolean;
 }

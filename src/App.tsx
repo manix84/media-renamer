@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
-import { applyReleaseOverrides } from './core/releaseTags';
+import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieDetails, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
@@ -188,6 +188,7 @@ export default function App() {
   const [results, setResults] = useState<ShowSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
+  const [movie, setMovie] = useState<MovieDetails>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
   const [matchOverrides, setMatchOverrides] = useState<Record<string, MatchCandidate>>({});
@@ -345,29 +346,33 @@ export default function App() {
   }, [companionScan.ambiguous]);
   const renamePlan = useMemo(() => createRenamePlan(paths.map((path) => {
     const item = matchesByPath.get(path);
-    const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
+    const baseTags = item?.tags ?? (activeMediaTab === 'movies' && movie ? parseReleaseTags(path) : undefined);
+    const tags = baseTags ? applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     }) : undefined;
     const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
     const showFolder = item?.match && show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId, item.match.episode.season) : undefined;
+    const movieFolder = movie && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movie.name, movie.year, movie.id) : undefined;
     const companions = companionScan.byVideo[path] ?? [];
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
     const longestCompanionSuffix = companions.reduce((longest, companion) => Math.max(longest, encoder.encode(companion.suffix).length), 0);
     const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
-    const targetName = item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId, videoFilenameBudget) : undefined;
+    const targetName = activeMediaTab === 'movies'
+      ? movie && tags && !movieFormatError ? formatMovieFilename(movieTemplate, movie.name, movie.year, tags, extension, movie.id, videoFilenameBudget) : undefined
+      : item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
       targetName,
-      targetDirectory: moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, tvBaseFolder, showFolder) : undefined,
-      configurationError: moveFiles && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      targetDirectory: moveFiles && activeMediaTab === 'movies' && movieFolder !== undefined ? destinationDirectoryForSource(path, movieBaseFolder, movieFolder) : moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, tvBaseFolder, showFolder) : undefined,
+      configurationError: moveFiles && activeMediaTab === 'movies' && movieFolderFormatError ? `Fix the movie folder pattern: ${movieFolderFormatError}` : moveFiles && activeMediaTab === 'shows' && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
-      matchStatus: confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
-      confidence: item?.match?.score ?? 0,
+      matchStatus: activeMediaTab === 'movies' && movie ? 'confident' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
+      confidence: activeMediaTab === 'movies' && movie ? 1 : item?.match?.score ?? 0,
     };
-  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, episodeTemplate, folderFormatError, formatError, matchesByPath, moveFiles, paths, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, episodeTemplate, folderFormatError, formatError, matchesByPath, moveFiles, movie, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieTemplate, paths, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -578,7 +583,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!provider?.configured || show || query.trim() || paths.length === 0) return;
+    if (activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
     const inferred = inferShowQuery(paths);
     if (!inferred) {
       addDebug('warning', 'Could not infer a show name', 'No common SxxExx or 1x02 filename pattern was found.');
@@ -587,9 +592,25 @@ export default function App() {
     addDebug('info', `Inferred show query: ${inferred}`, `Derived from ${paths.length} imported file${paths.length === 1 ? '' : 's'}.`);
     autoSelectResult.current = true;
     setQuery(inferred);
-  }, [addDebug, paths, provider?.configured, query, show]);
+  }, [activeMediaTab, addDebug, paths, provider?.configured, query, show]);
 
   useEffect(() => {
+    if (activeMediaTab === 'movies') {
+      setMatchOverrides({});
+      setConfirmedPaths(new Set());
+      setReviewingPath(undefined);
+      setPinnedPreviewPath(undefined);
+      setWork(undefined);
+      setMatches(movie ? paths.map((path) => ({
+        path,
+        filename: filenameFromPath(path),
+        tags: parseReleaseTags(path),
+        match: { episode: { id: movie.id, season: 0, number: 0, title: movie.name }, score: 1, reasons: ['selected movie'] },
+        alternatives: [],
+        status: 'confident',
+      })) : []);
+      return;
+    }
     if (paths.length === 0 || episodes.length === 0) {
       setMatches([]);
       setMatchOverrides({});
@@ -633,11 +654,12 @@ export default function App() {
     };
     worker.postMessage({ paths, episodes, titleMatching });
     return () => worker.terminate();
-  }, [addDebug, paths, episodes, titleMatching]);
+  }, [activeMediaTab, addDebug, movie, paths, episodes, titleMatching]);
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (!provider?.configured || trimmed.length < 2 || (show && trimmed === show.name)) {
+    const selectedName = activeMediaTab === 'movies' ? movie?.name : show?.name;
+    if (!provider?.configured || trimmed.length < 2 || (selectedName && trimmed === selectedName)) {
       searchSequence.current += 1;
       setResults([]);
       setSearching(false);
@@ -649,7 +671,7 @@ export default function App() {
       setError(undefined);
       addDebug('info', `Searching for “${trimmed}”`);
       try {
-        const found = await window.mediaRenamer?.searchShows(trimmed) ?? [];
+        const found = activeMediaTab === 'movies' ? await window.mediaRenamer?.searchMovies(trimmed) ?? [] : await window.mediaRenamer?.searchShows(trimmed) ?? [];
         if (searchSequence.current === sequence) {
           addDebug(found.length ? 'success' : 'warning', `Search returned ${found.length} result${found.length === 1 ? '' : 's'}`, found.length ? found.slice(0, 5).map((item) => `${item.name}${item.year ? ` (${item.year})` : ''}`).join(', ') : `No provider result matched “${trimmed}”.`);
           if (autoSelectResult.current && found[0]) {
@@ -671,9 +693,25 @@ export default function App() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [addDebug, provider?.configured, query, show]);
+  }, [activeMediaTab, addDebug, movie?.name, provider?.configured, query, show?.name]);
 
   async function selectShow(result: ShowSearchResult) {
+    if (activeMediaTab === 'movies') {
+      setQuery(result.name);
+      setResults([]);
+      setError(undefined);
+      addDebug('info', `Loading ${result.name}`, `TMDB movie ID ${result.id}.`);
+      try {
+        const details = await window.mediaRenamer?.getMovie(result.id);
+        if (details) { setMovie(details); addDebug('success', `Loaded ${details.name}`, `${details.year ?? 'Release year unknown'} · TMDB movie metadata.`); }
+      } catch (reason) {
+        const message = errorMessage(reason);
+        setError(message);
+        setMovie(undefined);
+        addDebug('error', `Could not load ${result.name}`, message);
+      }
+      return;
+    }
     const sequence = ++seasonSequence.current;
     setQuery(result.name);
     autoSelectResult.current = false;
@@ -715,6 +753,7 @@ export default function App() {
     setResults([]);
     setSearching(false);
     setShow(undefined);
+    setMovie(undefined);
     setEpisodes([]);
     setLoadingEpisodes(false);
     searchInput.current?.focus();
@@ -757,7 +796,7 @@ export default function App() {
 
   async function chooseBaseFolder(kind: 'TV' | 'Movie') {
     try {
-      const selected = await window.mediaRenamer?.pickDestinationFolder();
+      const selected = await window.mediaRenamer?.pickDestinationFolder(kind);
       if (selected) (kind === 'TV' ? setTvBaseFolder : setMovieBaseFolder)(selected);
     } catch (reason) {
       const message = errorMessage(reason);
@@ -810,7 +849,7 @@ export default function App() {
     setRenaming(true);
     setError(undefined);
     setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
-    addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} episode${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
+    addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
       const result = await window.mediaRenamer.executeRenamePlan(executableGroups);
       addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}`);
@@ -940,11 +979,26 @@ export default function App() {
     window.addEventListener('pointerup', stop, { once: true });
   }
 
+  function switchMediaTab(tab: PreferenceMediaTab) {
+    if (tab === activeMediaTab) return;
+    searchSequence.current += 1;
+    autoSelectResult.current = false;
+    setActiveMediaTab(tab);
+    setQuery(tab === 'movies' ? movie?.name ?? '' : show?.name ?? '');
+    setResults([]);
+    setSearching(false);
+    setError(undefined);
+    setReviewingPath(undefined);
+    setPinnedPreviewPath(undefined);
+  }
+
+  const activeTitle = activeMediaTab === 'movies' ? movie : show;
+
   return (
     <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''} ${preferencesOpen ? 'preferences-open' : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
       <header className="topbar">
         <div className="brand"><span className="brand-mark"><Tv size={18} /></span> Media Renamer <span className="beta">ALPHA</span></div>
-        <nav><button className={activeMediaTab === 'shows' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'shows'} onClick={() => setActiveMediaTab('shows')}><Tv size={15}/> TV</button><button className={activeMediaTab === 'movies' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'movies'} disabled onClick={() => setActiveMediaTab('movies')}><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
+        <nav><button className={activeMediaTab === 'shows' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'shows'} onClick={() => switchMediaTab('shows')}><Tv size={15}/> TV</button><button className={activeMediaTab === 'movies' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'movies'} onClick={() => switchMediaTab('movies')}><Film size={15}/> Movies</button></nav>
         <div className="topbar-actions">
           <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label={preferencesOpen ? 'Close preferences' : 'Open preferences'} title={preferencesOpen ? 'Close preferences' : 'Preferences'} onClick={() => { if (preferencesOpen) { setPreferencesOpen(false); setTemplateReferenceOpen(false); } else { setPreferenceMediaTab(activeMediaTab); setPreferencesOpen(true); } }}><Settings size={18}/></button>
           <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
@@ -954,19 +1008,19 @@ export default function App() {
       <main>
         <section className="hero">
           <div className="show-identity">
-            {show?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${show.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreviewOpen(true); }}><img className="show-poster" src={show.posterUrl} alt=""/></button>}
+            {activeTitle?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${activeTitle.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreviewOpen(true); }}><img className="show-poster" src={activeTitle.posterUrl} alt=""/></button>}
             <div>
-              <p className="eyebrow">ACTIVE SHOW</p>
-              {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''}`} title={`${show.name}${show.year ? ` (${show.year})` : ''}`}/>}
-              {!show?.logoUrl && <h1>{show ? <>{show.name} {show.year && <span>({show.year})</span>}</> : 'Choose a TV show'}</h1>}
-              <p>{show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
+              <p className="eyebrow">ACTIVE {activeMediaTab === 'movies' ? 'MOVIE' : 'SHOW'}</p>
+              {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
+              {!activeTitle?.logoUrl && <h1>{activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : activeMediaTab === 'movies' ? 'Choose a movie' : 'Choose a TV show'}</h1>}
+              <p>{activeMediaTab === 'movies' ? movie ? `${movie.year ?? 'Year unknown'} · TMDB movie` : 'Search TMDB to load movie metadata' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
             </div>
           </div>
           <div className="show-search">
-            <div className="search"><Search size={17}/><input ref={searchInput} aria-label="Search TV shows" value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label="Clear show search" title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
+            <div className="search"><Search size={17}/><input ref={searchInput} aria-label={activeMediaTab === 'movies' ? 'Search movies' : 'Search TV shows'} value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (activeMediaTab === 'movies') { if (event.target.value !== movie?.name) setMovie(undefined); } else if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder={activeMediaTab === 'movies' ? 'Movie name or tmdb-…' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
             {results.length > 0 && <div className="search-results">
               {results.map((result) => <button key={result.id} onClick={() => void selectShow(result)}>
-                {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder"><Tv size={18}/></span>}
+                {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder">{activeMediaTab === 'movies' ? <Film size={18}/> : <Tv size={18}/>}</span>}
                 <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}</small></span>
               </button>)}
             </div>}
@@ -979,23 +1033,24 @@ export default function App() {
         <section className="workflow">
           <aside className="episode-panel panel">
             <div className="panel-heading">
-              <div><p className="eyebrow">EPISODES</p><h2>{show ? `${show.seasons.length} seasons` : 'Select a show'}</h2></div>
-              {show && <span className="count">{episodes.length}</span>}
+              <div><p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE' : 'EPISODES'}</p><h2>{activeMediaTab === 'movies' ? movie ? 'Selected movie' : 'Select a movie' : show ? `${show.seasons.length} seasons` : 'Select a show'}</h2></div>
+              {activeMediaTab === 'shows' && show && <span className="count">{episodes.length}</span>}
+              {activeMediaTab === 'movies' && movie && <span className="count"><Film size={14}/></span>}
             </div>
             <div className="episode-list">
-              {loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
+              {activeMediaTab === 'movies' ? movie ? <div className="movie-summary"><strong>{movie.name}</strong><span>{movie.year ?? 'Release year unknown'}</span>{movie.overview && <p>{movie.overview}</p>}<small>TMDB {movie.id}</small></div> : <div className="empty-state">Search for a movie to begin.</div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
                 <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</div>
               </div>)}
-              {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">Search for a show to begin.</div>}
+              {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">Search for a show to begin.</div>}</>}
             </div>
           </aside>
 
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">MATCH &amp; REVIEW</p><h2>{paths.length} imported files</h2></div>
-              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? tvBaseFolder ? `Move renamed files into ${tvBaseFolder}` : 'Create the show folder beside each source file' : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{moveFiles ? 'Move files' : 'In place'}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
+              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{moveFiles ? 'Move files' : 'In place'}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
             </div>
             {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
               <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
@@ -1030,18 +1085,20 @@ export default function App() {
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
                 const plannedTargetName = planItemsByPath.get(path)?.targetName;
                 const plannedCompanions = planItemsByPath.get(path)?.companions ?? [];
-                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : moveFiles && tvBaseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
+                const activeFormatError = activeMediaTab === 'movies' ? movieFormatError : formatError;
+                const activeFolderError = activeMediaTab === 'movies' ? movieFolderFormatError : folderFormatError;
+                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
                 const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
-                const fullProposedName = plannedTargetName ?? (item ? output : 'Waiting for show metadata');
+                const fullProposedName = plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);
                 const previewPinned = pinnedPreviewPath === path;
                 return <article className={`match-row ${previewPinned ? 'preview-pinned' : ''}`} key={path}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
-                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : 'Waiting for show metadata'}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
+                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
                       {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
                       <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
@@ -1049,7 +1106,7 @@ export default function App() {
                     {plannedCompanions.length > 0 && (fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
                       {plannedCompanions.map((companion) => <div key={companion.sourcePath}>
                         {companion.kind === 'subtitle' ? <Captions size={12}/> : companion.kind === 'artwork' ? <FileImage size={12}/> : <FileText size={12}/>}
-                        <span title={companion.sourceName}>{companion.sourceName}</span><ChevronRight size={11}/><strong title={companion.targetName}>{companion.targetName ?? 'Waiting for episode match'}</strong>
+                        <span title={companion.sourceName}>{companion.sourceName}</span><ChevronRight size={11}/><strong title={companion.targetName}>{companion.targetName ?? `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match`}</strong>
                       </div>)}
                     </div>)}
                     {fileViewMode !== 'detailed' && <div className="filename-preview" onClick={(event) => { event.stopPropagation(); if (!previewPinned) setPinnedPreviewPath(path); }}>
@@ -1058,7 +1115,7 @@ export default function App() {
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
                     </div>}
                   </div>
-                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}</small></div>{item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}<button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>{activeMediaTab === 'shows' && item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}{activeMediaTab === 'shows' && <button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}<button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
                 </article>;
               })}
             </div>}
@@ -1070,10 +1127,10 @@ export default function App() {
 
       <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightError ? 'preflight failed' : `${preflightPlan.blockedCount} blocked`} <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
-      {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
+      {posterPreviewOpen && activeTitle?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
-        <section ref={posterPreviewDialog} className={`poster-preview-dialog ${posterZoomed && posterCanZoom ? 'zoomed' : ''}`} role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
-          <button className="poster-preview-image" disabled={!posterCanZoom} aria-label={posterCanZoom ? posterZoomed ? 'Fit poster to window' : 'View poster at full size' : undefined} aria-pressed={posterCanZoom ? posterZoomed : undefined} title={posterCanZoom ? posterZoomed ? 'Fit to window' : 'View at 100%' : undefined} onClick={() => { if (posterCanZoom) setPosterZoomed((zoomed) => !zoomed); }}><img ref={posterPreviewImage} src={fullSizeArtworkUrl(show.posterUrl)} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`} onLoad={() => { updatePosterZoomAvailability(); if (posterZoomed) centerPosterPreview(); }}/></button>
+        <section ref={posterPreviewDialog} className={`poster-preview-dialog ${posterZoomed && posterCanZoom ? 'zoomed' : ''}`} role="dialog" aria-modal="true" aria-label={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''} poster`}>
+          <button className="poster-preview-image" disabled={!posterCanZoom} aria-label={posterCanZoom ? posterZoomed ? 'Fit poster to window' : 'View poster at full size' : undefined} aria-pressed={posterCanZoom ? posterZoomed : undefined} title={posterCanZoom ? posterZoomed ? 'Fit to window' : 'View at 100%' : undefined} onClick={() => { if (posterCanZoom) setPosterZoomed((zoomed) => !zoomed); }}><img ref={posterPreviewImage} src={fullSizeArtworkUrl(activeTitle.posterUrl)} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''} poster`} onLoad={() => { updatePosterZoomAvailability(); if (posterZoomed) centerPosterPreview(); }}/></button>
         </section>
         <button className="poster-preview-close" aria-label="Close poster preview" title="Close" autoFocus onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}><X size={20}/></button>
       </div>}
@@ -1112,7 +1169,7 @@ export default function App() {
         <button className="confirmation-backdrop" aria-label="Cancel rename" disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}/>
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
-          <h2 id="rename-title">Rename {executableGroups.length} episode{executableGroups.length === 1 ? '' : 's'}?</h2>
+          <h2 id="rename-title">Rename {executableGroups.length} {activeMediaTab === 'movies' ? 'movie' : 'episode'}{executableGroups.length === 1 ? '' : 's'}?</h2>
           <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.</p>
           {renaming && work && <progress className="rename-progress" value={work.completed} max={work.total}/>}
           <div><button className="secondary" autoFocus disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={renaming} onClick={() => void executeRenames()}>{renaming ? <LoaderCircle className="spin" size={15}/> : <FileCheck2 size={15}/>} {renaming ? `Renaming ${work?.completed ?? 0}/${work?.total ?? executableFileCount}` : 'Rename files'}</button></div>

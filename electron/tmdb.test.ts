@@ -1,11 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeShow, TmdbClient } from './tmdb.js';
+import { normalizeMovie, normalizeShow, TmdbClient } from './tmdb.js';
 
 describe('TMDB adapter', () => {
   it('normalizes provider-specific show fields', () => {
     expect(normalizeShow({ id: 42, name: 'Example', first_air_date: '1999-01-25', overview: 'A show', poster_path: '/poster.jpg' })).toEqual({
       id: '42', name: 'Example', year: 1999, overview: 'A show', posterUrl: 'https://image.tmdb.org/t/p/w342/poster.jpg',
     });
+  });
+
+  it('searches and loads movie metadata with preferred artwork', async () => {
+    expect(normalizeMovie({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', overview: 'A movie', poster_path: '/movie.jpg' })).toMatchObject({
+      id: '335984', name: 'Blade Runner 2049', year: 2017, posterUrl: 'https://image.tmdb.org/t/p/w342/movie.jpg',
+    });
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] } }), { status: 200 }));
+    const client = new TmdbClient('token', fetcher);
+    await expect(client.searchMovies('Blade Runner 2049 (2017)')).resolves.toEqual([expect.objectContaining({ id: '335984', year: 2017 })]);
+    await expect(client.getMovie('335984')).resolves.toMatchObject({ id: '335984', logoUrl: 'https://image.tmdb.org/t/p/w500/logo.png' });
+    const searchUrl = fetcher.mock.calls[0][0] as URL;
+    expect(searchUrl.pathname).toBe('/3/search/movie');
+    expect(searchUrl.searchParams.get('query')).toBe('Blade Runner 2049');
+    expect(searchUrl.searchParams.get('year')).toBe('2017');
   });
 
   it('authenticates with the read access token and normalizes episodes', async () => {

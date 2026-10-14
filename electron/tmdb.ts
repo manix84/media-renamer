@@ -31,10 +31,27 @@ export interface TmdbEpisode {
   airDate?: string;
 }
 
+export interface TmdbMovieSearchResult {
+  id: string;
+  name: string;
+  year?: number;
+  overview: string;
+  posterUrl?: string;
+  logoUrl?: string;
+}
+
 type RawShow = {
   id: number;
   name: string;
   first_air_date?: string;
+  overview?: string;
+  poster_path?: string | null;
+};
+
+type RawMovie = {
+  id: number;
+  title: string;
+  release_date?: string;
   overview?: string;
   poster_path?: string | null;
 };
@@ -69,6 +86,17 @@ export function normalizeShow(show: RawShow): TmdbShowSearchResult {
     year: Number.isFinite(year) ? year : undefined,
     overview: show.overview ?? '',
     posterUrl: show.poster_path ? `${IMAGE_ROOT}${show.poster_path}` : undefined,
+  };
+}
+
+export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
+  const year = movie.release_date ? Number(movie.release_date.slice(0, 4)) : undefined;
+  return {
+    id: String(movie.id),
+    name: movie.title,
+    year: Number.isFinite(year) ? year : undefined,
+    overview: movie.overview ?? '',
+    posterUrl: movie.poster_path ? `${IMAGE_ROOT}${movie.poster_path}` : undefined,
   };
 }
 
@@ -148,6 +176,27 @@ export class TmdbClient {
     if (!fallbackQueries.length) return literalResults;
     const fallbackResults = await Promise.all(fallbackQueries.map((fallback) => this.searchByTitle(fallback)));
     return mergeAndRank(query, [literalResults, ...fallbackResults]);
+  }
+
+  async searchMovies(query: string): Promise<TmdbMovieSearchResult[]> {
+    const tmdbId = query.match(/^tmdb-(\d+)$/i)?.[1];
+    if (tmdbId) return [normalizeMovie(await this.request<RawMovie>(`/movie/${tmdbId}`))];
+    const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/);
+    const params = new URLSearchParams({ query: datedTitle?.[1] ?? query, include_adult: 'false' });
+    if (datedTitle) params.set('year', datedTitle[2]);
+    const data = await this.request<{ results: RawMovie[] }>('/search/movie', params);
+    return data.results.map(normalizeMovie)
+      .sort((left, right) => Number(right.year === Number(datedTitle?.[2])) - Number(left.year === Number(datedTitle?.[2])))
+      .slice(0, 10);
+  }
+
+  async getMovie(movieId: string): Promise<TmdbMovieSearchResult> {
+    const data = await this.request<RawMovie & { images?: { logos?: RawImage[] } }>(
+      `/movie/${encodeURIComponent(movieId)}`,
+      new URLSearchParams({ append_to_response: 'images', include_image_language: 'en,null' }),
+    );
+    const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
+    return { ...normalizeMovie(data), logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined };
   }
 
   async getShow(showId: string): Promise<TmdbShowDetails> {

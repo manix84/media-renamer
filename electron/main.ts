@@ -131,8 +131,8 @@ ipcMain.handle('folders:pick', async () => {
   return result.canceled ? [] : expandMediaPaths(result.filePaths);
 });
 
-ipcMain.handle('destination:pick', async () => {
-  const result = await dialog.showOpenDialog({ title: 'Choose TV base folder', properties: ['openDirectory', 'createDirectory'] });
+ipcMain.handle('destination:pick', async (_event, kind: unknown) => {
+  const result = await dialog.showOpenDialog({ title: kind === 'Movie' ? 'Choose movie base folder' : 'Choose TV base folder', properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? undefined : result.filePaths[0];
 });
 
@@ -236,6 +236,8 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   return [];
 });
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => tmdb().getShow(textArgument(showId, 'show ID')));
+ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => tmdb().searchMovies(textArgument(query, 'search query')));
+ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown) => tmdb().getMovie(textArgument(movieId, 'movie ID')));
 ipcMain.handle('tmdb:get-season-episodes', (_event, showId: unknown, season: unknown) => {
   const seasonNumber = Number(season);
   if (!Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 999) throw new Error('Invalid season number.');

@@ -215,6 +215,24 @@ export function formatMovie(template: string, movie: string, year: number | unde
     .replace(/[\t ]+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
 }
 
+export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = 255): string {
+  const encoder = new TextEncoder();
+  const filename = (title: string) => `${portableFilenameBase(formatMovie(template, title, year, tags, tmdbId))}${extension}`;
+  const full = filename(movie);
+  if (encoder.encode(full).length <= maximumBytes) return full;
+  const characters = Array.from(movie);
+  let lower = 0;
+  let upper = characters.length;
+  let fitted: string | undefined;
+  while (lower <= upper) {
+    const limit = Math.floor((lower + upper) / 2);
+    const candidate = filename(limit < characters.length ? `${characters.slice(0, limit).join('')}…` : movie);
+    if (encoder.encode(candidate).length <= maximumBytes) { fitted = candidate; lower = limit + 1; }
+    else upper = limit - 1;
+  }
+  return fitted ?? filename('_');
+}
+
 function validationError(template: string, validNames: Set<string>): string | undefined {
   const visit = (nodes: TemplateNode[]): string | undefined => {
     for (const node of nodes) {

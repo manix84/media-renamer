@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, showFolderTemplateError, templateError } from './formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, showFolderTemplateError, templateError } from './formatter';
 import type { Episode, ReleaseTags } from './types';
 
 const tags: ReleaseTags = { source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', flags: [], audioCodec: 'AAC', channels: '2.0' };
@@ -104,6 +104,14 @@ describe('episode filename templates', () => {
     expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'Blade Runner: 2049', 2017, tags, '335984'))
       .toBe('Blade Runner: 2049 (2017) [1080p WEB-DL H.264 AAC 2.0] {tmdb-335984}');
     expect(movieTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
+  });
+
+  it('creates portable byte-bounded movie filenames without dropping technical data or the TMDB ID', () => {
+    const filename = formatMovieFilename(DEFAULT_MOVIE_TEMPLATE, `A Movie: ${'Very '.repeat(80)}Long`, 2026, tags, '.mkv', '123456', 180);
+    expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(180);
+    expect(filename).toContain('[1080p WEB-DL H.264 AAC 2.0]');
+    expect(filename).toContain('{tmdb-123456}.mkv');
+    expect(filename).not.toContain(':');
   });
 
   it('reports mismatched sections', () => {
