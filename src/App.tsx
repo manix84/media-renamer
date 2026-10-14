@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatShowFolder, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
@@ -100,8 +100,10 @@ export default function App() {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
   });
-  const [baseFolder, setBaseFolder] = useState(() => localStorage.getItem('media-renamer-tv-base-folder') ?? '');
+  const [tvBaseFolder, setTvBaseFolder] = useState(() => localStorage.getItem('media-renamer-tv-base-folder') ?? '');
   const [showFolderTemplate, setShowFolderTemplate] = useState(() => localStorage.getItem('media-renamer-show-folder-template') ?? DEFAULT_SHOW_FOLDER_TEMPLATE);
+  const [movieBaseFolder, setMovieBaseFolder] = useState(() => localStorage.getItem('media-renamer-movie-base-folder') ?? '');
+  const [movieFolderTemplate, setMovieFolderTemplate] = useState(() => localStorage.getItem('media-renamer-movie-folder-template') ?? DEFAULT_MOVIE_FOLDER_TEMPLATE);
   const [episodeTemplate, setEpisodeTemplate] = useState(() => {
     const saved = localStorage.getItem('media-renamer-episode-template');
     return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
@@ -214,8 +216,9 @@ export default function App() {
   }, [episodes, reviewSearch, suggestedCandidates]);
   const formatError = templateError(episodeTemplate);
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
+  const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const showFolder = show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : undefined;
-  const destinationDirectory = baseFolder && showFolder !== undefined ? joinPath(baseFolder, showFolder) : undefined;
+  const destinationDirectory = tvBaseFolder && showFolder !== undefined ? joinPath(tvBaseFolder, showFolder) : undefined;
   const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
     source: sourceOverride === 'auto' ? undefined : sourceOverride,
     aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
@@ -247,13 +250,13 @@ export default function App() {
       sourcePath: path,
       targetName,
       targetDirectory: destinationDirectory,
-      configurationError: baseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      configurationError: tvBaseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
       matchStatus: confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: item?.match?.score ?? 0,
     };
-  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, baseFolder, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags]);
+  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags, tvBaseFolder]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
     for (const issue of filesystemIssues) filesystemBySource.set(issue.sourcePath, [...(filesystemBySource.get(issue.sourcePath) ?? []), issue]);
@@ -286,13 +289,22 @@ export default function App() {
   }, [fileViewMode]);
 
   useEffect(() => {
-    if (baseFolder) localStorage.setItem('media-renamer-tv-base-folder', baseFolder);
+    if (tvBaseFolder) localStorage.setItem('media-renamer-tv-base-folder', tvBaseFolder);
     else localStorage.removeItem('media-renamer-tv-base-folder');
-  }, [baseFolder]);
+  }, [tvBaseFolder]);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-show-folder-template', showFolderTemplate);
   }, [showFolderTemplate]);
+
+  useEffect(() => {
+    if (movieBaseFolder) localStorage.setItem('media-renamer-movie-base-folder', movieBaseFolder);
+    else localStorage.removeItem('media-renamer-movie-base-folder');
+  }, [movieBaseFolder]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-movie-folder-template', movieFolderTemplate);
+  }, [movieFolderTemplate]);
 
   useEffect(() => {
     const candidates = renamePlan.items.flatMap((item) => [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []));
@@ -531,14 +543,14 @@ export default function App() {
     }
   }
 
-  async function chooseBaseFolder() {
+  async function chooseBaseFolder(kind: 'TV' | 'Movie') {
     try {
       const selected = await window.mediaRenamer?.pickDestinationFolder();
-      if (selected) setBaseFolder(selected);
+      if (selected) (kind === 'TV' ? setTvBaseFolder : setMovieBaseFolder)(selected);
     } catch (reason) {
       const message = errorMessage(reason);
       setError(message);
-      addDebug('error', 'Could not choose TV base folder', message);
+      addDebug('error', `Could not choose ${kind} base folder`, message);
     }
   }
 
@@ -732,7 +744,7 @@ export default function App() {
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
                 const plannedTargetName = planItemsByPath.get(path)?.targetName;
                 const plannedCompanions = planItemsByPath.get(path)?.companions ?? [];
-                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : baseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
+                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : tvBaseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
                 const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
@@ -830,10 +842,15 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
-          <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>TV destination</h3><p>Optionally move renamed episodes into a show folder beneath a library base folder.</p>
-            <div className="destination-row"><span><strong>Base folder</strong><small>{baseFolder || 'Keep files beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder()}><FolderTree size={14}/>{baseFolder ? 'Change' : 'Choose'}</button>{baseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep files beside their sources" onClick={() => setBaseFolder('')}><X size={14}/></button>}</span></div>
+          <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>TV destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
+            <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Keep episodes beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep episodes beside their sources" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
             <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Supports show.name, show.year, show.tvdbId, and nested folders.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
-            {folderFormatError ? <small className="format-error">{folderFormatError}</small> : baseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(baseFolder, show ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : formatShowFolder(showFolderTemplate, 'Show Name', 2026, '74550'))}</code></div>}
+            {folderFormatError ? <small className="format-error">{folderFormatError}</small> : tvBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(tvBaseFolder, show ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : formatShowFolder(showFolderTemplate, 'Show Name', 2026, '74550'))}</code></div>}
+          </section>
+          <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the upcoming movie workflow will use.</p>
+            <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Keep movies beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Keep movies beside their sources" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
+            <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
+            {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : movieBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(movieBaseFolder, formatMovieFolder(movieFolderTemplate, 'Movie Name', 2026, '123456'))}</code></div>}
           </section>
           <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
           <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>

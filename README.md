@@ -32,6 +32,7 @@ This first scaffold includes:
 - editable multiline, Mustache-style output-name templates that produce single-line names with live rename previews;
 - portable, byte-safe output names that normalize Windows-forbidden characters and shorten episode titles when necessary while preserving the show name, technical tags, TVDB ID, and extension;
 - a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, and JSON export;
+- separate persisted TV and Movie library destinations and folder patterns, so each workflow can target its own base folder;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
 - complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;

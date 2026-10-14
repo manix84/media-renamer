@@ -6,6 +6,7 @@ export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.yea
   {{episode.range}} -
   {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
 export const DEFAULT_SHOW_FOLDER_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}}';
+export const DEFAULT_MOVIE_FOLDER_TEMPLATE = '{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}';
 
 type TemplateValue = string | number | boolean | TemplateContext[] | TemplateContext | undefined;
 type TemplateContext = { [key: string]: TemplateValue };
@@ -174,6 +175,13 @@ export function formatShowFolder(template: string, show: string, year: number | 
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
 }
 
+export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string): string {
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId } }])
+    .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
+    .replace(/[\t ]+/g, ' ').trim();
+  return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
+}
+
 function validationError(template: string, validNames: Set<string>): string | undefined {
   const visit = (nodes: TemplateNode[]): string | undefined => {
     for (const node of nodes) {
@@ -197,5 +205,10 @@ export function templateError(template: string): string | undefined {
 
 export function showFolderTemplateError(template: string): string | undefined {
   try { return validationError(template, new Set(['show.name', 'show.year', 'show.tvdbId'])); }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
+export function movieFolderTemplateError(template: string): string | undefined {
+  try { return validationError(template, new Set(['movie.name', 'movie.year', 'movie.tmdbId'])); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
 }
