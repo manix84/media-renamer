@@ -142,12 +142,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .confirmation-dialog > div { display: flex; justify-content: center; gap: 8px; }
 .poster-preview-layer { position: fixed; z-index: 19; inset: 64px 0 0; padding: 24px; display: grid; place-items: center; }
 .poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
-.poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; box-shadow: 0 28px 90px #000d; }
+.poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; }
 .poster-preview-image { padding: 0; display: block; border: 0; background: transparent; line-height: 0; cursor: zoom-in; }
-.poster-preview-image img { display: block; width: auto; max-width: calc(100vw - 48px); height: auto; max-height: calc(100dvh - 112px); border-radius: 12px; object-fit: contain; }
+.poster-preview-image img { display: block; width: auto; max-width: calc(100vw - 48px); height: auto; max-height: calc(100dvh - 112px); border-radius: 12px; object-fit: contain; box-shadow: 0 28px 90px #000d; }
 .poster-preview-dialog.zoomed { place-self: stretch; border-radius: 10px; }
-.poster-preview-dialog.zoomed .poster-preview-image { cursor: zoom-out; }
-.poster-preview-dialog.zoomed .poster-preview-image img { max-width: none; max-height: none; border-radius: 0; }
+.poster-preview-dialog.zoomed .poster-preview-image { width: max-content; min-width: 100%; min-height: 100%; display: grid; place-items: center; cursor: zoom-out; }
+.poster-preview-dialog.zoomed .poster-preview-image img { max-width: none; max-height: none; border-radius: 0; box-shadow: none; }
 .poster-preview-close { position: absolute; z-index: 2; top: 36px; right: 36px; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #ffffff38; border-radius: 9px; background: #080b13c7; color: #f4f6fc; box-shadow: 0 5px 18px #0008; cursor: pointer; backdrop-filter: blur(8px); }
 .poster-preview-close:hover, .poster-preview-close:focus-visible { border-color: #ffffff66; background: #151b29e8; outline: none; }
 .template-reference { margin-top: 14px; border-top: 1px solid #272e3c; }

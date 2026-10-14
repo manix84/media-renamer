@@ -160,6 +160,7 @@ export default function App() {
   const seasonSequence = useRef(0);
   const autoSelectResult = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const posterPreviewDialog = useRef<HTMLElement>(null);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
@@ -340,6 +341,21 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-debug-dock-sizes', JSON.stringify(dockSizes));
   }, [dockSizes]);
+
+  const centerPosterPreview = useCallback(() => {
+    const dialog = posterPreviewDialog.current;
+    if (!dialog) return;
+    dialog.scrollTo({
+      left: Math.max(0, (dialog.scrollWidth - dialog.clientWidth) / 2),
+      top: Math.max(0, (dialog.scrollHeight - dialog.clientHeight) / 2),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!posterZoomed) return;
+    const frame = window.requestAnimationFrame(centerPosterPreview);
+    return () => window.cancelAnimationFrame(frame);
+  }, [centerPosterPreview, posterZoomed]);
 
   useEffect(() => {
     const candidates = renamePlan.items.flatMap((item) => [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []));
@@ -836,8 +852,8 @@ export default function App() {
 
       {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
-        <section className={`poster-preview-dialog ${posterZoomed ? 'zoomed' : ''}`} role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
-          <button className="poster-preview-image" aria-label={posterZoomed ? 'Fit poster to window' : 'View poster at full size'} aria-pressed={posterZoomed} title={posterZoomed ? 'Fit to window' : 'View at 100%'} onClick={() => setPosterZoomed((zoomed) => !zoomed)}><img src={fullSizeArtworkUrl(show.posterUrl)} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}/></button>
+        <section ref={posterPreviewDialog} className={`poster-preview-dialog ${posterZoomed ? 'zoomed' : ''}`} role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
+          <button className="poster-preview-image" aria-label={posterZoomed ? 'Fit poster to window' : 'View poster at full size'} aria-pressed={posterZoomed} title={posterZoomed ? 'Fit to window' : 'View at 100%'} onClick={() => setPosterZoomed((zoomed) => !zoomed)}><img src={fullSizeArtworkUrl(show.posterUrl)} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`} onLoad={() => { if (posterZoomed) centerPosterPreview(); }}/></button>
         </section>
         <button className="poster-preview-close" aria-label="Close poster preview" title="Close" autoFocus onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}><X size={20}/></button>
       </div>}
