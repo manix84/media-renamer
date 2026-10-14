@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
@@ -14,6 +14,7 @@ type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'u
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
+type PreferenceMediaTab = 'shows' | 'movies';
 
 const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
   { label: 'Show', fields: [
@@ -43,6 +44,14 @@ const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
     { name: 'release.group', description: 'Release group', example: 'GROUP' },
     { name: 'release.flags', description: 'Detected flags', example: 'AI Upscale' },
   ] },
+];
+const MOVIE_TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
+  { label: 'Movie', fields: [
+    { name: 'movie.name', description: 'Movie title', example: 'Movie Name' },
+    { name: 'movie.year', description: 'Release year, when known', example: '2026' },
+    { name: 'movie.tmdbId', description: 'Canonical TMDB movie ID', example: '123456' },
+  ] },
+  TEMPLATE_FIELDS.find((group) => group.label === 'Release')!,
 ];
 
 const SOURCE_OPTIONS: Source[] = ['DVD', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip'];
@@ -95,6 +104,23 @@ function TemplateEditor({ value, onChange }: { value: string; onChange: (value: 
   </div>;
 }
 
+function TemplateReference({ fields }: { fields: Array<{ label: string; fields: TemplateField[] }> }) {
+  return <details className="template-reference">
+    <summary>Template reference <span>{fields.reduce((total, group) => total + group.fields.length, 0)} variables</span></summary>
+    <div className="syntax-legend">
+      <div><code>{'{{field}}'}</code><span>Insert a value</span></div>
+      <div><code>{'{{#field}}…{{/field}}'}</code><span>Show when present, or repeat a list</span></div>
+      <div><code>{'{{^field}}…{{/field}}'}</code><span>Show when empty or false</span></div>
+    </div>
+    {fields.map((group) => <section className="variable-group" key={group.label}>
+      <h4>{group.label}</h4>
+      <div className="variable-list">{group.fields.map((field) => <div className="variable-row" key={field.name}>
+        <code>{`{{${field.name}}}`}</code><span>{field.description}</span><samp>{field.example}</samp>
+      </div>)}</div>
+    </section>)}
+  </details>;
+}
+
 export default function App() {
   const { preference, setPreference } = useTheme();
   const [paths, setPaths] = useState<string[]>([]);
@@ -103,6 +129,7 @@ export default function App() {
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
   const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
   const [posterZoomed, setPosterZoomed] = useState(false);
@@ -123,6 +150,7 @@ export default function App() {
   const [showFolderTemplate, setShowFolderTemplate] = useState(() => localStorage.getItem('media-renamer-show-folder-template') ?? DEFAULT_SHOW_FOLDER_TEMPLATE);
   const [movieBaseFolder, setMovieBaseFolder] = useState(() => localStorage.getItem('media-renamer-movie-base-folder') ?? '');
   const [movieFolderTemplate, setMovieFolderTemplate] = useState(() => localStorage.getItem('media-renamer-movie-folder-template') ?? DEFAULT_MOVIE_FOLDER_TEMPLATE);
+  const [movieTemplate, setMovieTemplate] = useState(() => localStorage.getItem('media-renamer-movie-template') ?? DEFAULT_MOVIE_TEMPLATE);
   const [episodeTemplate, setEpisodeTemplate] = useState(() => {
     const saved = localStorage.getItem('media-renamer-episode-template');
     return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
@@ -267,6 +295,7 @@ export default function App() {
   const formatError = templateError(episodeTemplate);
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
+  const movieFormatError = movieTemplateError(movieTemplate);
   const showFolder = show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : undefined;
   const destinationDirectory = moveFiles && tvBaseFolder && showFolder !== undefined ? joinPath(tvBaseFolder, showFolder) : undefined;
   const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
@@ -277,6 +306,7 @@ export default function App() {
     { id: 'example-1', season: 1, number: 1, title: 'Episode 1' },
     { id: 'example-2', season: 1, number: 2, title: 'Episode 2' },
   ], exampleTags, '74550');
+  const movieFormatExample = movieFormatError ? undefined : formatMovie(movieTemplate, 'Movie Name', 2026, exampleTags, '123456');
   const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
   const ambiguousCompanionsByVideo = useMemo(() => {
     const result = new Map<string, string[]>();
@@ -372,6 +402,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-movie-folder-template', movieFolderTemplate);
   }, [movieFolderTemplate]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-movie-template', movieTemplate);
+  }, [movieTemplate]);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-debug-docked', String(debugDocked));
@@ -1094,37 +1128,38 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
-          <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>TV destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
-            <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Keep episodes beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep episodes beside their sources" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
-            <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Supports show.name, show.year, show.tvdbId, and nested folders.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
-            {folderFormatError ? <small className="format-error">{folderFormatError}</small> : tvBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(tvBaseFolder, show ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : formatShowFolder(showFolderTemplate, 'Show Name', 2026, '74550'))}</code></div>}
-          </section>
-          <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the upcoming movie workflow will use.</p>
-            <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Keep movies beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Keep movies beside their sources" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
-            <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
-            {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : movieBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(movieBaseFolder, formatMovieFolder(movieFolderTemplate, 'Movie Name', 2026, '123456'))}</code></div>}
-          </section>
-          <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
-          <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
-            <div className="format-heading"><span><h3>Filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>
-            <TemplateEditor value={episodeTemplate} onChange={setEpisodeTemplate}/>
-            {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code></small>}
-            {formatExample && <div className="format-preview"><span>Output</span><strong>{formatExample}.mkv</strong></div>}
-            <details className="template-reference">
-              <summary>Template reference <span>{TEMPLATE_FIELDS.reduce((total, group) => total + group.fields.length, 0)} variables</span></summary>
-              <div className="syntax-legend">
-                <div><code>{'{{field}}'}</code><span>Insert a value</span></div>
-                <div><code>{'{{#field}}…{{/field}}'}</code><span>Show when present, or repeat a list</span></div>
-                <div><code>{'{{^field}}…{{/field}}'}</code><span>Show when empty or false</span></div>
-              </div>
-              {TEMPLATE_FIELDS.map((group) => <section className="variable-group" key={group.label}>
-                <h4>{group.label}</h4>
-                <div className="variable-list">{group.fields.map((field) => <div className="variable-row" key={field.name}>
-                  <code>{`{{${field.name}}}`}</code><span>{field.description}</span><samp>{field.example}</samp>
-                </div>)}</div>
-              </section>)}
-            </details>
-          </section>
+          <div className="preference-media-tabs" role="tablist" aria-label="Media settings">
+            <button role="tab" aria-selected={preferenceMediaTab === 'shows'} className={preferenceMediaTab === 'shows' ? 'active' : ''} onClick={() => setPreferenceMediaTab('shows')}><Tv size={15}/> Shows</button>
+            <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> Movies</button>
+          </div>
+          {preferenceMediaTab === 'shows' ? <div role="tabpanel" aria-label="Shows settings">
+            <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
+              <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Keep episodes beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep episodes beside their sources" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
+              <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Supports show.name, show.year, show.tvdbId, and nested folders.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
+              {folderFormatError ? <small className="format-error">{folderFormatError}</small> : tvBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(tvBaseFolder, show ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : formatShowFolder(showFolderTemplate, 'Show Name', 2026, '74550'))}</code></div>}
+            </section>
+            <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
+            <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
+              <div className="format-heading"><span><h3>Episode filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>
+              <TemplateEditor value={episodeTemplate} onChange={setEpisodeTemplate}/>
+              {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code></small>}
+              {formatExample && <div className="format-preview"><span>Output</span><strong>{formatExample}.mkv</strong></div>}
+              <TemplateReference fields={TEMPLATE_FIELDS}/>
+            </section>
+          </div> : <div role="tabpanel" aria-label="Movies settings">
+            <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
+              <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Keep movies beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Keep movies beside their sources" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
+              <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
+              {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : movieBaseFolder && <div className="destination-preview"><span>Preview</span><code>{joinPath(movieBaseFolder, formatMovieFolder(movieFolderTemplate, 'Movie Name', 2026, '123456'))}</code></div>}
+            </section>
+            <section className={`preference-section format-editor ${movieFormatError ? 'invalid' : ''}`}>
+              <div className="format-heading"><span><h3>Movie filename template</h3><p>Controls the filename produced by the movie workflow.</p></span><button onClick={() => setMovieTemplate(DEFAULT_MOVIE_TEMPLATE)} disabled={movieTemplate === DEFAULT_MOVIE_TEMPLATE}>Reset</button></div>
+              <TemplateEditor value={movieTemplate} onChange={setMovieTemplate}/>
+              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code></small>}
+              {movieFormatExample && <div className="format-preview"><span>Output</span><strong>{movieFormatExample}.mkv</strong></div>}
+              <TemplateReference fields={MOVIE_TEMPLATE_FIELDS}/>
+            </section>
+          </div>}
         </aside>
       </div>}
 

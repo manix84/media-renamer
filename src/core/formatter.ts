@@ -7,6 +7,7 @@ export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.yea
   {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
 export const DEFAULT_SHOW_FOLDER_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}}';
 export const DEFAULT_MOVIE_FOLDER_TEMPLATE = '{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}';
+export const DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
 
 type TemplateValue = string | number | boolean | TemplateContext[] | TemplateContext | undefined;
 type TemplateContext = { [key: string]: TemplateValue };
@@ -19,6 +20,11 @@ const TOKEN = /{{\s*([#\/^]?)\s*([^{}]+?)\s*}}/g;
 const VALID_NAMES = new Set([
   'show.name', 'show.year', 'show.tvdbId', 'episode.range', 'episodes', 'technical',
   'season', 'number', 'seasonPadded', 'numberPadded', 'code', 'title', 'first', 'last',
+  'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
+  'release.channels', 'release.group', 'release.flags',
+]);
+const MOVIE_VALID_NAMES = new Set([
+  'movie.name', 'movie.year', 'movie.tmdbId', 'technical',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
   'release.channels', 'release.group', 'release.flags',
 ]);
@@ -114,6 +120,21 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
   };
 }
 
+function releaseContext(tags: ReleaseTags): Pick<TemplateContext, 'technical' | 'release'> {
+  return {
+    technical: [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...tags.flags, tags.videoCodec, tags.audioCodec, tags.channels].filter(Boolean).join(' '),
+    release: {
+      resolution: tags.resolution,
+      source: tags.source === 'Unknown' ? undefined : tags.source,
+      videoCodec: tags.videoCodec,
+      audioCodec: tags.audioCodec,
+      channels: tags.channels,
+      group: tags.group,
+      flags: tags.flags.join(' '),
+    },
+  };
+}
+
 function renderEpisode(template: string, show: string, year: number | undefined, episodes: Episode[], tags: ReleaseTags, tvdbId?: string): string {
   return renderNodes(parseTemplate(template), [templateContext(show, year, tvdbId, episodes, tags)])
     .split(/\r?\n/)
@@ -182,6 +203,12 @@ export function formatMovieFolder(template: string, movie: string, year: number 
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
 }
 
+export function formatMovie(template: string, movie: string, year: number | undefined, tags: ReleaseTags, tmdbId?: string): string {
+  return renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId }, ...releaseContext(tags) }])
+    .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
+    .replace(/[\t ]+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
+}
+
 function validationError(template: string, validNames: Set<string>): string | undefined {
   const visit = (nodes: TemplateNode[]): string | undefined => {
     for (const node of nodes) {
@@ -210,5 +237,10 @@ export function showFolderTemplateError(template: string): string | undefined {
 
 export function movieFolderTemplateError(template: string): string | undefined {
   try { return validationError(template, new Set(['movie.name', 'movie.year', 'movie.tmdbId'])); }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
+export function movieTemplateError(template: string): string | undefined {
+  try { return validationError(template, MOVIE_VALID_NAMES); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
 }
