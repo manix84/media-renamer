@@ -86,6 +86,8 @@ describe('episode filename templates', () => {
   it('formats portable show folders and optional nested paths', () => {
     expect(formatShowFolder(DEFAULT_SHOW_FOLDER_TEMPLATE, 'Star Trek: Voyager', 1995, '74550')).toBe('Star Trek - Voyager (1995)');
     expect(formatShowFolder('TV/{{show.name}}/{{show.year}}', 'Show', 2026)).toBe('TV/Show/2026');
+    expect(formatShowFolder('{{show.name}} ({{show.year}})/Season {{season}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons (1989)/Season 5');
+    expect(formatShowFolder('{{show.name}}/Season {{seasonPadded}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons/Season 05');
     expect(showFolderTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
   });
 
