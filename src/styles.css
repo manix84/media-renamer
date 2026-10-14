@@ -136,8 +136,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .folder-template-field input { width: 100%; padding: 8px 9px; border: 1px solid #353e50; border-radius: 6px; outline: 0; background: #0c1119; color: #d5dbe7; font: 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .folder-template-field input:focus { border-color: #7162d4; box-shadow: 0 0 0 3px #7162d426; }
 .destination-settings.invalid .folder-template-field input { border-color: #773c44; }
-.destination-preview { min-width: 0; margin-top: 9px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; color: #687287; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
-.destination-preview code { min-width: 0; overflow: hidden; color: #9ca7bd; font: 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; white-space: nowrap; }
 .preferences-panel .format-heading { align-items: flex-start; } .preferences-panel .format-heading h3 { margin-bottom: 4px; }
 .confirmation-layer { position: fixed; z-index: 40; inset: 0; display: grid; place-items: center; padding: 20px; }
 .confirmation-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #02040ab3; backdrop-filter: blur(3px); }
@@ -339,7 +337,6 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .destination-row small, [data-theme="light"] .folder-template-field small { color: #68758a; }
 [data-theme="light"] .folder-template-field input { border-color: #cdd4df; background: #fff; color: #2d384c; }
 [data-theme="light"] .destination-settings.invalid .folder-template-field input { border-color: #d8818a; }
-[data-theme="light"] .destination-preview { color: #748095; } [data-theme="light"] .destination-preview code { color: #4f5b70; }
 [data-theme="light"] .metadata-overrides { border-color: #d9dee7; background: #f8f9fb; }
 [data-theme="light"] .metadata-overrides label { border-color: #dfe3ea; } [data-theme="light"] .metadata-overrides small { color: #657186; }
 [data-theme="light"] .metadata-overrides select { border-color: #cdd4df; background: #fff; color: #2d384c; }
