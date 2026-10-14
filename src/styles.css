@@ -246,7 +246,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .match-panel.drop-active .drop-target-overlay { opacity: 1; visibility: visible; transition-delay: 0s; }
 .match-panel.drop-active .dropzone-empty { border-color: #8371ee; background: #19172a; color: #a797ff; }
 .spin { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
-footer { min-height: 77px; margin-top: 20px; padding: 0 max(28px, calc((100% - 1380px) / 2)); border-top: 1px solid #222835; display: flex; align-items: center; justify-content: space-between; color: #717b8e; font-size: 11px; }
+footer { position: sticky; z-index: 15; bottom: 0; min-height: 77px; margin-top: 20px; padding: 0 max(28px, calc((100% - 1380px) / 2)); border-top: 1px solid #222835; display: flex; align-items: center; justify-content: space-between; background: #0a0d14f2; color: #717b8e; font-size: 11px; backdrop-filter: blur(16px); }
 footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-block; width: 7px; height: 7px; margin: 0 6px 0 14px; border-radius: 50%; } .legend.confident { background: #45c78d; } .legend.review { background: #dfad4a; }
 .tmdb-attribution { margin-left: 18px; color: #4f586a; }
 .debug-window { width: 100%; height: 100vh; display: flex; flex-direction: column; background: #0a0d14; }
@@ -384,7 +384,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .dropzone span { color: #4f5b70; }
 [data-theme="light"] .drop-target-overlay { border-color: #7663dc; background: #f5f2ffed; color: #6552c7; } [data-theme="light"] .drop-target-overlay strong { color: #35277f; } [data-theme="light"] .drop-target-overlay small { color: #6e6497; }
 [data-theme="light"] .match-panel.drop-active .dropzone-empty { border-color: #7663dc; background: #f5f2ff; color: #6552c7; }
-[data-theme="light"] footer { border-color: #d9dee7; color: #68748a; }
+[data-theme="light"] footer { border-color: #d9dee7; background: #f7f8fbf2; color: #68748a; }
 [data-theme="light"] .tmdb-attribution { color: #7c8799; }
 [data-theme="light"] .debug-window, [data-theme="light"] .debug-panel { background: #f7f8fb; }
 [data-theme="light"] .debug-panel.docked { box-shadow: 0 0 40px #25324a1a; }
