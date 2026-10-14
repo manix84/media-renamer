@@ -8,7 +8,7 @@ import { TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
-import { executeRenamePlan, resolveRenameCollisions } from './renameExecution.js';
+import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +19,15 @@ let debugWindow: BrowserWindow | undefined;
 let mainWindow: BrowserWindow | undefined;
 let debugSequence = 0;
 let debugEntries: DebugEntry[] = [];
+let lastRename: { operation: RenameOperation; logPath: string } | undefined;
+
+function renameHistoryDirectory(): string {
+  return path.join(app.getPath('userData'), 'rename-history');
+}
+
+async function latestRename() {
+  return lastRename ??= await readLatestRenameOperation(renameHistoryDirectory());
+}
 
 function localEnv(name: string): string | undefined {
   if (process.env[name]) return process.env[name];
@@ -175,7 +184,17 @@ ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolve
 ipcMain.handle('rename:execute', async (event, groups: unknown) => {
   const resolved = await resolveRenameCollisions(groups);
   const items = resolved.flatMap((group) => group.items);
-  return executeRenamePlan(items, path.join(app.getPath('userData'), 'rename-history'), (completed, total) => event.sender.send('rename:progress', { completed, total }));
+  lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total) => event.sender.send('rename:progress', { operation: 'rename', completed, total }));
+  return lastRename;
+});
+ipcMain.handle('rename:last-operation', () => latestRename());
+ipcMain.handle('rename:undo', async (event, operationId: unknown) => {
+  if (typeof operationId !== 'string') throw new Error('Invalid rename operation.');
+  const recorded = await latestRename();
+  if (!recorded || recorded.operation.id !== operationId) throw new Error('That rename operation is no longer the latest operation.');
+  const operation = await undoRenameOperation(recorded.operation, recorded.logPath, (completed, total) => event.sender.send('rename:progress', { operation: 'undo', completed, total }));
+  lastRename = { ...recorded, operation };
+  return lastRename;
 });
 ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid rename plan.');

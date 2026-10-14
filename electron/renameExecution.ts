@@ -157,7 +157,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
   }
 }
 
-export async function undoRenameOperation(operation: RenameOperation, logPath: string): Promise<RenameOperation> {
+export async function undoRenameOperation(operation: RenameOperation, logPath: string, onProgress?: (completed: number, total: number) => void): Promise<RenameOperation> {
   if (operation.status !== 'completed') throw new Error('This rename operation has already been undone.');
   for (const item of operation.items) {
     if (!(await exists(item.targetPath))) throw new Error(`Cannot undo because a renamed file is missing: ${item.targetPath}`);
@@ -168,6 +168,7 @@ export async function undoRenameOperation(operation: RenameOperation, logPath: s
     for (const item of [...operation.items].reverse()) {
       await moveFile(item.targetPath, item.sourcePath);
       restored.push(item);
+      onProgress?.(restored.length, operation.items.length);
     }
   } catch (error) {
     for (const item of restored.reverse()) await moveFile(item.sourcePath, item.targetPath).catch(() => undefined);
@@ -176,4 +177,26 @@ export async function undoRenameOperation(operation: RenameOperation, logPath: s
   const undone = { ...operation, status: 'undone' as const, undoneAt: new Date().toISOString() };
   await fs.promises.writeFile(logPath, `${JSON.stringify(undone, null, 2)}\n`, 'utf8');
   return undone;
+}
+
+export async function readLatestRenameOperation(historyDirectory: string): Promise<{ operation: RenameOperation; logPath: string } | undefined> {
+  let names: string[];
+  try { names = await fs.promises.readdir(historyDirectory); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+  const candidates = names.filter((name) => name.endsWith('.json')).sort().reverse();
+  for (const name of candidates) {
+    const logPath = path.join(historyDirectory, name);
+    try {
+      const value = JSON.parse(await fs.promises.readFile(logPath, 'utf8')) as Partial<RenameOperation>;
+      if (value.version !== 1 || typeof value.id !== 'string' || typeof value.createdAt !== 'string' || typeof value.completedAt !== 'string' || (value.status !== 'completed' && value.status !== 'undone')) continue;
+      const items = renamePreflightItems(value.items);
+      return { operation: { ...value, items } as RenameOperation, logPath };
+    } catch {
+      // Ignore incomplete or unrelated files and continue to the previous log.
+    }
+  }
+  return undefined;
 }

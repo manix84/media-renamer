@@ -12,8 +12,10 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
   executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:execute', groups),
-  onRenameProgress: (listener: (progress: { completed: number; total: number }) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { completed: number; total: number }) => listener(progress);
+  getLastRenameOperation: () => ipcRenderer.invoke('rename:last-operation'),
+  undoRenameOperation: (operationId: string) => ipcRenderer.invoke('rename:undo', operationId),
+  onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => listener(progress);
     ipcRenderer.on('rename:progress', handler);
     return () => ipcRenderer.removeListener('rename:progress', handler);
   },

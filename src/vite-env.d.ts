@@ -3,6 +3,15 @@
 import type { CompanionScan, Episode, MediaTechnicalTags, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
+type RenameOperationRecord = {
+  operation: {
+    id: string;
+    status: 'completed' | 'undone';
+    items: Array<{ sourcePath: string; targetPath: string }>;
+  };
+  logPath: string;
+};
+
 declare global {
   interface Window {
     mediaRenamer?: {
@@ -16,8 +25,10 @@ declare global {
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;
-      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<{ operation: { id: string; items: Array<{ sourcePath: string; targetPath: string }> }; logPath: string }>;
-      onRenameProgress(listener: (progress: { completed: number; total: number }) => void): () => void;
+      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<RenameOperationRecord>;
+      getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
+      undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;
+      onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): () => void;
       exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;

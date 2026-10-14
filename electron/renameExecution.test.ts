@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeRenamePlan, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
+import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
 
 const temporaryDirectories: string[] = [];
 async function temporaryDirectory() {
@@ -27,6 +27,19 @@ describe('rename execution', () => {
     expect(undone.status).toBe('undone');
     await expect(fs.promises.readFile(source, 'utf8')).resolves.toBe('video');
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('recovers the latest valid operation from durable history', async () => {
+    const root = await temporaryDirectory();
+    const history = path.join(root, 'history');
+    const source = path.join(root, 'Old.mkv');
+    const target = path.join(root, 'New.mkv');
+    await fs.promises.writeFile(source, 'video');
+    const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], history);
+    await fs.promises.writeFile(path.join(history, 'zzzz-corrupt.json'), '{not json');
+    const recovered = await readLatestRenameOperation(history);
+    expect(recovered?.operation.id).toBe(executed.operation.id);
+    expect(recovered?.logPath).toBe(executed.logPath);
   });
 
   it('rejects the full plan before moving anything when a target exists', async () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan } from './core/renamePlan';
 import { applyReleaseOverrides } from './core/releaseTags';
@@ -9,7 +9,8 @@ import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalT
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
-type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming'; completed: number; total: number };
+type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
+type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }> }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
@@ -53,6 +54,10 @@ function errorMessage(error: unknown): string {
 
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
+}
+
+function isVideoPath(filePath: string): boolean {
+  return /\.(?:mkv|mp4|avi|m4v|mov|webm)$/i.test(filePath);
 }
 
 function episodeCode(episode: Episode): string {
@@ -106,7 +111,10 @@ export default function App() {
   const [clearConfirmation, setClearConfirmation] = useState(false);
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [renameConfirmationOpen, setRenameConfirmationOpen] = useState(false);
+  const [undoConfirmationOpen, setUndoConfirmationOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [lastRename, setLastRename] = useState<RenameOperationRecord>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
@@ -434,7 +442,15 @@ export default function App() {
     return () => { active = false; };
   }, [addDebug, renameGroups]);
 
-  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: 'Renaming', completed: progress.completed, total: progress.total })), []);
+  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total })), []);
+
+  useEffect(() => {
+    let active = true;
+    window.mediaRenamer?.getLastRenameOperation?.().then((operation) => { if (active) setLastRename(operation); }).catch((reason) => {
+      if (active) addDebug('warning', 'Could not load rename history', errorMessage(reason));
+    });
+    return () => { active = false; };
+  }, [addDebug]);
 
   useEffect(() => {
     if (!window.mediaRenamer?.discoverCompanions || !paths.length) {
@@ -464,11 +480,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming) { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming && !undoing) { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setUndoConfirmationOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, renaming, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renaming, undoing, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -726,14 +742,49 @@ export default function App() {
     try {
       const result = await window.mediaRenamer.executeRenamePlan(executableGroups);
       addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}`);
+      setLastRename(result);
+      replaceBatchPaths(result.operation.items, 'forward');
       setRenameConfirmationOpen(false);
-      clearBatch();
     } catch (reason) {
       const message = errorMessage(reason);
       setError(message);
       addDebug('error', 'Rename operation failed', message);
     } finally {
       setRenaming(false);
+      setWork(undefined);
+    }
+  }
+
+  function replaceBatchPaths(items: Array<{ sourcePath: string; targetPath: string }>, direction: 'forward' | 'backward') {
+    const replacements = new Map(items.map((item) => direction === 'forward' ? [item.sourcePath, item.targetPath] : [item.targetPath, item.sourcePath]));
+    const remapRecord = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).map(([key, value]) => [replacements.get(key) ?? key, value]));
+    setTechnicalTags(remapRecord);
+    setProbeStates(remapRecord);
+    probedPaths.current = new Set([...probedPaths.current].map((item) => replacements.get(item) ?? item));
+    probeRuns.current = Object.fromEntries(Object.entries(probeRuns.current).map(([key, value]) => [replacements.get(key) ?? key, value]));
+    setPaths((current) => current.length
+      ? current.map((item) => replacements.get(item) ?? item)
+      : items.filter((item) => isVideoPath(direction === 'forward' ? item.targetPath : item.sourcePath)).map((item) => direction === 'forward' ? item.targetPath : item.sourcePath));
+  }
+
+  async function undoLastRename() {
+    if (!lastRename || lastRename.operation.status !== 'completed' || !window.mediaRenamer?.undoRenameOperation || undoing || renaming) return;
+    setUndoing(true);
+    setError(undefined);
+    setWork({ operation: 'Undoing', completed: 0, total: lastRename.operation.items.length });
+    addDebug('info', `Undoing ${lastRename.operation.items.length} file operation${lastRename.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${lastRename.logPath}`);
+    try {
+      const result = await window.mediaRenamer.undoRenameOperation(lastRename.operation.id);
+      replaceBatchPaths(result.operation.items, 'backward');
+      setLastRename(result);
+      setUndoConfirmationOpen(false);
+      addDebug('success', `Restored ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, 'The batch now points to the original file locations.');
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Undo operation failed', message);
+    } finally {
+      setUndoing(false);
       setWork(undefined);
     }
   }
@@ -944,7 +995,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan || renaming} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || renaming} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
@@ -992,6 +1043,16 @@ export default function App() {
           <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.</p>
           {renaming && work && <progress className="rename-progress" value={work.completed} max={work.total}/>}
           <div><button className="secondary" autoFocus disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={renaming} onClick={() => void executeRenames()}>{renaming ? <LoaderCircle className="spin" size={15}/> : <FileCheck2 size={15}/>} {renaming ? `Renaming ${work?.completed ?? 0}/${work?.total ?? executableFileCount}` : 'Rename files'}</button></div>
+        </section>
+      </div>}
+
+      {undoConfirmationOpen && lastRename?.operation.status === 'completed' && <div className="confirmation-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Cancel undo" onClick={() => setUndoConfirmationOpen(false)}/>
+        <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="undo-title" aria-describedby="undo-description">
+          <span className="confirmation-icon"><RotateCcw size={20}/></span>
+          <h2 id="undo-title">Undo the last rename?</h2>
+          <p id="undo-description">This will safely move {lastRename.operation.items.length} file{lastRename.operation.items.length === 1 ? '' : 's'} back to their original locations. Undo stops if an original path is now occupied.</p>
+          <div><button className="secondary" disabled={undoing} onClick={() => setUndoConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={undoing} onClick={() => void undoLastRename()}>{undoing && <LoaderCircle className="spin" size={15}/>} Undo rename</button></div>
         </section>
       </div>}
 
