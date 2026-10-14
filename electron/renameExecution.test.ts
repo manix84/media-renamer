@@ -65,4 +65,19 @@ describe('rename execution', () => {
     ] }]);
     expect(group.items.map((item) => path.basename(item.targetPath))).toEqual(['Show - S01E01 (2).mkv', 'Show - S01E01 (2).en.srt']);
   });
+
+  it('keeps the first duplicate episode name and increments later duplicates', async () => {
+    const root = await temporaryDirectory();
+    const firstSource = path.join(root, 'first.mkv');
+    const secondSource = path.join(root, 'second.mkv');
+    const thirdSource = path.join(root, 'third.mkv');
+    await Promise.all([firstSource, secondSource, thirdSource].map((source) => fs.promises.writeFile(source, 'video')));
+    const target = path.join(root, 'VisionQuest (2026) - S01E02 - Theseus.mkv');
+    const groups = await resolveRenameCollisions([firstSource, secondSource, thirdSource].map((sourcePath) => ({ items: [{ sourcePath, targetPath: target }] })));
+    expect(groups.map((group) => path.basename(group.items[0].targetPath))).toEqual([
+      'VisionQuest (2026) - S01E02 - Theseus.mkv',
+      'VisionQuest (2026) - S01E02 - Theseus (2).mkv',
+      'VisionQuest (2026) - S01E02 - Theseus (3).mkv',
+    ]);
+  });
 });

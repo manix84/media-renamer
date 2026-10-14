@@ -203,6 +203,8 @@ export default function App() {
   const [filesystemIssues, setFilesystemIssues] = useState<RenamePlanIssue[]>([]);
   const [resolvedTargets, setResolvedTargets] = useState<Record<string, string>>({});
   const [checkingPlan, setCheckingPlan] = useState(false);
+  const [preflightError, setPreflightError] = useState<string>();
+  const [preflightAttempt, setPreflightAttempt] = useState(0);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [error, setError] = useState<string>();
   const [debugDocked, setDebugDocked] = useState(() => localStorage.getItem('media-renamer-debug-docked') === 'true');
@@ -484,13 +486,19 @@ export default function App() {
       setFilesystemIssues([]);
       setResolvedTargets({});
       setCheckingPlan(false);
+      setPreflightError(undefined);
       return;
     }
     let active = true;
     setCheckingPlan(true);
-    window.mediaRenamer.resolveRenameCollisions(renameGroups).then(async (groups) => {
+    setPreflightError(undefined);
+    const withTimeout = <T,>(operation: Promise<T>) => Promise.race<T>([
+      operation,
+      new Promise<never>((_resolve, reject) => window.setTimeout(() => reject(new Error('The filesystem collision check timed out. The disk or network location may be unavailable.')), 15_000)),
+    ]);
+    withTimeout(window.mediaRenamer.resolveRenameCollisions(renameGroups)).then(async (groups) => {
       const candidates = groups.flatMap((group) => group.items);
-      const issues = await window.mediaRenamer!.preflightRenamePlan(candidates);
+      const issues = await withTimeout(window.mediaRenamer!.preflightRenamePlan(candidates));
       if (active) {
         setResolvedTargets(Object.fromEntries(candidates.map((item) => [item.sourcePath, item.targetPath])));
         setFilesystemIssues(issues);
@@ -499,10 +507,11 @@ export default function App() {
       if (!active) return;
       const message = errorMessage(reason);
       setError(message);
+      setPreflightError(message);
       addDebug('error', 'Rename preflight failed', message);
     }).finally(() => { if (active) setCheckingPlan(false); });
     return () => { active = false; };
-  }, [addDebug, renameGroups]);
+  }, [addDebug, preflightAttempt, renameGroups]);
 
   useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total })), []);
 
@@ -783,7 +792,7 @@ export default function App() {
   }
 
   async function exportPlan() {
-    if (!window.mediaRenamer?.exportRenamePlan || !paths.length || checkingPlan) return;
+    if (!window.mediaRenamer?.exportRenamePlan || !paths.length || checkingPlan || preflightError) return;
     try {
       const exportedPath = await window.mediaRenamer.exportRenamePlan({ ...preflightPlan, generatedAt: new Date().toISOString() });
       if (exportedPath) addDebug('success', 'Exported rename plan', exportedPath);
@@ -796,7 +805,7 @@ export default function App() {
   }
 
   async function executeRenames() {
-    if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || renaming) return;
+    if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || preflightError || renaming) return;
     setRenaming(true);
     setError(undefined);
     setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
@@ -1001,9 +1010,10 @@ export default function App() {
               <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
               {work.total > 0 && <progress value={work.completed} max={work.total}/>}
             </div>}
-            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount ? 'blocked' : 'ready'}`}>
-              {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
-              <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {companionCount} companion{companionCount === 1 ? '' : 's'} · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}</small></span>
+            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
+              {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
+              <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
+              {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
               {confirmablePaths.length > 0 && <button className="secondary confirm-suggestions" onClick={() => setConfirmAllOpen(true)}><FileCheck2 size={15}/> Confirm {confirmablePaths.length} suggestion{confirmablePaths.length === 1 ? '' : 's'}</button>}
             </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
@@ -1057,7 +1067,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightError ? 'preflight failed' : `${preflightPlan.blockedCount} blocked`} <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>

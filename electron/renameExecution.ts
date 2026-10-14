@@ -60,6 +60,7 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
   for (const group of groups) {
     let candidate = group.items;
     for (let increment = 2; ; increment += 1) {
+      if (increment > 1000) throw new Error('Could not find an available incremental filename after 999 attempts.');
       const unavailable = await Promise.all(candidate.map(async (item) => {
         const key = item.targetPath.toLocaleLowerCase();
         return reserved.has(key) || await targetOccupied(item.sourcePath, item.targetPath);
