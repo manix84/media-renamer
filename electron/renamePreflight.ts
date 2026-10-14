@@ -3,10 +3,10 @@ import path from 'node:path';
 import { isVideoFile } from './mediaFiles.js';
 import { isCompanionFile } from './mediaCompanions.js';
 
-type RenamePreflightItem = { sourcePath: string; targetPath: string };
+export type RenamePreflightItem = { sourcePath: string; targetPath: string };
 export type RenamePreflightIssue = { code: 'source-missing' | 'target-exists'; severity: 'error'; message: string; sourcePath: string; targetPath: string };
 
-function renamePreflightItems(value: unknown): RenamePreflightItem[] {
+export function renamePreflightItems(value: unknown): RenamePreflightItem[] {
   if (!Array.isArray(value) || value.length > 5000) throw new Error('Invalid rename plan.');
   return value.map((candidate) => {
     if (!candidate || typeof candidate !== 'object') throw new Error('Invalid rename plan item.');
