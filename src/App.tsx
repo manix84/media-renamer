@@ -228,6 +228,14 @@ export default function App() {
 
   const automaticMatchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, item])), [matches]);
   const matchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, matchOverrides[item.path] ? { ...item, match: matchOverrides[item.path] } : item])), [matchOverrides, matches]);
+  const attachedFileCountByEpisode = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of matchesByPath.values()) {
+      if (!item.match) continue;
+      counts.set(item.match.episode.id, (counts.get(item.match.episode.id) ?? 0) + 1);
+    }
+    return counts;
+  }, [matchesByPath]);
   const reviewingItem = reviewingPath ? matchesByPath.get(reviewingPath) : undefined;
   const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
   const suggestedCandidates = useMemo(() => {
@@ -787,7 +795,7 @@ export default function App() {
               {loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
-                <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong>{episode.title}</strong><Check size={14}/></div>
+                <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</div>
               </div>)}
               {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">Search for a show to begin.</div>}
             </div>
