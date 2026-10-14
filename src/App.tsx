@@ -154,6 +154,7 @@ export default function App() {
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
+  const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
   const [templateReferenceOpen, setTemplateReferenceOpen] = useState(false);
@@ -943,9 +944,9 @@ export default function App() {
     <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''} ${preferencesOpen ? 'preferences-open' : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
       <header className="topbar">
         <div className="brand"><span className="brand-mark"><Tv size={18} /></span> Media Renamer <span className="beta">ALPHA</span></div>
-        <nav><button className="nav-active"><Tv size={15}/> TV</button><button disabled><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
+        <nav><button className={activeMediaTab === 'shows' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'shows'} onClick={() => setActiveMediaTab('shows')}><Tv size={15}/> TV</button><button className={activeMediaTab === 'movies' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'movies'} disabled onClick={() => setActiveMediaTab('movies')}><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
         <div className="topbar-actions">
-          <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label={preferencesOpen ? 'Close preferences' : 'Open preferences'} title={preferencesOpen ? 'Close preferences' : 'Preferences'} onClick={() => { setPreferencesOpen((open) => !open); if (preferencesOpen) setTemplateReferenceOpen(false); }}><Settings size={18}/></button>
+          <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label={preferencesOpen ? 'Close preferences' : 'Open preferences'} title={preferencesOpen ? 'Close preferences' : 'Preferences'} onClick={() => { if (preferencesOpen) { setPreferencesOpen(false); setTemplateReferenceOpen(false); } else { setPreferenceMediaTab(activeMediaTab); setPreferencesOpen(true); } }}><Settings size={18}/></button>
           <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
         </div>
       </header>
