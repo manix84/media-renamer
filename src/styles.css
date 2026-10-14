@@ -31,7 +31,7 @@ main { width: min(1380px, calc(100% - 52px)); margin: 0 auto; flex: 1; }
 .show-identity { min-width: 0; display: flex; align-items: center; gap: 15px; }
 .show-poster { width: 62px; height: 92px; flex: 0 0 auto; border-radius: 8px; object-fit: cover; box-shadow: 0 9px 24px #0005; }
 .show-logo { display: block; width: auto; max-width: 260px; height: auto; max-height: 54px; margin: 0 0 8px; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 10px #0005); }
-[data-theme="light"] .show-logo { filter: drop-shadow(0 1px 1px #26344a66) drop-shadow(0 4px 9px #26344a40); }
+[data-theme="light"] .show-logo { filter: drop-shadow(0 1px 1px #111827e6) drop-shadow(0 3px 5px #111827b3) drop-shadow(0 7px 14px #11182773); }
 .eyebrow { margin: 0 0 6px; color: #777f94; letter-spacing: .13em; font-size: 10px; font-weight: 760; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 6px; font-size: 30px; letter-spacing: -.04em; } h1 span { color: #727b90; font-weight: 480; } .hero p:last-child { margin: 0; color: #778197; font-size: 13px; }
