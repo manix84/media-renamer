@@ -12,6 +12,8 @@ button { color: inherit; }
 .app-shell.debug-docked main:not(.debug-window) { grid-area: main; min-width: 0; min-height: 0; overflow: auto; }
 .app-shell.debug-docked footer { grid-area: footer; margin-top: 0; }
 .topbar { position: sticky; z-index: 20; top: 0; height: 64px; flex: 0 0 64px; padding: 0 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid #242a37; background: rgba(10, 13, 20, .94); backdrop-filter: blur(18px); -webkit-app-region: drag; }
+.app-shell.preferences-open .topbar { z-index: 31; }
+.app-shell.preferences-open .topbar > :not(.topbar-actions), .app-shell.preferences-open .topbar-actions button:not(:first-child) { pointer-events: none; }
 .platform-darwin .topbar { padding-left: 104px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 730; letter-spacing: -.02em; }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: linear-gradient(135deg, #7c5cff, #4d8dff); box-shadow: 0 0 24px #735cff44; }
@@ -101,7 +103,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .format-preview span { flex: 0 0 auto; color: #687287; text-transform: uppercase; letter-spacing: .08em; font-size: 8px; font-weight: 760; }
 .format-preview strong { min-width: 0; overflow: hidden; color: #cdd4e2; font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .preferences-layer { position: fixed; z-index: 30; inset: 64px 0 0; display: flex; justify-content: flex-end; }
-.preferences-layer::before { content: ''; position: fixed; z-index: 2; inset: 0 0 auto; height: 64px; background: transparent; }
 .preferences-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #02040a99; backdrop-filter: blur(2px); cursor: default; }
 .preferences-panel { position: relative; width: min(520px, calc(100vw - 28px)); height: 100%; overflow-y: auto; border-left: 1px solid #303747; background: #0e121b; box-shadow: -24px 0 70px #0009; animation: preferences-in .18s ease-out; }
 .template-reference-popout { position: relative; z-index: 1; width: min(430px, calc(100vw - 548px)); min-width: 340px; height: calc(100% - 32px); margin: 16px 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #303747; border-right: 0; border-radius: 13px 0 0 13px; background: #0e121b; box-shadow: -20px 0 60px #0007; animation: reference-in .18s ease-out; }

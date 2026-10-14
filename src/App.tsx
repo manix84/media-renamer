@@ -931,12 +931,12 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
+    <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''} ${preferencesOpen ? 'preferences-open' : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
       <header className="topbar">
         <div className="brand"><span className="brand-mark"><Tv size={18} /></span> Media Renamer <span className="beta">ALPHA</span></div>
         <nav><button className="nav-active"><Tv size={15}/> TV</button><button disabled><Film size={15}/> Movies <span className="soon">soon</span></button></nav>
         <div className="topbar-actions">
-          <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label="Open preferences" title="Preferences" onClick={() => setPreferencesOpen(true)}><Settings size={18}/></button>
+          <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label={preferencesOpen ? 'Close preferences' : 'Open preferences'} title={preferencesOpen ? 'Close preferences' : 'Preferences'} onClick={() => { setPreferencesOpen((open) => !open); if (preferencesOpen) setTemplateReferenceOpen(false); }}><Settings size={18}/></button>
           <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
         </div>
       </header>
