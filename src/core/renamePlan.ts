@@ -31,6 +31,12 @@ function joinDirectory(directory: string, targetName: string): string {
   return `${directory.replace(/[\\/]+$/, '')}${separator}${targetName}`;
 }
 
+export function destinationDirectoryForSource(sourcePath: string, baseFolder: string, mediaFolder: string): string {
+  if (baseFolder) return joinDirectory(baseFolder, mediaFolder);
+  const sourceDirectory = dirname(sourcePath);
+  return sourceDirectory ? joinDirectory(sourceDirectory, mediaFolder) : mediaFolder;
+}
+
 function issue(code: RenamePlanIssue['code'], severity: RenamePlanIssue['severity'], message: string, sourcePath: string, targetPath?: string): RenamePlanIssue {
   return { code, severity, message, sourcePath, targetPath };
 }

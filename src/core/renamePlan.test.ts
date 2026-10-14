@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createRenamePlan, filenameProblem } from './renamePlan';
+import { createRenamePlan, destinationDirectoryForSource, filenameProblem } from './renamePlan';
 
 describe('rename plan', () => {
+  it('uses a media folder beside the source when no library base is configured', () => {
+    expect(destinationDirectoryForSource('/incoming/Old.mkv', '', 'Show (2026)')).toBe('/incoming/Show (2026)');
+    expect(destinationDirectoryForSource('/incoming/Old.mkv', '/library', 'Show (2026)')).toBe('/library/Show (2026)');
+    expect(destinationDirectoryForSource('Old.mkv', '', 'Show (2026)')).toBe('Show (2026)');
+  });
+
   it('builds sibling destinations and counts ready items', () => {
     const plan = createRenamePlan([{ sourcePath: '/shows/Old.mkv', targetName: 'Show - S01E01 - Pilot.mkv', matchStatus: 'confident', confidence: .95 }]);
     expect(plan.items[0].targetPath).toBe('/shows/Show - S01E01 - Pilot.mkv');
