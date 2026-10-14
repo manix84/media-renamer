@@ -1132,7 +1132,7 @@ export default function App() {
             <button role="tab" aria-selected={preferenceMediaTab === 'shows'} className={preferenceMediaTab === 'shows' ? 'active' : ''} onClick={() => setPreferenceMediaTab('shows')}><Tv size={15}/> Shows</button>
             <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> Movies</button>
           </div>
-          {preferenceMediaTab === 'shows' ? <div role="tabpanel" aria-label="Shows settings">
+          {preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Keep episodes beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Keep episodes beside their sources" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Supports show.name, show.year, show.tvdbId, and nested folders.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
@@ -1146,7 +1146,7 @@ export default function App() {
               {formatExample && <div className="format-preview"><span>Output</span><strong>{formatExample}.mkv</strong></div>}
               <TemplateReference fields={TEMPLATE_FIELDS}/>
             </section>
-          </div> : <div role="tabpanel" aria-label="Movies settings">
+          </div> : <div className="preference-media-panel" role="tabpanel" aria-label="Movies settings">
             <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
               <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Keep movies beside their sources'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Keep movies beside their sources" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
