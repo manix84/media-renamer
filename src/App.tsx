@@ -104,6 +104,7 @@ export default function App() {
   const [posterCanZoom, setPosterCanZoom] = useState(false);
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
   const [clearConfirmation, setClearConfirmation] = useState(false);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
@@ -236,6 +237,10 @@ export default function App() {
     }
     return counts;
   }, [matchesByPath]);
+  const confirmablePaths = useMemo(() => paths.filter((path) => {
+    const item = matchesByPath.get(path);
+    return Boolean(item?.match && item.status !== 'confident' && !confirmedPaths.has(path));
+  }), [confirmedPaths, matchesByPath, paths]);
   const reviewingItem = reviewingPath ? matchesByPath.get(reviewingPath) : undefined;
   const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
   const suggestedCandidates = useMemo(() => {
@@ -432,11 +437,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -704,7 +709,22 @@ export default function App() {
     setReviewingPath(undefined);
     setPinnedPreviewPath(undefined);
     setClearConfirmation(false);
+    setConfirmAllOpen(false);
     addDebug('info', 'Cleared imported media', `${paths.length} file${paths.length === 1 ? '' : 's'} removed from the current batch. No files were changed on disk.`);
+  }
+
+  function confirmSuggestedMatch(path: string) {
+    const item = matchesByPath.get(path);
+    if (!item?.match) return;
+    setConfirmedPaths((current) => new Set(current).add(path));
+    addDebug('success', `Confirmed ${item.filename} → ${episodeCode(item.match.episode)} ${item.match.episode.title}`, item.match.reasons.join('; ') || 'Accepted the suggested match.');
+  }
+
+  function confirmAllSuggestedMatches() {
+    if (!confirmablePaths.length) return;
+    setConfirmedPaths((current) => new Set([...current, ...confirmablePaths]));
+    addDebug('success', `Confirmed ${confirmablePaths.length} suggested episode match${confirmablePaths.length === 1 ? '' : 'es'}`, 'Accepted the currently displayed suggestion for each file.');
+    setConfirmAllOpen(false);
   }
 
   function openMatchReview(path: string) {
@@ -820,9 +840,10 @@ export default function App() {
               <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
               {work.total > 0 && <progress value={work.completed} max={work.total}/>}
             </div>}
-            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount ? 'blocked' : 'ready'}`} role="status" aria-live="polite">
+            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount ? 'blocked' : 'ready'}`}>
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
-              <span><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {companionCount} companion{companionCount === 1 ? '' : 's'} · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}</small></span>
+              <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking rename plan…' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{preflightPlan.readyCount} ready · {companionCount} companion{companionCount === 1 ? '' : 's'} · {preflightPlan.warningCount} warning{preflightPlan.warningCount === 1 ? '' : 's'}{preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}{preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}</small></span>
+              {confirmablePaths.length > 0 && <button className="secondary confirm-suggestions" onClick={() => setConfirmAllOpen(true)}><FileCheck2 size={15}/> Confirm {confirmablePaths.length} suggestion{confirmablePaths.length === 1 ? '' : 's'}</button>}
             </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {paths.map((path) => {
@@ -865,7 +886,7 @@ export default function App() {
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
                     </div>}
                   </div>
-                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}</small></div><button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}</small></div>{item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}<button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
                 </article>;
               })}
             </div>}
@@ -902,6 +923,16 @@ export default function App() {
           <h2 id="clear-title">Clear all imported media?</h2>
           <p id="clear-description">This removes {paths.length} file{paths.length === 1 ? '' : 's'} from the current batch and clears its match decisions and metadata overrides. Files on disk will not be changed.</p>
           <div><button className="secondary" autoFocus onClick={() => setClearConfirmation(false)}>Cancel</button><button className="primary destructive" onClick={clearBatch}><Trash2 size={15}/> Clear all</button></div>
+        </section>
+      </div>}
+
+      {confirmAllOpen && <div className="confirmation-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Cancel confirming suggested matches" onClick={() => setConfirmAllOpen(false)}/>
+        <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-all-title" aria-describedby="confirm-all-description">
+          <span className="confirmation-icon"><FileCheck2 size={20}/></span>
+          <h2 id="confirm-all-title">Confirm {confirmablePaths.length} suggested match{confirmablePaths.length === 1 ? '' : 'es'}?</h2>
+          <p id="confirm-all-description">This accepts the episode currently shown beside each review file. You can still open an individual review first if any suggestion looks wrong.</p>
+          <div><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>Cancel</button><button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Confirm all</button></div>
         </section>
       </div>}
 
