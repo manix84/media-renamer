@@ -98,6 +98,8 @@ Episode names use a Mustache-style template that can be laid out and indented li
 
 The syntax-highlighted editor lives in the right-side Preferences drawer, shows a two-episode output immediately, and reports incomplete, mismatched, or unknown tags without breaking rename previews. A collapsible reference alongside it documents every available variable and the variable, section, and inverted-section syntax. Templates are retained locally between launches. The default appends the show's canonical TVDB ID as `{tvdb-74550}` when TMDB supplies that cross-reference.
 
+The main batch toolbar includes a `Move files` / `In place` control. Moving uses the configured TV destination and show-folder template; in-place mode renames each video and its companion files inside their current directories. This is intentionally a current-batch flag and resets when the batch is cleared.
+
 ## Delivery plan
 
 ### Milestone 1 — useful TV renamer

@@ -9,6 +9,16 @@ describe('rename plan', () => {
     expect(plan.blockedCount).toBe(0);
   });
 
+  it('keeps videos and companion files in place when no destination is supplied', () => {
+    const plan = createRenamePlan([{
+      sourcePath: '/incoming/Old.mkv', targetName: 'Show - S01E01.mkv', matchStatus: 'confident', confidence: 1,
+      companions: [{ path: '/incoming/Old.en.srt', suffix: '.en.srt', kind: 'subtitle' }],
+    }]);
+    expect(plan.items[0].targetPath).toBe('/incoming/Show - S01E01.mkv');
+    expect(plan.items[0].companions[0].targetPath).toBe('/incoming/Show - S01E01.en.srt');
+    expect(plan.destinationDirectories).toEqual([]);
+  });
+
   it('targets a configured destination directory and records it for creation', () => {
     const plan = createRenamePlan([{ sourcePath: '/incoming/Old.mkv', targetDirectory: '/library/Show (2026)', targetName: 'Show - S01E01.mkv', matchStatus: 'confident', confidence: .95 }]);
     expect(plan.items[0].targetPath).toBe('/library/Show (2026)/Show - S01E01.mkv');

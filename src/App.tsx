@@ -92,6 +92,7 @@ export default function App() {
   const [titleMatching, setTitleMatching] = useState(true);
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
+  const [moveFiles, setMoveFiles] = useState(true);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
@@ -218,7 +219,7 @@ export default function App() {
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const showFolder = show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId) : undefined;
-  const destinationDirectory = tvBaseFolder && showFolder !== undefined ? joinPath(tvBaseFolder, showFolder) : undefined;
+  const destinationDirectory = moveFiles && tvBaseFolder && showFolder !== undefined ? joinPath(tvBaseFolder, showFolder) : undefined;
   const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
     source: sourceOverride === 'auto' ? undefined : sourceOverride,
     aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
@@ -250,13 +251,13 @@ export default function App() {
       sourcePath: path,
       targetName,
       targetDirectory: destinationDirectory,
-      configurationError: tvBaseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      configurationError: moveFiles && tvBaseFolder && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
       matchStatus: confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: item?.match?.score ?? 0,
     };
-  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, paths, show, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, moveFiles, paths, show, sourceOverride, technicalTags, tvBaseFolder]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
     for (const issue of filesystemIssues) filesystemBySource.set(issue.sourcePath, [...(filesystemBySource.get(issue.sourcePath) ?? []), issue]);
@@ -606,6 +607,7 @@ export default function App() {
     setFilesystemIssues([]);
     setSourceOverride('auto');
     setAiUpscaleOverride('auto');
+    setMoveFiles(true);
     setWork(undefined);
     setBatchMetadataOpen(false);
     setReviewingPath(undefined);
@@ -711,7 +713,7 @@ export default function App() {
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">MATCH &amp; REVIEW</p><h2>{paths.length} imported files</h2></div>
-              <div className="add-actions"><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
+              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? tvBaseFolder ? `Move renamed files into ${tvBaseFolder}` : 'Move files when a TV base folder is configured' : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{moveFiles ? 'Move files' : 'In place'}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
             </div>
             {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
               <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
@@ -744,7 +746,7 @@ export default function App() {
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
                 const plannedTargetName = planItemsByPath.get(path)?.targetName;
                 const plannedCompanions = planItemsByPath.get(path)?.companions ?? [];
-                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : tvBaseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
+                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : formatError ? 'Fix the filename template' : moveFiles && tvBaseFolder && folderFormatError ? 'Fix the show folder pattern' : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
                 const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
