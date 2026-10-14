@@ -132,10 +132,25 @@ export default function App() {
   const [checkingPlan, setCheckingPlan] = useState(false);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [error, setError] = useState<string>();
-  const [debugDocked, setDebugDocked] = useState(true);
+  const [debugDocked, setDebugDocked] = useState(() => localStorage.getItem('media-renamer-debug-docked') === 'true');
   const [debugEntries, setDebugEntries] = useState<DebugEntry[]>([]);
-  const [dockPosition, setDockPosition] = useState<DockPosition>('bottom');
-  const [dockSizes, setDockSizes] = useState({ left: 420, right: 420, bottom: 270 });
+  const [dockPosition, setDockPosition] = useState<DockPosition>(() => {
+    const saved = localStorage.getItem('media-renamer-debug-dock-position');
+    return saved === 'left' || saved === 'right' ? saved : 'bottom';
+  });
+  const [dockSizes, setDockSizes] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('media-renamer-debug-dock-sizes') ?? 'null') as Partial<Record<DockPosition, unknown>> | null;
+      const restoredSize = (value: unknown, fallback: number, maximum: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(170, Math.min(maximum, value)) : fallback;
+      const sideMaximum = Math.max(170, window.innerWidth - 560);
+      const bottomMaximum = Math.max(170, window.innerHeight - 300);
+      return {
+        left: restoredSize(saved?.left, Math.min(420, sideMaximum), sideMaximum),
+        right: restoredSize(saved?.right, Math.min(420, sideMaximum), sideMaximum),
+        bottom: restoredSize(saved?.bottom, Math.min(270, bottomMaximum), bottomMaximum),
+      };
+    } catch { return { left: 420, right: 420, bottom: 270 }; }
+  });
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const autoSelectResult = useRef(false);
@@ -308,6 +323,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-movie-folder-template', movieFolderTemplate);
   }, [movieFolderTemplate]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-debug-docked', String(debugDocked));
+  }, [debugDocked]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-debug-dock-position', dockPosition);
+  }, [dockPosition]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-debug-dock-sizes', JSON.stringify(dockSizes));
+  }, [dockSizes]);
 
   useEffect(() => {
     const candidates = renamePlan.items.flatMap((item) => [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []));
