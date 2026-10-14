@@ -100,7 +100,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .format-preview { min-width: 0; margin-top: 9px; padding-top: 9px; border-top: 1px solid #272e3c; display: flex; align-items: baseline; gap: 9px; font-size: 10px; }
 .format-preview span { flex: 0 0 auto; color: #687287; text-transform: uppercase; letter-spacing: .08em; font-size: 8px; font-weight: 760; }
 .format-preview strong { min-width: 0; overflow: hidden; color: #cdd4e2; font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-.preferences-layer { position: fixed; z-index: 30; inset: 0; display: flex; justify-content: flex-end; }
+.preferences-layer { position: fixed; z-index: 30; inset: 64px 0 0; display: flex; justify-content: flex-end; }
+.preferences-layer::before { content: ''; position: fixed; z-index: 2; inset: 0 0 auto; height: 64px; background: transparent; }
 .preferences-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #02040a99; backdrop-filter: blur(2px); cursor: default; }
 .preferences-panel { position: relative; width: min(520px, calc(100vw - 28px)); height: 100%; overflow-y: auto; border-left: 1px solid #303747; background: #0e121b; box-shadow: -24px 0 70px #0009; animation: preferences-in .18s ease-out; }
 .template-reference-popout { position: relative; z-index: 1; width: min(430px, calc(100vw - 548px)); min-width: 340px; height: calc(100% - 32px); margin: 16px 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #303747; border-right: 0; border-radius: 13px 0 0 13px; background: #0e121b; box-shadow: -20px 0 60px #0007; animation: reference-in .18s ease-out; }
