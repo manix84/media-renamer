@@ -675,8 +675,8 @@ export default function App() {
             {show?.posterUrl && <img className="show-poster" src={show.posterUrl} alt=""/>}
             <div>
               <p className="eyebrow">ACTIVE SHOW</p>
-              {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt=""/>}
-              <h1>{show ? <>{show.name} {show.year && <span>({show.year})</span>}</> : 'Choose a TV show'}</h1>
+              {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''}`} title={`${show.name}${show.year ? ` (${show.year})` : ''}`}/>}
+              {!show?.logoUrl && <h1>{show ? <>{show.name} {show.year && <span>({show.year})</span>}</> : 'Choose a TV show'}</h1>}
               <p>{show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
             </div>
           </div>
