@@ -139,6 +139,7 @@ export default function App() {
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const autoSelectResult = useRef(false);
+  const searchInput = useRef<HTMLInputElement>(null);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
@@ -442,6 +443,7 @@ export default function App() {
   useEffect(() => {
     const trimmed = query.trim();
     if (!provider?.configured || trimmed.length < 2 || (show && trimmed === show.name)) {
+      searchSequence.current += 1;
       setResults([]);
       setSearching(false);
       return;
@@ -508,6 +510,19 @@ export default function App() {
     } finally {
       if (seasonSequence.current === sequence) setLoadingEpisodes(false);
     }
+  }
+
+  function clearShowSearch() {
+    searchSequence.current += 1;
+    seasonSequence.current += 1;
+    autoSelectResult.current = false;
+    setQuery('');
+    setResults([]);
+    setSearching(false);
+    setShow(undefined);
+    setEpisodes([]);
+    setLoadingEpisodes(false);
+    searchInput.current?.focus();
   }
 
   async function addFiles() {
@@ -682,7 +697,7 @@ export default function App() {
             </div>
           </div>
           <div className="show-search">
-            <label className="search"><Search size={17}/><input value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching ? <LoaderCircle className="spin" size={16}/> : <kbd>⌘ K</kbd>}</label>
+            <div className="search"><Search size={17}/><input ref={searchInput} aria-label="Search TV shows" value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label="Clear show search" title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
             {results.length > 0 && <div className="search-results">
               {results.map((result) => <button key={result.id} onClick={() => void selectShow(result)}>
                 {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder"><Tv size={18}/></span>}
