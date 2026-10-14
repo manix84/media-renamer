@@ -95,6 +95,7 @@ export default function App() {
   const [moveFiles, setMoveFiles] = useState(true);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
+  const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
   const [clearConfirmation, setClearConfirmation] = useState(false);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
@@ -355,11 +356,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !batchMetadataOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setBatchMetadataOpen(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, batchMetadataOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -672,7 +673,7 @@ export default function App() {
       <main>
         <section className="hero">
           <div className="show-identity">
-            {show?.posterUrl && <img className="show-poster" src={show.posterUrl} alt=""/>}
+            {show?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${show.name}`} title="View full poster" onClick={() => setPosterPreviewOpen(true)}><img className="show-poster" src={show.posterUrl} alt=""/></button>}
             <div>
               <p className="eyebrow">ACTIVE SHOW</p>
               {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''}`} title={`${show.name}${show.year ? ` (${show.year})` : ''}`}/>}
@@ -785,6 +786,14 @@ export default function App() {
       </main>
 
       <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled>Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
+
+      {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
+        <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => setPosterPreviewOpen(false)}/>
+        <section className="poster-preview-dialog" role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
+          <img src={show.posterUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}/>
+          <button className="poster-preview-close" aria-label="Close poster preview" title="Close" autoFocus onClick={() => setPosterPreviewOpen(false)}><X size={20}/></button>
+        </section>
+      </div>}
 
       {refreshConfirmation && <div className="confirmation-layer" role="presentation">
         <button className="confirmation-backdrop" aria-label="Cancel media refresh" onClick={() => setRefreshConfirmation(false)}/>

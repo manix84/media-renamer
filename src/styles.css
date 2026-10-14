@@ -29,6 +29,8 @@ nav .nav-active { color: #eef2ff; background: #252b3a; box-shadow: inset 0 0 0 1
 main { width: min(1380px, calc(100% - 52px)); margin: 0 auto; flex: 1; }
 .hero { display: flex; align-items: end; justify-content: space-between; padding: 35px 2px 25px; }
 .show-identity { min-width: 0; display: flex; align-items: center; gap: 15px; }
+.show-poster-button { flex: 0 0 auto; padding: 0; display: block; border: 0; border-radius: 8px; background: transparent; line-height: 0; cursor: zoom-in; }
+.show-poster-button:focus-visible { outline: 2px solid #8d7cf2; outline-offset: 3px; }
 .show-poster { width: 62px; height: 92px; flex: 0 0 auto; border-radius: 8px; object-fit: cover; box-shadow: 0 9px 24px #0005; }
 .show-logo { display: block; width: auto; max-width: 260px; height: auto; max-height: 54px; margin: 0 0 8px; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 10px #0005); }
 [data-theme="light"] .show-logo { filter: drop-shadow(0 1px 1px #111827e6) drop-shadow(0 3px 5px #111827b3) drop-shadow(0 7px 14px #11182773); }
@@ -136,6 +138,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .confirmation-dialog button.primary.destructive { border-color: #a94450; background: linear-gradient(#b64d59, #963943); box-shadow: 0 7px 22px #96394338; }
 .confirmation-dialog h2 { font-size: 17px; } .confirmation-dialog p { margin: 9px auto 20px; max-width: 340px; color: #818b9e; font-size: 11px; line-height: 1.55; }
 .confirmation-dialog > div { display: flex; justify-content: center; gap: 8px; }
+.poster-preview-layer { position: fixed; z-index: 19; inset: 64px 0 0; padding: 24px; display: grid; place-items: center; }
+.poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
+.poster-preview-dialog { position: relative; max-width: calc(100vw - 48px); max-height: calc(100dvh - 112px); }
+.poster-preview-dialog > img { display: block; width: auto; max-width: 100%; height: auto; max-height: calc(100dvh - 112px); border-radius: 12px; object-fit: contain; box-shadow: 0 28px 90px #000d; }
+.poster-preview-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 1px solid #ffffff38; border-radius: 9px; background: #080b13c7; color: #f4f6fc; box-shadow: 0 5px 18px #0008; cursor: pointer; backdrop-filter: blur(8px); }
+.poster-preview-close:hover, .poster-preview-close:focus-visible { border-color: #ffffff66; background: #151b29e8; outline: none; }
 .template-reference { margin-top: 14px; border-top: 1px solid #272e3c; }
 .template-reference summary { padding: 13px 0 2px; display: flex; align-items: center; justify-content: space-between; color: #b8c1d2; font-size: 11px; font-weight: 650; cursor: pointer; list-style: none; }
 .template-reference summary::-webkit-details-marker { display: none; }
