@@ -21,6 +21,58 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+async function targetOccupied(sourcePath: string, targetPath: string): Promise<boolean> {
+  if (sourcePath === targetPath) return false;
+  let target: fs.Stats;
+  try {
+    target = await fs.promises.stat(targetPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+  try {
+    const source = await fs.promises.stat(sourcePath);
+    return source.dev !== target.dev || source.ino !== target.ino;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    throw error;
+  }
+}
+
+export type RenameCollisionGroup = { items: RenamePreflightItem[] };
+
+function incrementedGroup(group: RenamePreflightItem[], increment: number): RenamePreflightItem[] {
+  const primary = group[0];
+  const extension = path.extname(primary.targetPath);
+  const root = primary.targetPath.slice(0, -extension.length);
+  const incrementedRoot = `${root} (${increment})`;
+  return group.map((item) => ({ ...item, targetPath: item.targetPath.startsWith(root) ? `${incrementedRoot}${item.targetPath.slice(root.length)}` : `${item.targetPath.slice(0, -path.extname(item.targetPath).length)} (${increment})${path.extname(item.targetPath)}` }));
+}
+
+export async function resolveRenameCollisions(value: unknown): Promise<RenameCollisionGroup[]> {
+  if (!Array.isArray(value) || value.length > 5000) throw new Error('Invalid rename groups.');
+  const groups = value.map((group) => {
+    if (!group || typeof group !== 'object' || !Array.isArray((group as { items?: unknown }).items)) throw new Error('Invalid rename group.');
+    return { items: renamePreflightItems((group as { items: unknown[] }).items) };
+  });
+  const reserved = new Set<string>();
+  const resolved: RenameCollisionGroup[] = [];
+  for (const group of groups) {
+    let candidate = group.items;
+    for (let increment = 2; ; increment += 1) {
+      const unavailable = await Promise.all(candidate.map(async (item) => {
+        const key = item.targetPath.toLocaleLowerCase();
+        return reserved.has(key) || await targetOccupied(item.sourcePath, item.targetPath);
+      }));
+      if (!unavailable.some(Boolean)) break;
+      candidate = incrementedGroup(group.items, increment);
+    }
+    for (const item of candidate) reserved.add(item.targetPath.toLocaleLowerCase());
+    resolved.push({ items: candidate });
+  }
+  return resolved;
+}
+
 async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
   if (sourcePath === targetPath) return;
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
@@ -28,21 +80,38 @@ async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
   const intermediatePath = caseOnly ? path.join(path.dirname(sourcePath), `.media-renamer-${crypto.randomUUID()}.tmp`) : undefined;
   if (intermediatePath) {
     await fs.promises.rename(sourcePath, intermediatePath);
-    try { await fs.promises.rename(intermediatePath, targetPath); }
-    catch (error) { await fs.promises.rename(intermediatePath, sourcePath).catch(() => undefined); throw error; }
+    let published = false;
+    try {
+      await fs.promises.link(intermediatePath, targetPath);
+      published = true;
+      await fs.promises.unlink(intermediatePath);
+    }
+    catch (error) {
+      if (published) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
+      await fs.promises.rename(intermediatePath, sourcePath).catch(() => undefined);
+      throw error;
+    }
     return;
   }
-  try { await fs.promises.rename(sourcePath, targetPath); }
+  try {
+    await fs.promises.link(sourcePath, targetPath);
+    try { await fs.promises.unlink(sourcePath); }
+    catch (error) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw error; }
+  }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
     const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
+    let published = false;
     try {
       await fs.promises.copyFile(sourcePath, temporaryPath, fs.constants.COPYFILE_EXCL);
-      await fs.promises.rename(temporaryPath, targetPath);
-      await fs.promises.unlink(sourcePath);
+      await fs.promises.link(temporaryPath, targetPath);
+      published = true;
+      await fs.promises.unlink(temporaryPath);
+      try { await fs.promises.unlink(sourcePath); }
+      catch (unlinkError) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw unlinkError; }
     } catch (copyError) {
       await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
-      if (await exists(targetPath)) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
+      if (published) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
       throw copyError;
     }
   }
@@ -57,7 +126,7 @@ async function writeOperation(historyDirectory: string, operation: RenameOperati
   return logPath;
 }
 
-export async function executeRenamePlan(value: unknown, historyDirectory: string): Promise<{ operation: RenameOperation; logPath: string }> {
+export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number) => void): Promise<{ operation: RenameOperation; logPath: string }> {
   const items = renamePreflightItems(value).filter((item) => item.sourcePath !== item.targetPath);
   if (!items.length) throw new Error('The rename plan has no file operations.');
   const issues = await preflightRenameItems(items);
@@ -67,6 +136,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     for (const item of items) {
       await moveFile(item.sourcePath, item.targetPath);
       completed.push(item);
+      onProgress?.(completed.length, items.length);
     }
   } catch (error) {
     const rollbackErrors: string[] = [];

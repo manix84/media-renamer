@@ -10,6 +10,13 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
+  resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
+  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:execute', groups),
+  onRenameProgress: (listener: (progress: { completed: number; total: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { completed: number; total: number }) => listener(progress);
+    ipcRenderer.on('rename:progress', handler);
+    return () => ipcRenderer.removeListener('rename:progress', handler);
+  },
   exportRenamePlan: (plan: unknown): Promise<string | undefined> => ipcRenderer.invoke('rename:export-plan', plan),
   providerStatus: () => ipcRenderer.invoke('tmdb:status'),
   searchShows: (query: string) => ipcRenderer.invoke('tmdb:search-shows', query),

@@ -15,6 +15,9 @@ declare global {
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
+      resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;
+      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<{ operation: { id: string; items: Array<{ sourcePath: string; targetPath: string }> }; logPath: string }>;
+      onRenameProgress(listener: (progress: { completed: number; total: number }) => void): () => void;
       exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;

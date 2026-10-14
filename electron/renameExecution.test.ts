@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeRenamePlan, undoRenameOperation } from './renameExecution';
+import { executeRenamePlan, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
 
 const temporaryDirectories: string[] = [];
 async function temporaryDirectory() {
@@ -40,5 +40,16 @@ describe('rename execution', () => {
       { sourcePath: second, targetPath: occupied },
     ], path.join(root, 'history'))).rejects.toThrow(/preflight failed/i);
     await expect(fs.promises.readFile(first, 'utf8')).resolves.toBe('one');
+  });
+
+  it('increments a colliding video and all of its companions together', async () => {
+    const root = await temporaryDirectory();
+    const target = path.join(root, 'Show - S01E01.mkv');
+    await fs.promises.writeFile(target, 'occupied');
+    const [group] = await resolveRenameCollisions([{ items: [
+      { sourcePath: path.join(root, 'old.mkv'), targetPath: target },
+      { sourcePath: path.join(root, 'old.en.srt'), targetPath: path.join(root, 'Show - S01E01.en.srt') },
+    ] }]);
+    expect(group.items.map((item) => path.basename(item.targetPath))).toEqual(['Show - S01E01 (2).mkv', 'Show - S01E01 (2).en.srt']);
   });
 });

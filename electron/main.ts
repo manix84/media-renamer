@@ -8,6 +8,7 @@ import { TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
+import { executeRenamePlan, resolveRenameCollisions } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -170,6 +171,12 @@ ipcMain.handle('media:companions', (_event, values: unknown) => {
   return discoverMediaCompanions(values.map(mediaPathArgument));
 });
 ipcMain.handle('rename:preflight', (_event, items: unknown) => preflightRenameItems(items));
+ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolveRenameCollisions(groups));
+ipcMain.handle('rename:execute', async (event, groups: unknown) => {
+  const resolved = await resolveRenameCollisions(groups);
+  const items = resolved.flatMap((group) => group.items);
+  return executeRenamePlan(items, path.join(app.getPath('userData'), 'rename-history'), (completed, total) => event.sender.send('rename:progress', { completed, total }));
+});
 ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid rename plan.');
   const serialized = `${JSON.stringify(value, null, 2)}\n`;

@@ -140,6 +140,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .confirmation-dialog button.primary.destructive { border-color: #a94450; background: linear-gradient(#b64d59, #963943); box-shadow: 0 7px 22px #96394338; }
 .confirmation-dialog h2 { font-size: 17px; } .confirmation-dialog p { margin: 9px auto 20px; max-width: 340px; color: #818b9e; font-size: 11px; line-height: 1.55; }
 .confirmation-dialog > div { display: flex; justify-content: center; gap: 8px; }
+.rename-progress { width: 100%; height: 6px; margin: -7px 0 18px; accent-color: #7565e9; }
 .poster-preview-layer { position: fixed; z-index: 19; inset: 64px 0 0; padding: 24px; display: grid; place-items: center; }
 .poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
 .poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; }

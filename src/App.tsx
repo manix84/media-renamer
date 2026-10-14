@@ -105,6 +105,8 @@ export default function App() {
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
   const [clearConfirmation, setClearConfirmation] = useState(false);
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [renameConfirmationOpen, setRenameConfirmationOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
@@ -136,6 +138,7 @@ export default function App() {
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
   const [filesystemIssues, setFilesystemIssues] = useState<RenamePlanIssue[]>([]);
+  const [resolvedTargets, setResolvedTargets] = useState<Record<string, string>>({});
   const [checkingPlan, setCheckingPlan] = useState(false);
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [error, setError] = useState<string>();
@@ -296,14 +299,25 @@ export default function App() {
       confidence: item?.match?.score ?? 0,
     };
   })), [aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, destinationDirectory, episodeTemplate, folderFormatError, formatError, matchesByPath, moveFiles, paths, show, sourceOverride, technicalTags, tvBaseFolder]);
+  const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
     for (const issue of filesystemIssues) filesystemBySource.set(issue.sourcePath, [...(filesystemBySource.get(issue.sourcePath) ?? []), issue]);
-    const items = renamePlan.items.map((item) => ({
-      ...item,
-      issues: [...item.issues, ...(filesystemBySource.get(item.sourcePath) ?? [])],
-      companions: item.companions.map((companion) => ({ ...companion, issues: [...companion.issues, ...(filesystemBySource.get(companion.sourcePath) ?? [])] })),
-    }));
+    const resolvedEntry = <T extends { sourcePath: string; targetPath?: string; targetName?: string; issues: RenamePlanIssue[] }>(entry: T): T => {
+      const targetPath = resolvedTargets[entry.sourcePath] ?? entry.targetPath;
+      return { ...entry, targetPath, targetName: targetPath ? filenameFromPath(targetPath) : entry.targetName, issues: entry.issues.filter((issue) => issue.code !== 'duplicate-target') };
+    };
+    const items = renamePlan.items.map((original) => {
+      const item = resolvedEntry(original);
+      return {
+        ...item,
+        issues: [...item.issues, ...(filesystemBySource.get(item.sourcePath) ?? [])],
+        companions: original.companions.map((originalCompanion) => {
+          const companion = resolvedEntry(originalCompanion);
+          return { ...companion, issues: [...companion.issues, ...(filesystemBySource.get(companion.sourcePath) ?? [])] };
+        }),
+      };
+    });
     const itemIssues = (item: typeof items[number]) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)];
     const issues = items.flatMap(itemIssues);
     return {
@@ -314,10 +328,16 @@ export default function App() {
       blockedCount: items.filter((item) => itemIssues(item).some((issue) => issue.severity === 'error')).length,
       warningCount: issues.filter((issue) => issue.severity === 'warning').length,
     };
-  }, [filesystemIssues, renamePlan]);
+  }, [filesystemIssues, renamePlan, resolvedTargets]);
   const planIssuesByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, [...item.issues, ...item.companions.flatMap((companion) => companion.issues)]])), [preflightPlan]);
   const planItemsByPath = useMemo(() => new Map(preflightPlan.items.map((item) => [item.sourcePath, item])), [preflightPlan]);
   const companionCount = preflightPlan.items.reduce((total, item) => total + item.companions.length, 0);
+  const executableGroups = useMemo(() => preflightPlan.items.flatMap((item) => {
+    const issues = [...item.issues, ...item.companions.flatMap((companion) => companion.issues)];
+    if (!item.targetPath || issues.some((issue) => issue.severity === 'error' || issue.code === 'no-change')) return [];
+    return [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }];
+  }), [preflightPlan]);
+  const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-episode-template', episodeTemplate);
@@ -390,16 +410,21 @@ export default function App() {
   }, [centerPosterPreview, posterZoomed]);
 
   useEffect(() => {
-    const candidates = renamePlan.items.flatMap((item) => [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []));
-    if (!window.mediaRenamer?.preflightRenamePlan || !candidates.length) {
+    if (!window.mediaRenamer?.preflightRenamePlan || !window.mediaRenamer.resolveRenameCollisions || !renameGroups.length) {
       setFilesystemIssues([]);
+      setResolvedTargets({});
       setCheckingPlan(false);
       return;
     }
     let active = true;
     setCheckingPlan(true);
-    window.mediaRenamer.preflightRenamePlan(candidates).then((issues) => {
-      if (active) setFilesystemIssues(issues);
+    window.mediaRenamer.resolveRenameCollisions(renameGroups).then(async (groups) => {
+      const candidates = groups.flatMap((group) => group.items);
+      const issues = await window.mediaRenamer!.preflightRenamePlan(candidates);
+      if (active) {
+        setResolvedTargets(Object.fromEntries(candidates.map((item) => [item.sourcePath, item.targetPath])));
+        setFilesystemIssues(issues);
+      }
     }).catch((reason) => {
       if (!active) return;
       const message = errorMessage(reason);
@@ -407,7 +432,9 @@ export default function App() {
       addDebug('error', 'Rename preflight failed', message);
     }).finally(() => { if (active) setCheckingPlan(false); });
     return () => { active = false; };
-  }, [addDebug, renamePlan]);
+  }, [addDebug, renameGroups]);
+
+  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: 'Renaming', completed: progress.completed, total: progress.total })), []);
 
   useEffect(() => {
     if (!window.mediaRenamer?.discoverCompanions || !paths.length) {
@@ -437,11 +464,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming) { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, renaming, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -690,6 +717,27 @@ export default function App() {
     }
   }
 
+  async function executeRenames() {
+    if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || renaming) return;
+    setRenaming(true);
+    setError(undefined);
+    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
+    addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} episode${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
+    try {
+      const result = await window.mediaRenamer.executeRenamePlan(executableGroups);
+      addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}`);
+      setRenameConfirmationOpen(false);
+      clearBatch();
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Rename operation failed', message);
+    } finally {
+      setRenaming(false);
+      setWork(undefined);
+    }
+  }
+
   function clearBatch() {
     for (const path of paths) probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
     probedPaths.current.clear();
@@ -896,7 +944,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled>Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan || renaming} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || renaming} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
@@ -933,6 +981,17 @@ export default function App() {
           <h2 id="confirm-all-title">Confirm {confirmablePaths.length} suggested match{confirmablePaths.length === 1 ? '' : 'es'}?</h2>
           <p id="confirm-all-description">This accepts the episode currently shown beside each review file. You can still open an individual review first if any suggestion looks wrong.</p>
           <div><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>Cancel</button><button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Confirm all</button></div>
+        </section>
+      </div>}
+
+      {renameConfirmationOpen && <div className="confirmation-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Cancel rename" disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}/>
+        <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
+          <span className="confirmation-icon"><FileCheck2 size={20}/></span>
+          <h2 id="rename-title">Rename {executableGroups.length} episode{executableGroups.length === 1 ? '' : 's'}?</h2>
+          <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.</p>
+          {renaming && work && <progress className="rename-progress" value={work.completed} max={work.total}/>}
+          <div><button className="secondary" autoFocus disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={renaming} onClick={() => void executeRenames()}>{renaming ? <LoaderCircle className="spin" size={15}/> : <FileCheck2 size={15}/>} {renaming ? `Renaming ${work?.completed ?? 0}/${work?.total ?? executableFileCount}` : 'Rename files'}</button></div>
         </section>
       </div>}
 
