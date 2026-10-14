@@ -65,6 +65,10 @@ function joinPath(directory: string, relativePath: string): string {
   return `${directory.replace(/[\\/]+$/, '')}${separator}${relativePath.replace(/[\\/]+/g, separator)}`;
 }
 
+function fullSizeArtworkUrl(url: string): string {
+  return url.replace(/\/t\/p\/(?:w\d+|h\d+|original)\//, '/t/p/original/');
+}
+
 function highlightedTemplate(template: string): ReactNode[] {
   return template.split(/({{[^{}]*}})/g).filter(Boolean).map((part, index) => {
     if (!part.startsWith('{{')) return <span key={index}>{part}</span>;
@@ -96,6 +100,7 @@ export default function App() {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
   const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
+  const [posterZoomed, setPosterZoomed] = useState(false);
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
   const [clearConfirmation, setClearConfirmation] = useState(false);
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
@@ -385,7 +390,7 @@ export default function App() {
 
   useEffect(() => {
     if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreferencesOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [preferencesOpen, refreshConfirmation, clearConfirmation, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
@@ -715,7 +720,7 @@ export default function App() {
       <main>
         <section className="hero">
           <div className="show-identity">
-            {show?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${show.name}`} title="View full poster" onClick={() => setPosterPreviewOpen(true)}><img className="show-poster" src={show.posterUrl} alt=""/></button>}
+            {show?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${show.name}`} title="View full poster" onClick={() => { setPosterZoomed(false); setPosterPreviewOpen(true); }}><img className="show-poster" src={show.posterUrl} alt=""/></button>}
             <div>
               <p className="eyebrow">ACTIVE SHOW</p>
               {show?.logoUrl && <img className="show-logo" src={show.logoUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''}`} title={`${show.name}${show.year ? ` (${show.year})` : ''}`}/>}
@@ -830,11 +835,11 @@ export default function App() {
       <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightPlan.blockedCount} blocked <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div><button className="secondary" disabled={!paths.length || checkingPlan} onClick={() => void exportPlan()}>Export plan</button><button className="primary" disabled>Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {posterPreviewOpen && show?.posterUrl && <div className="poster-preview-layer">
-        <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => setPosterPreviewOpen(false)}/>
-        <section className="poster-preview-dialog" role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
-          <img src={show.posterUrl} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}/>
-          <button className="poster-preview-close" aria-label="Close poster preview" title="Close" autoFocus onClick={() => setPosterPreviewOpen(false)}><X size={20}/></button>
+        <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
+        <section className={`poster-preview-dialog ${posterZoomed ? 'zoomed' : ''}`} role="dialog" aria-modal="true" aria-label={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}>
+          <button className="poster-preview-image" aria-label={posterZoomed ? 'Fit poster to window' : 'View poster at full size'} aria-pressed={posterZoomed} title={posterZoomed ? 'Fit to window' : 'View at 100%'} onClick={() => setPosterZoomed((zoomed) => !zoomed)}><img src={fullSizeArtworkUrl(show.posterUrl)} alt={`${show.name}${show.year ? ` (${show.year})` : ''} poster`}/></button>
         </section>
+        <button className="poster-preview-close" aria-label="Close poster preview" title="Close" autoFocus onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}><X size={20}/></button>
       </div>}
 
       {refreshConfirmation && <div className="confirmation-layer" role="presentation">
