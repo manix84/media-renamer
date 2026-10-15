@@ -25,7 +25,7 @@ This first scaffold includes:
 - `S01E02` and `1x02` number matching;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
-- parsing for BluRay, WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels;
+- parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels;
 - guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
 - parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
 - anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;

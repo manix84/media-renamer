@@ -1,7 +1,7 @@
 import type { ReleaseTags, Source } from './types';
 
 const sources: Array<[RegExp, Source]> = [
-  [/\b(?:blu[ ._-]?ray|b[dr]rip)\b/i, 'BluRay'],
+  [/\b(?:blu[ ._-]?ray|b[dr]rip|bd)\b/i, 'BluRay'],
   [/\bweb[ ._-]?dl\b/i, 'WEB-DL'],
   [/\bweb[ ._-]?rip\b/i, 'WEBRip'],
   [/\bhdtv\b/i, 'HDTV'],

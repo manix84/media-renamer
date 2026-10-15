@@ -21,6 +21,11 @@ describe('release tag parser', () => {
     });
   });
 
+  it('treats a standalone BD token in an ancestor folder as BluRay source evidence', () => {
+    expect(parseReleaseTags('/TV/Dagashi Kashi S02 1080p BD/[Group] Dagashi Kashi - S02E01.mkv').source).toBe('BluRay');
+    expect(parseReleaseTags('/TV/BDArchives/Show.S01E01.mkv').source).toBe('Unknown');
+  });
+
   it('can override uncertain source and AI-upscale metadata across a batch', () => {
     const detected = parseReleaseTags('/TV/Show AI Upscaled/Show.S01E01.mkv');
     expect(applyReleaseOverrides(detected, { source: 'DVD', aiUpscale: false })).toMatchObject({ source: 'DVD', flags: [] });
