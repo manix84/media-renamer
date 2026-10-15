@@ -5,7 +5,7 @@ type RemoteId = { id?: string; sourceName?: string; type?: number };
 type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
 type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
-type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number };
+type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; runtime?: number };
 type EpisodesResponse = { data?: { episodes?: RawEpisode[] }; links?: { next?: string | null } };
 
 export interface TvdbSeries {
@@ -21,6 +21,7 @@ export interface TvdbEpisode {
   number: number;
   title: string;
   airDate?: string;
+  runtimeMinutes?: number;
 }
 
 export class TvdbClient {
@@ -91,6 +92,7 @@ export class TvdbClient {
           number: episode.number as number,
           title: episode.name?.trim() || `Episode ${episode.number}`,
           airDate: episode.aired || undefined,
+          ...(episode.runtime && episode.runtime > 0 ? { runtimeMinutes: episode.runtime } : {}),
         });
       }
       if (!payload.links?.next) break;

@@ -332,7 +332,7 @@ export default function App() {
           if (probeRuns.current[job.path] !== job.run) continue;
           setTechnicalTags((current) => ({ ...current, [job.path]: detected }));
           setProbeStates((current) => ({ ...current, [job.path]: 'complete' }));
-          const summary = [detected.resolution, detected.videoCodec, detected.audioCodec, detected.channels].filter(Boolean).join(' · ');
+          const summary = [detected.resolution, detected.videoCodec, detected.audioCodec, detected.channels, detected.durationSeconds ? formatDuration(detected.durationSeconds * 1000) : undefined].filter(Boolean).join(' · ');
           addDebug('success', `Inspected ${filename}`, summary || 'No video or audio streams were detected.');
         } catch (reason) {
           if (probeRuns.current[job.path] !== job.run) continue;
@@ -753,6 +753,14 @@ export default function App() {
   }, [activeMediaTab, addDebug, paths, provider?.configured, query, show]);
 
   useEffect(() => {
+    setMatchOverrides({});
+    setConfirmedPaths(new Set());
+    setHeldConfirmationPaths(new Set());
+    setReviewingPath(undefined);
+    setPinnedPreviewPath(undefined);
+  }, [episodes, matchConfidenceThreshold, titleMatching]);
+
+  useEffect(() => {
     if (activeMediaTab === 'movies') {
       setMatchOverrides({});
       setConfirmedPaths(new Set());
@@ -781,41 +789,40 @@ export default function App() {
       return;
     }
 
-    const worker = new Worker(new URL('./workers/matchWorker.ts', import.meta.url), { type: 'module' });
-    setMatchOverrides({});
-    setConfirmedPaths(new Set());
-    setHeldConfirmationPaths(new Set());
-    setReviewingPath(undefined);
-    setPinnedPreviewPath(undefined);
-    setWork({ operation: 'Importing', completed: 0, total: paths.length });
-    addDebug('info', `Matching ${paths.length} file${paths.length === 1 ? '' : 's'}`, `Comparing against ${episodes.length} episodes in a background worker.`);
-    worker.onmessage = (event: MessageEvent<{ type: 'progress'; completed: number; total: number } | { type: 'complete'; matches: FileMatch[] }>) => {
-      if (event.data.type === 'progress') {
-        setWork({ operation: 'Importing', completed: event.data.completed, total: event.data.total });
-      } else {
-        setMatches(event.data.matches);
-        for (const item of event.data.matches) {
-          const score = Math.round((item.match?.score ?? 0) * 100);
-          const episode = item.match?.episode;
-          const target = episode ? `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')} ${episode.title}` : 'no episode';
-          const evidence = item.match?.reasons.length ? item.match.reasons.join('; ') : 'no sufficiently strong matching evidence';
-          if (item.status === 'confident') addDebug('success', `Accepted ${item.filename} → ${target}`, `${score}% confidence: ${evidence}.`);
-          else if (item.status === 'review') addDebug('warning', `Review ${item.filename} → ${target}`, `${score}% confidence: ${evidence}. Manual confirmation is required.`);
-          else addDebug('error', `Rejected ${item.filename}`, `${score}% confidence: ${evidence}.`);
+    let worker: Worker | undefined;
+    // ffprobe jobs finish in small bursts; wait briefly so duration updates trigger one rematch instead of one worker per file.
+    const start = window.setTimeout(() => {
+      worker = new Worker(new URL('./workers/matchWorker.ts', import.meta.url), { type: 'module' });
+      setWork({ operation: 'Importing', completed: 0, total: paths.length });
+      addDebug('info', `Matching ${paths.length} file${paths.length === 1 ? '' : 's'}`, `Comparing against ${episodes.length} episodes in a background worker.`);
+      worker.onmessage = (event: MessageEvent<{ type: 'progress'; completed: number; total: number } | { type: 'complete'; matches: FileMatch[] }>) => {
+        if (event.data.type === 'progress') {
+          setWork({ operation: 'Importing', completed: event.data.completed, total: event.data.total });
+        } else {
+          setMatches(event.data.matches);
+          for (const item of event.data.matches) {
+            const score = Math.round((item.match?.score ?? 0) * 100);
+            const episode = item.match?.episode;
+            const target = episode ? `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')} ${episode.title}` : 'no episode';
+            const evidence = item.match?.reasons.length ? item.match.reasons.join('; ') : 'no sufficiently strong matching evidence';
+            if (item.status === 'confident') addDebug('success', `Accepted ${item.filename} → ${target}`, `${score}% confidence: ${evidence}.`);
+            else if (item.status === 'review') addDebug('warning', `Review ${item.filename} → ${target}`, `${score}% confidence: ${evidence}. Manual confirmation is required.`);
+            else addDebug('error', `Rejected ${item.filename}`, `${score}% confidence: ${evidence}.`);
+          }
+          setWork(undefined);
+          worker?.terminate();
         }
+      };
+      worker.onerror = () => {
+        setError('The file matching worker stopped unexpectedly.');
+        addDebug('error', 'File matching worker stopped unexpectedly');
         setWork(undefined);
-        worker.terminate();
-      }
-    };
-    worker.onerror = () => {
-      setError('The file matching worker stopped unexpectedly.');
-      addDebug('error', 'File matching worker stopped unexpectedly');
-      setWork(undefined);
-      worker.terminate();
-    };
-    worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100, showTitle: show?.name });
-    return () => worker.terminate();
-  }, [activeMediaTab, addDebug, movie, paths, episodes, show?.name, titleMatching, matchConfidenceThreshold]);
+        worker?.terminate();
+      };
+      worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100, showTitle: show?.name, durationsByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.durationSeconds])) });
+    }, 120);
+    return () => { window.clearTimeout(start); worker?.terminate(); };
+  }, [activeMediaTab, addDebug, movie, paths, episodes, show?.name, technicalTags, titleMatching, matchConfidenceThreshold]);
 
   useEffect(() => {
     const trimmed = query.trim();

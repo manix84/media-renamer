@@ -25,9 +25,9 @@ describe('TMDB adapter', () => {
   });
 
   it('authenticates with the read access token and normalizes episodes', async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ episodes: [{ id: 7, season_number: 1, episode_number: 2, name: 'Second', air_date: '2020-01-02' }] }), { status: 200 }));
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ episodes: [{ id: 7, season_number: 1, episode_number: 2, name: 'Second', air_date: '2020-01-02', runtime: 52 }] }), { status: 200 }));
     const client = new TmdbClient('secret-token', fetcher);
-    await expect(client.getSeasonEpisodes('123', 1)).resolves.toEqual([{ id: '7', season: 1, number: 2, title: 'Second', airDate: '2020-01-02' }]);
+    await expect(client.getSeasonEpisodes('123', 1)).resolves.toEqual([{ id: '7', season: 1, number: 2, title: 'Second', airDate: '2020-01-02', runtimeMinutes: 52 }]);
     expect(fetcher).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer secret-token' }) }));
   });
 

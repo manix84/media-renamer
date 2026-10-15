@@ -53,6 +53,7 @@ const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 2;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
+const EPISODE_CACHE_VERSION = 2;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());
@@ -341,13 +342,13 @@ ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown };
   if (request.agent === 'tvdb-aired') {
     const seriesId = textArgument(request.tvdbId, 'TVDB series ID');
-    return metadataCache().get(`tvdb:episodes:aired:eng:${seriesId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(seriesId));
+    return metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${seriesId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(seriesId));
   }
   if (request.agent === 'tmdb-aired') {
     if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid TMDB season list.');
     const showId = textArgument(request.tmdbId, 'TMDB show ID');
     const seasons = request.seasons.map(Number).sort((left, right) => left - right);
-    return metadataCache().get(`tmdb:episodes:aired:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => (await Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season)))).flat());
+    return metadataCache().get(`tmdb:v${EPISODE_CACHE_VERSION}:episodes:aired:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => (await Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season)))).flat());
   }
   throw new Error('Unsupported show metadata agent.');
 });

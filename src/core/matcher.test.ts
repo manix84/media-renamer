@@ -103,4 +103,22 @@ describe('episode matcher', () => {
     expect(result.match?.episode.id).toBe('episode');
     expect(result.match?.reasons.some((reason) => reason.startsWith('title '))).toBe(true);
   });
+
+  it('uses duration as supporting evidence when episode runtimes differ', () => {
+    const result = matchFile('Show.Pilot.mkv', [
+      { id: 'short', season: 1, number: 1, title: 'Pilot Part One', runtimeMinutes: 22 },
+      { id: 'long', season: 1, number: 2, title: 'Pilot Part Two', runtimeMinutes: 44 },
+    ], true, .8, 'Show', 43.5 * 60);
+
+    expect(result.match?.episode.id).toBe('long');
+    expect(result.match?.reasons).toContain('duration matches 44m runtime');
+  });
+
+  it('does not penalize a duration mismatch or match from duration alone', () => {
+    const numbered = matchFile('Show.S01E01.mkv', [{ id: 'episode', season: 1, number: 1, title: 'Pilot', runtimeMinutes: 22 }], false, .8, 'Show', 44 * 60);
+    const durationOnly = matchFile('Unrelated.mkv', [{ id: 'episode', season: 1, number: 1, title: 'Pilot', runtimeMinutes: 44 }], false, .8, 'Show', 44 * 60);
+
+    expect(numbered.match?.score).toBe(.45);
+    expect(durationOnly.match).toBeUndefined();
+  });
 });

@@ -26,7 +26,7 @@ This first scaffold includes:
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
-- parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels;
+- parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels and contributing duration evidence to episode matching;
 - guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
 - parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
 - anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;
@@ -98,10 +98,11 @@ Every imported file is ranked against the selected show's episodes. Evidence is 
 1. Extract explicit season/episode numbers.
 2. Normalize filename and episode titles (case, punctuation, diacritics, stop words, and release noise).
 3. Score title coverage with a high recall bias because filenames contain extra show and release tokens.
-4. Surface contradictions—such as `S02E07` containing the exact title of episode 8—as review items instead of hiding the decision.
-5. Automatically accept matches at or above the configured confidence threshold (80% by default), and require confirmation below it.
+4. Add a small positive score when the `ffprobe` container duration agrees with the provider's episode runtime; duration never creates a match by itself or penalizes a mismatch.
+5. Surface contradictions—such as `S02E07` containing the exact title of episode 8—as review items instead of hiding the decision.
+6. Automatically accept matches at or above the configured confidence threshold (80% by default), and require confirmation below it.
 
-Future matching evidence can include duration, air date, embedded title, adjacent-file ordering, absolute/anime numbering, and multi-episode ranges. Provider ordering is metadata, not ground truth.
+Future matching evidence can include air date, embedded title, adjacent-file ordering, absolute/anime numbering, and multi-episode ranges. Provider ordering is metadata, not ground truth.
 
 ## Filename templates
 
@@ -137,7 +138,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | --- | --- | --- |
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 12 of 12 steps |
-| 3 — Resilient matching and metadata | In progress | 4 of 10 steps |
+| 3 — Resilient matching and metadata | In progress | 5 of 10 steps |
 | 4 — Movies and library workflows | Started | 2 of 6 steps |
 | 5 — Release readiness | Planned | 0 of 6 steps |
 
@@ -177,7 +178,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] best-effort title matching with number/title conflict review
 - [x] anime-style version suffixes normalized to release metadata
 - [x] confidence thresholds plus current-batch source and AI-upscale overrides
-- [ ] duration evidence through `ffprobe`
+- [x] duration evidence through `ffprobe`
 - [ ] multi-episode, specials, absolute ordering, and anime filename patterns
 - [ ] editable release-tag vocabulary and aliases
 - [ ] folder parsing, per-show rules, and saved matching decisions
@@ -218,9 +219,9 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete, and Milestone 3 is active. The remaining work is currently ordered as:
 
-1. Add duration-assisted matching using the existing `ffprobe` inspection path.
-2. Expand parsing and matching for multi-episode files, specials, absolute ordering, and anime naming.
-3. Add editable release-tag aliases, folder parsing, per-show rules, and saved match decisions.
-4. Add NFO export alongside the existing dry-run JSON export.
+1. Expand parsing and matching for multi-episode files, specials, absolute ordering, and anime naming.
+2. Add editable release-tag aliases, folder parsing, per-show rules, and saved match decisions.
+3. Add NFO export alongside the existing dry-run JSON export.
+4. Add embedded-title and adjacent-file ordering evidence.
 5. Complete movie-specific disambiguation, editions, cuts, collections, and reusable library workflows.
 6. Finish release-readiness work: provider onboarding, accessibility, stress testing, signed packages, and updates.

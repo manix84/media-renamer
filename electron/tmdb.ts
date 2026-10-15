@@ -29,6 +29,7 @@ export interface TmdbEpisode {
   number: number;
   title: string;
   airDate?: string;
+  runtimeMinutes?: number;
 }
 
 export interface TmdbMovieSearchResult {
@@ -72,6 +73,7 @@ type RawEpisode = {
   episode_number: number;
   name: string;
   air_date?: string | null;
+  runtime?: number | null;
 };
 
 function optionalDate(value?: string | null): string | undefined {
@@ -229,6 +231,7 @@ export class TmdbClient {
       number: episode.episode_number,
       title: episode.name,
       airDate: optionalDate(episode.air_date),
+      ...(episode.runtime && episode.runtime > 0 ? { runtimeMinutes: episode.runtime } : {}),
     }));
   }
 }

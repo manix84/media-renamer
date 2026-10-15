@@ -7,6 +7,7 @@ export interface Episode {
   number: number;
   title: string;
   airDate?: string;
+  runtimeMinutes?: number;
 }
 
 export interface ShowSearchResult {
@@ -56,7 +57,7 @@ export interface ReleaseTags {
   group?: string;
 }
 
-export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>>;
+export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>> & { durationSeconds?: number };
 
 export type CompanionKind = 'subtitle' | 'metadata' | 'artwork';
 export interface MediaCompanion { path: string; suffix: string; kind: CompanionKind }

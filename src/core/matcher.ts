@@ -35,7 +35,16 @@ function numberedEpisode(filename: string): { season: number; episode: number } 
   return match ? { season: match.season, episode: match.episode } : undefined;
 }
 
-export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string): MatchCandidate[] {
+function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: number | undefined): { score: number; reason?: string } {
+  if (!durationSeconds || !runtimeMinutes) return { score: 0 };
+  const expectedSeconds = runtimeMinutes * 60;
+  const differenceSeconds = Math.abs(durationSeconds - expectedSeconds);
+  if (differenceSeconds <= Math.max(120, expectedSeconds * .12)) return { score: .12, reason: `duration matches ${runtimeMinutes}m runtime` };
+  if (differenceSeconds <= Math.max(300, expectedSeconds * .25)) return { score: .05, reason: `duration close to ${runtimeMinutes}m runtime` };
+  return { score: 0 };
+}
+
+export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string, durationSeconds?: number): MatchCandidate[] {
   const numbered = numberedEpisode(filename);
   return episodes
     .map((episode) => {
@@ -50,15 +59,18 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
         score += similarity * 0.65;
         if (similarity >= 0.5) reasons.push(`title ${Math.round(similarity * 100)}%`);
       }
+      const duration = durationEvidence(durationSeconds, episode.runtimeMinutes);
+      score += duration.score;
+      if (duration.reason) reasons.push(duration.reason);
       return { episode, score: Math.min(score, 1), reasons };
     })
     .filter(({ score }) => score > 0.12)
     .sort((a, b) => b.score - a.score);
 }
 
-export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8, showTitle?: string): FileMatch {
+export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8, showTitle?: string, durationSeconds?: number): FileMatch {
   const filename = path.split(/[\\/]/).pop() ?? path;
-  const alternatives = rankEpisodes(filename, episodes, useTitle, showTitle);
+  const alternatives = rankEpisodes(filename, episodes, useTitle, showTitle, durationSeconds);
   const match = alternatives[0];
   const threshold = Math.min(1, Math.max(0, confidenceThreshold));
   const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= threshold ? 'confident' : 'review';

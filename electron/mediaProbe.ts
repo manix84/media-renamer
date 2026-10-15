@@ -18,6 +18,7 @@ export interface MediaTechnicalTags {
   videoCodec?: string;
   audioCodec?: string;
   channels?: string;
+  durationSeconds?: number;
 }
 
 function videoCodec(name?: string): string | undefined {
@@ -41,15 +42,17 @@ function preferredStream(streams: ProbeStream[], type: string): ProbeStream | un
 }
 
 export function parseProbeOutput(output: string): MediaTechnicalTags {
-  const data = JSON.parse(output) as { streams?: ProbeStream[] };
+  const data = JSON.parse(output) as { streams?: ProbeStream[]; format?: { duration?: string } };
   const streams = data.streams ?? [];
   const video = preferredStream(streams, 'video');
   const audio = preferredStream(streams, 'audio');
+  const duration = Number(data.format?.duration);
   return {
     resolution: video?.height ? `${video.height}p` : undefined,
     videoCodec: videoCodec(video?.codec_name),
     audioCodec: audioCodec(audio?.codec_name),
     channels: channelLayout(audio),
+    durationSeconds: Number.isFinite(duration) && duration > 0 ? duration : undefined,
   };
 }
 
@@ -57,7 +60,7 @@ export async function probeMedia(filePath: string, ffprobePath = process.env.FFP
   try {
     const { stdout } = await execFileAsync(ffprobePath, [
       '-v', 'error',
-      '-show_entries', 'stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default',
+      '-show_entries', 'format=duration:stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default',
       '-of', 'json',
       filePath,
     ], { encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 30_000 });

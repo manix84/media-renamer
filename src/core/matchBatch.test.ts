@@ -17,4 +17,20 @@ describe('file matching batch', () => {
     expect(matches).toHaveLength(3);
     expect(progress.mock.calls).toEqual([[1, 3], [2, 3], [3, 3]]);
   });
+
+  it('passes probed file durations into episode matching', () => {
+    const [match] = matchFiles(
+      ['/media/Show.Pilot.mkv'],
+      [
+        { id: 'short', season: 1, number: 1, title: 'Pilot Part One', runtimeMinutes: 22 },
+        { id: 'long', season: 1, number: 2, title: 'Pilot Part Two', runtimeMinutes: 44 },
+      ],
+      true,
+      () => undefined,
+      .8,
+      'Show',
+      { '/media/Show.Pilot.mkv': 44 * 60 },
+    );
+    expect(match.match?.episode.id).toBe('long');
+  });
 });
