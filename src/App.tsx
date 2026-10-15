@@ -985,11 +985,11 @@ export default function App() {
     setReviewCandidate(item?.match);
   }
 
-  function confirmMatchReview() {
-    if (!reviewingPath || !reviewCandidate) return;
-    setMatchOverrides((current) => ({ ...current, [reviewingPath]: reviewCandidate }));
+  function confirmMatchReview(candidate = reviewCandidate) {
+    if (!reviewingPath || !candidate) return;
+    setMatchOverrides((current) => ({ ...current, [reviewingPath]: candidate }));
     setConfirmedPaths((current) => new Set(current).add(reviewingPath));
-    addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${episodeCode(reviewCandidate.episode)} ${reviewCandidate.episode.title}`, reviewCandidate.reasons.join('; ') || 'Manually confirmed.');
+    addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${episodeCode(candidate.episode)} ${candidate.episode.title}`, candidate.reasons.join('; ') || 'Manually confirmed.');
     setReviewingPath(undefined);
   }
 
@@ -1239,7 +1239,7 @@ export default function App() {
             {reviewCandidates.map((candidate) => {
               const selected = reviewCandidate?.episode.id === candidate.episode.id;
               const manual = candidate.reasons.includes('manually selected');
-              return <button key={candidate.episode.id} className={selected ? 'selected' : ''} onClick={() => setReviewCandidate(candidate)}>
+              return <button key={candidate.episode.id} className={selected ? 'selected' : ''} title="Double-click to confirm this episode" onClick={() => setReviewCandidate(candidate)} onDoubleClick={() => confirmMatchReview(candidate)}>
                 <span className="candidate-code">{episodeCode(candidate.episode)}</span>
                 <span><strong>{candidate.episode.title}</strong><small>{manual ? 'Manual selection' : candidate.reasons.join(' · ') || 'No matching evidence'}</small></span>
                 <span className="candidate-score">{manual ? 'Manual' : `${Math.round(candidate.score * 100)}%`}</span>
@@ -1248,7 +1248,7 @@ export default function App() {
             })}
             {reviewCandidates.length === 0 && <div className="review-empty">No episodes match that search.</div>}
           </div>
-          <div className="review-footer"><span><FileCheck2 size={15}/> Confirmation is recorded for this matching run.</span><button className="primary" disabled={!reviewCandidate} onClick={confirmMatchReview}>Confirm match</button></div>
+          <div className="review-footer"><span><FileCheck2 size={15}/> Double-click an episode to confirm it immediately.</span><button className="primary" disabled={!reviewCandidate} onClick={() => confirmMatchReview()}>Confirm match</button></div>
         </aside>
       </div>}
 
