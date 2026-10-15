@@ -135,7 +135,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .metadata-overrides label:first-child { border-top: 0; } .metadata-overrides strong, .metadata-overrides small { display: block; } .metadata-overrides strong { font-size: 11px; } .metadata-overrides small { margin-top: 3px; color: #727d91; font-size: 9px; line-height: 1.35; }
 .metadata-overrides select { width: 100%; padding: 7px 27px 7px 8px; border: 1px solid #353e50; border-radius: 7px; outline: 0; background: #191f2a; color: #d5dbe7; font-size: 10px; }
 .preferences-panel .theme-switcher { margin-top: 13px; display: grid; grid-template-columns: repeat(3, 1fr); }
-.preferences-panel .theme-switcher button { width: auto; gap: 7px; display: flex; font-size: 10px; }
+.preferences-panel .theme-switcher button { width: auto; gap: 7px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+.preferences-panel .theme-switcher button svg { flex: 0 0 auto; }
 .view-mode-switcher { margin-top: 13px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .view-mode-switcher button { min-width: 0; padding: 10px 8px; border: 1px solid #303747; border-radius: 8px; background: #121721; color: #8a94a7; text-align: left; cursor: pointer; }
 .view-mode-switcher button:hover { border-color: #484f61; background: #181e29; }
