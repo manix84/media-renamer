@@ -3,6 +3,7 @@ import path from 'node:path';
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
+  completionChime?: boolean;
   createExternalRenameLog?: boolean;
   episodeTemplate?: string;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
@@ -35,6 +36,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.matchConfidenceThreshold === 'number' && Number.isFinite(source.matchConfidenceThreshold) && source.matchConfidenceThreshold >= 50 && source.matchConfidenceThreshold <= 100) result.matchConfidenceThreshold = Math.round(source.matchConfidenceThreshold);
   if (typeof source.removeEmptySourceParents === 'boolean') result.removeEmptySourceParents = source.removeEmptySourceParents;
   if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;
+  if (typeof source.completionChime === 'boolean') result.completionChime = source.completionChime;
   if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;

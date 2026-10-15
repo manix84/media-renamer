@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { prepareCompletionChime } from './completionChime';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
 import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
@@ -173,6 +174,7 @@ export default function App() {
   const [moveFiles, setMoveFiles] = useState(true);
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
   const [autoClearCompletedBatch, setAutoClearCompletedBatch] = useState(false);
+  const [completionChime, setCompletionChime] = useState(false);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
@@ -465,6 +467,7 @@ export default function App() {
       if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate);
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
+      if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
@@ -530,6 +533,7 @@ export default function App() {
     if (!preferencesHydrated || !window.mediaRenamer?.savePreferences) return;
     void window.mediaRenamer.savePreferences({
       autoClearCompletedBatch,
+      completionChime,
       createExternalRenameLog,
       episodeTemplate,
       fileViewMode,
@@ -543,7 +547,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, completionChime, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -1003,6 +1007,7 @@ export default function App() {
 
   async function executeRenames() {
     if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || preflightError || renaming) return;
+    const preparedChime = completionChime ? prepareCompletionChime(palette) : undefined;
     setRenaming(true);
     setRenameControl(undefined);
     setRenameStartedAt(Date.now());
@@ -1025,6 +1030,8 @@ export default function App() {
       const renamedVideos = new Set(result.operation.status === 'undone' ? [] : result.operation.items.filter((item) => isVideoPath(item.sourcePath)).map((item) => item.sourcePath));
       const entireBatchRenamed = paths.length > 0 && paths.every((path) => renamedVideos.has(path));
       setLastRename(result);
+      if (result.operation.status === 'completed') preparedChime?.play();
+      else preparedChime?.dispose();
       if (result.operation.status === 'undone') setBatchRenameCompleted(false);
       else if (entireBatchRenamed && autoClearCompletedBatch) clearBatch();
       else {
@@ -1033,6 +1040,7 @@ export default function App() {
       }
       setRenameConfirmationOpen(false);
     } catch (reason) {
+      preparedChime?.dispose();
       const message = errorMessage(reason);
       setError(message);
       addDebug('error', 'Rename operation failed', message);
@@ -1504,6 +1512,7 @@ export default function App() {
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChime(event.target.checked)}/></label>
             <label className="preference-toggle"><span><FileText size={17}/><span><strong>{t('prefs.saveLog')}</strong><small>{t('prefs.saveLogHelp')}</small></span></span><input type="checkbox" checked={createExternalRenameLog} onChange={(event) => setCreateExternalRenameLog(event.target.checked)}/></label>
             {createExternalRenameLog && <div className="destination-row standalone"><span><strong>Operation log folder</strong><small>{renameLogFolder || 'Use the active TV or Movie destination; otherwise use the renamed files’ common folder'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Log')}><FolderTree size={14}/>{renameLogFolder ? 'Change' : 'Choose'}</button>{renameLogFolder && <button className="icon-button" aria-label="Clear operation log folder" title="Use the active media destination" onClick={() => setRenameLogFolder('')}><X size={14}/></button>}</span></div>}
           </section>

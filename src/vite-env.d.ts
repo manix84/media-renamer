@@ -22,6 +22,7 @@ declare global {
       platform: string;
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
+        completionChime?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
@@ -40,6 +41,7 @@ declare global {
       }>;
       savePreferences(preferences: {
         autoClearCompletedBatch?: boolean;
+        completionChime?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';

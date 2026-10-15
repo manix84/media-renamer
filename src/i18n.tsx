@@ -32,6 +32,7 @@ const en = {
   'prefs.afterRenameHelp': 'Choose what happens after every file in a batch is renamed successfully.', 'prefs.shows': 'Shows', 'prefs.movies': 'Movies',
   'prefs.close': 'Close preferences', 'prefs.removeEmpty': 'Remove empty source folders', 'prefs.removeEmptyHelp': "Delete a moved file's immediate parent folder only when it is empty",
   'prefs.autoClear': 'Clear completed batches automatically', 'prefs.autoClearHelp': 'Remove the finished batch from the workspace while keeping Undo available',
+  'prefs.completionChime': 'Play a chime when complete', 'prefs.completionChimeHelp': 'Uses a matching sound for Halloween and Christmas themes',
   'prefs.saveLog': 'Save a timestamped operation log', 'prefs.saveLogHelp': 'Off by default; rename success is not blocked if this optional log cannot be written',
   'debug.title': 'Debug console', 'debug.empty': 'No activity recorded yet.', 'debug.session': '{count} events · local session only',
 } as const;
