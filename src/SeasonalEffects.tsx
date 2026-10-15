@@ -4,7 +4,7 @@ import type { ThemePalette } from './theme';
 type Point = { x: number; y: number };
 type Snowflake = Point & { size: number; speed: number; drift: number; phase: number };
 type WebConfig = { rings: number; spokes: number; spacing: number };
-export type BatFlight = { start: Point; control1: Point; control2: Point; end: Point; phase: number; scale: number; flutter: number };
+export type BatFlight = { entryEdge: number; exitEdge: number; start: Point; control1: Point; control2: Point; end: Point; phase: number; scale: number; flutter: number };
 
 function edgePoint(edge: number, width: number, height: number, random: () => number): Point {
   const margin = 48;
@@ -17,8 +17,10 @@ function edgePoint(edge: number, width: number, height: number, random: () => nu
 export function createBatFlights(width: number, height: number, count: number, random: () => number = Math.random): BatFlight[] {
   return Array.from({ length: count }, (_, index) => {
     const entryEdge = Math.floor(random() * 4);
-    const exitEdge = (entryEdge + 1 + Math.floor(random() * 3)) % 4;
+    const exitEdge = (entryEdge + 2) % 4;
     return {
+      entryEdge,
+      exitEdge,
       start: edgePoint(entryEdge, width, height, random),
       control1: { x: width * (.12 + random() * .76), y: height * (.08 + random() * .72) },
       control2: { x: width * (.12 + random() * .76), y: height * (.18 + random() * .74) },

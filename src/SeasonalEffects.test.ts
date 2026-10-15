@@ -10,6 +10,8 @@ describe('Halloween bat flights', () => {
 
     expect(outside(flight.start)).toBe(true);
     expect(outside(flight.end)).toBe(true);
+    expect(flight.exitEdge).toBe((flight.entryEdge + 2) % 4);
+    expect(flight.exitEdge).not.toBe(flight.entryEdge);
     expect(flight.start).not.toEqual(flight.end);
     expect(flight.control1.x).toBeGreaterThan(0);
     expect(flight.control1.y).toBeGreaterThan(0);
