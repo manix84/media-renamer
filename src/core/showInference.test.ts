@@ -9,6 +9,13 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/media/Sealab 2021 (2000) S01E01.mkv'])).toBe('Sealab 2021 (2000)');
   });
 
+  it('accepts separated season and episode markers', () => {
+    expect(inferShowQuery(['/media/Jackie Chan Adventures - S01 E01 - The Dark Hand.mp4'])).toBe('Jackie Chan Adventures');
+    expect(inferShowQuery(['/media/Jackie Chan Adventures.S01-E02.The Power Within.mp4'])).toBe('Jackie Chan Adventures');
+    expect(inferShowQuery(['/media/Jackie Chan Adventures_S01.E03_The Mask.mp4'])).toBe('Jackie Chan Adventures');
+    expect(inferShowQuery(['/media/Jackie Chan Adventures - 1 x 25 - The New Atlantis.mp4'])).toBe('Jackie Chan Adventures');
+  });
+
   it('uses the most common title across a mixed import', () => {
     expect(inferShowQuery([
       '/tv/Main.Show.S01E01.mkv',

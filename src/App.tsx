@@ -669,7 +669,7 @@ export default function App() {
     if (activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
     const inferred = inferShowQuery(paths);
     if (!inferred) {
-      addDebug('warning', 'Could not infer a show name', 'No common SxxExx or 1x02 filename pattern was found.');
+      addDebug('warning', 'Could not infer a show name', 'No common SxxExx, separated Sxx Exx, or 1x02 filename pattern was found.');
       return;
     }
     addDebug('info', `Inferred show query: ${inferred}`, `Derived from ${paths.length} imported file${paths.length === 1 ? '' : 's'}.`);

@@ -22,7 +22,7 @@ This first scaffold includes:
 - immediate ordered display of every imported video, including pending and unmatched files;
 - automatic show-name inference from imported episode filenames;
 - literal-first title-and-year search with a structured year fallback;
-- `S01E02` and `1x02` number matching;
+- compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
 - parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels;

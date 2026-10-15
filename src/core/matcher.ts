@@ -1,5 +1,6 @@
 import type { Episode, FileMatch, MatchCandidate } from './types';
 import { parseReleaseTags } from './releaseTags';
+import { parseEpisodeCode } from './episodeCode';
 
 const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
 
@@ -30,8 +31,8 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
 }
 
 function numberedEpisode(filename: string): { season: number; episode: number } | undefined {
-  const match = filename.match(/\bS(\d{1,2})E(\d{1,3})\b/i) ?? filename.match(/\b(\d{1,2})x(\d{1,3})\b/i);
-  return match ? { season: Number(match[1]), episode: Number(match[2]) } : undefined;
+  const match = parseEpisodeCode(filename);
+  return match ? { season: match.season, episode: match.episode } : undefined;
 }
 
 export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string): MatchCandidate[] {

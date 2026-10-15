@@ -1,3 +1,5 @@
+import { parseEpisodeCode } from './episodeCode';
+
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
 }
@@ -5,7 +7,7 @@ function filenameFromPath(filePath: string): string {
 export function inferShowQuery(paths: string[]): string | undefined {
   const candidates = paths.map((filePath) => {
     const filename = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-    const marker = filename.search(/(?:^|[ ._-])(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})(?:$|[ ._-])/i);
+    const marker = parseEpisodeCode(filename)?.index ?? -1;
     if (marker < 1) return undefined;
     return filename
       .slice(0, marker)

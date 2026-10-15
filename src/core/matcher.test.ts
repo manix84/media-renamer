@@ -65,6 +65,19 @@ describe('episode matcher', () => {
     expect(matchFile('Show.S04E02.mkv', combined).match?.episode.id).toBe('s4');
   });
 
+  it.each([
+    'Show.S01E02.mkv',
+    'Show - S01 E02 - An Early Episode.mkv',
+    'Show.S01-E02.An Early Episode.mkv',
+    'Show_S01.E02_An Early Episode.mkv',
+    'Show - 1x02 - An Early Episode.mkv',
+    'Show - 1 x 2 - An Early Episode.mkv',
+  ])('matches separated episode code format %s', (filename) => {
+    const result = matchFile(filename, [{ id: 's1e2', season: 1, number: 2, title: 'An Early Episode' }]);
+    expect(result.match?.episode.id).toBe('s1e2');
+    expect(result.match?.reasons).toContain('season and episode number');
+  });
+
   it('uses the configured confidence threshold for automatic acceptance', () => {
     const titleOnly = 'Dilbert.The.Merger.DVDRip.x264.mkv';
     expect(matchFile(titleOnly, episodes, true, 0.5).status).toBe('confident');
