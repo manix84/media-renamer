@@ -904,6 +904,16 @@ export default function App() {
     for (const path of paths) probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
     probedPaths.current.clear();
     setPaths([]);
+    searchSequence.current += 1;
+    seasonSequence.current += 1;
+    autoSelectResult.current = false;
+    setQuery('');
+    setResults([]);
+    setSearching(false);
+    setShow(undefined);
+    setMovie(undefined);
+    setEpisodes([]);
+    setLoadingEpisodes(false);
     setMatches([]);
     setMatchOverrides({});
     setConfirmedPaths(new Set());

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, 
 import { discoverMediaCompanions } from './mediaCompanions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type DebugEntry = { id: number; timestamp: number; level: DebugLevel; message: string; detail?: string };
 
@@ -72,6 +73,7 @@ function createWindow() {
     minHeight: 640,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0b0e14',
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(here, 'preload.cjs'),
       contextIsolation: true,
@@ -245,6 +247,9 @@ ipcMain.handle('tmdb:get-season-episodes', (_event, showId: unknown, season: unk
 });
 
 app.whenReady().then(() => {
+  app.setName('Media Renamer');
+  const appIcon = nativeImage.createFromPath(appIconPath);
+  if (!appIcon.isEmpty() && process.platform === 'darwin') app.dock?.setIcon(appIcon);
   createWindow();
   app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 });
