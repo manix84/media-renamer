@@ -516,6 +516,10 @@ button.secondary.active, .view-mode-switcher button.active, .palette-switcher bu
 [data-theme="light"] button.secondary.active, [data-theme="light"] .view-mode-switcher button.active { border-color: var(--accent-border); background: var(--accent-soft); color: var(--accent-text); }
 [data-theme="light"] .view-mode-switcher button.active small, [data-theme="light"] .companion-summary { color: var(--accent-muted); }
 [data-theme="light"] .preference-toggle, [data-theme="light"] .matching-option { border-color: color-mix(in srgb, var(--accent) 34%, #d9dee7); background: linear-gradient(90deg, var(--accent-soft), color-mix(in srgb, var(--accent-soft) 52%, white)); }
+.preference-toggle:has(input:not(:checked)) { border-color: #2d3440; background: linear-gradient(90deg, #171b23, #11151c); }
+.preference-toggle:has(input:not(:checked)) svg { color: #6e7786; }
+[data-theme="light"] .preference-toggle:has(input:not(:checked)) { border-color: #d5d9e0; background: linear-gradient(90deg, #f2f3f5, #f8f9fa); }
+[data-theme="light"] .preference-toggle:has(input:not(:checked)) svg { color: #7b8492; }
 [data-theme="light"] .confidence-threshold output, [data-theme="light"] .confirmation-icon, [data-theme="light"] .status-dot.confirmed { background: var(--accent-soft); color: var(--accent-text); }
 [data-theme="light"] .preference-media-tabs button.active, [data-theme="light"] .format-help .reference-link.active, [data-theme="light"] .candidate-code { color: var(--accent-text); }
 [data-theme="light"] .review-candidates button.selected { background: var(--accent-soft); }
