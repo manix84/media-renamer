@@ -7,6 +7,8 @@ import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieDetails, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
+import { SeasonalEffects } from './SeasonalEffects';
+import { availablePalettes } from './seasonalThemes';
 import { useTheme, type ThemePalette } from './theme';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
@@ -1058,6 +1060,7 @@ export default function App() {
   }
 
   const activeTitle = activeMediaTab === 'movies' ? movie : show;
+  const selectablePalettes = availablePalettes(new Date(), import.meta.env.DEV);
 
   return (
     <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''} ${preferencesOpen ? 'preferences-open' : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
@@ -1069,6 +1072,7 @@ export default function App() {
           <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
         </div>
       </header>
+      <SeasonalEffects palette={palette}/>
 
       <main>
         <section className="hero">
@@ -1297,8 +1301,8 @@ export default function App() {
               <button key={value} className={preference === value ? 'active' : ''} aria-label={`${label} appearance`} aria-pressed={preference === value} onClick={() => setPreference(value)}><Icon size={15}/><span>{label}</span></button>
             ))}
           </div><div className="palette-heading"><strong>Colour theme</strong><small>Works with Automatic, Light, and Dark</small></div><div className="palette-switcher" role="group" aria-label="Colour theme">
-            {([['classic', 'Classic', '#7663dc'], ['ocean', 'Ocean', '#1688c9'], ['forest', 'Forest', '#27865b'], ['rose', 'Rose', '#c04f82'], ['amber', 'Amber', '#c47a16'], ['halloween', 'Halloween', '#e56b18'], ['winter', 'Winter', '#4f8fc9']] as Array<[ThemePalette, string, string]>).map(([value, label, colour]) => (
-              <button key={value} className={palette === value ? 'active' : ''} aria-pressed={palette === value} onClick={() => setPalette(value)}><span className="palette-swatch" style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{(value === 'halloween' || value === 'winter') && <small>Seasonal</small>}</button>
+            {([['classic', 'Classic', '#7663dc'], ['ocean', 'Ocean', '#1688c9'], ['forest', 'Forest', '#27865b'], ['rose', 'Rose', '#c04f82'], ['amber', 'Amber', '#c47a16'], ['halloween', 'Halloween', '#e56b18'], ['christmas', 'Christmas', '#4f8fc9']] as Array<[ThemePalette, string, string]>).filter(([value]) => selectablePalettes.includes(value)).map(([value, label, colour]) => (
+              <button key={value} className={palette === value ? 'active' : ''} aria-pressed={palette === value} onClick={() => setPalette(value)}><span className="palette-swatch" style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{(value === 'halloween' || value === 'christmas') && <small>Seasonal</small>}</button>
             ))}
           </div></section>
           <section className="preference-section"><h3>File list</h3><p>Choose how much information each imported file displays.</p><div className="view-mode-switcher" role="group" aria-label="File list view">

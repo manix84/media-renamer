@@ -20,7 +20,7 @@ describe('theme preference', () => {
 
   it('accepts only supported colour palettes', () => {
     expect(isThemePalette('classic')).toBe(true);
-    expect(isThemePalette('winter')).toBe(true);
+    expect(isThemePalette('christmas')).toBe(true);
     expect(isThemePalette('sepia')).toBe(false);
   });
 });
