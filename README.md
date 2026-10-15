@@ -45,6 +45,7 @@ This first scaffold includes:
 - persistent light/dark/system appearance controls plus independent colour palettes with animated, reduced-motion-aware transitions; October unlocks cursor-warped Halloween webs and rare bat flocks, while December unlocks cursor-avoiding Christmas snow (development builds expose both for testing);
 - automatic system-language detection with a persisted override for English, Spanish, French, German, Italian, Brazilian Portuguese, Japanese, Korean, and Simplified Chinese;
 - background-worker matching with visible per-file progress;
+- lightweight monitoring of imported files so external deletes leave the batch and resolvable renames or moves update the tracked path;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
 

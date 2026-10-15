@@ -650,6 +650,45 @@ export default function App() {
   }, [addDebug, paths]);
 
   useEffect(() => {
+    window.mediaRenamer?.watchFiles(paths).catch((reason) => addDebug('warning', 'Could not monitor imported files', errorMessage(reason)));
+  }, [addDebug, paths]);
+
+  useEffect(() => window.mediaRenamer?.onWatchedFilesChanged((changes) => {
+    const moved = new Map(changes.flatMap((change) => change.type === 'moved' ? [[change.previousPath, change.path] as const] : []));
+    const deleted = new Set(changes.flatMap((change) => change.type === 'deleted' ? [change.path] : []));
+    const nextPath = (filePath: string) => moved.get(filePath) ?? filePath;
+    const remapRecord = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).flatMap(([key, value]) => deleted.has(key) ? [] : [[nextPath(key), value]]));
+
+    for (const filePath of deleted) {
+      probeRuns.current[filePath] = (probeRuns.current[filePath] ?? 0) + 1;
+      probedPaths.current.delete(filePath);
+      const timer = removalTimers.current[filePath];
+      if (timer !== undefined) window.clearTimeout(timer);
+      delete removalTimers.current[filePath];
+      addDebug('warning', `Removed missing file: ${filenameFromPath(filePath)}`, 'The file was deleted outside Media Renamer.');
+    }
+    for (const [previousPath, filePath] of moved) {
+      if (probedPaths.current.delete(previousPath)) probedPaths.current.add(filePath);
+      if (probeRuns.current[previousPath] !== undefined) {
+        probeRuns.current[filePath] = probeRuns.current[previousPath];
+        delete probeRuns.current[previousPath];
+      }
+      addDebug('info', `Tracked renamed file: ${filenameFromPath(filePath)}`, `Previous path: ${previousPath}`);
+    }
+
+    setPaths((current) => [...new Set(current.flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)]))]);
+    setMatches((current) => current.flatMap((item) => deleted.has(item.path) ? [] : [{ ...item, path: nextPath(item.path), filename: filenameFromPath(nextPath(item.path)), tags: moved.has(item.path) ? parseReleaseTags(nextPath(item.path)) : item.tags }]));
+    setTechnicalTags(remapRecord);
+    setProbeStates(remapRecord);
+    setMatchOverrides(remapRecord);
+    setConfirmedPaths((current) => new Set([...current].flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)])));
+    setRemovingPaths((current) => new Set([...current].flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)])));
+    setReviewingPath((current) => current && !deleted.has(current) ? nextPath(current) : undefined);
+    setPinnedPreviewPath((current) => current && !deleted.has(current) ? nextPath(current) : undefined);
+    setBatchRenameCompleted(false);
+  }), [addDebug]);
+
+  useEffect(() => {
     if (!window.mediaRenamer?.probeMedia) return;
     const pending = paths.filter((path) => !probedPaths.current.has(path));
     if (!pending.length) return;

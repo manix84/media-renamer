@@ -60,6 +60,8 @@ declare global {
       pickFolders(): Promise<string[]>;
       pickDestinationFolder(kind?: 'TV' | 'Movie' | 'Log'): Promise<string | undefined>;
       expandPaths(paths: string[]): Promise<string[]>;
+      watchFiles(paths: string[]): Promise<void>;
+      onWatchedFilesChanged(listener: (changes: Array<{ type: 'moved'; previousPath: string; path: string } | { type: 'deleted'; path: string }>) => void): () => void;
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
       discoverCompanions(paths: string[]): Promise<CompanionScan>;

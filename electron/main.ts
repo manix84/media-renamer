@@ -11,6 +11,7 @@ import { preflightRenameItems } from './renamePreflight.js';
 import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
+import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -26,6 +27,13 @@ let persistedPreferences: PersistedPreferences | undefined;
 let preferenceWrite = Promise.resolve();
 let renameRunning = false;
 let activeRenameControl: 'stop' | 'undo' | undefined;
+let watchedMediaPaths: string[] = [];
+const mediaFileMonitor = new MediaFileMonitor((changes) => {
+  const replacements = new Map(changes.filter((change): change is Extract<WatchedFileChange, { type: 'moved' }> => change.type === 'moved').map((change) => [change.previousPath, change.path]));
+  const deleted = new Set(changes.filter((change) => change.type === 'deleted').map((change) => change.path));
+  watchedMediaPaths = watchedMediaPaths.flatMap((filePath) => deleted.has(filePath) ? [] : [replacements.get(filePath) ?? filePath]);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('files:changed', changes);
+});
 
 function renameHistoryDirectory(): string {
   return path.join(app.getPath('userData'), 'rename-history');
@@ -157,6 +165,11 @@ ipcMain.handle('files:expand-paths', (_event, values: unknown) => {
   }
   return expandMediaPaths(values);
 });
+ipcMain.handle('files:watch', async (_event, values: unknown) => {
+  if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid watched media paths.');
+  watchedMediaPaths = values.map(mediaPathArgument);
+  await mediaFileMonitor.setPaths(watchedMediaPaths);
+});
 
 ipcMain.handle('debug:open', () => createDebugWindow());
 ipcMain.handle('debug:dock', () => {
@@ -214,19 +227,27 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
   if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
   renameRunning = true;
   activeRenameControl = undefined;
+  mediaFileMonitor.close();
+  let executed: { operation: RenameOperation; logPath: string } | undefined;
   try {
     const resolved = await resolveRenameCollisions(groups);
     const items = resolved.flatMap((group) => group.items);
-    lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', { operation, completed, total }), {
+    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', { operation, completed, total }), {
       removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
       createExternalLog: renameOptions?.createExternalLog ?? false,
       externalLogDirectory: renameOptions?.externalLogDirectory as string | undefined,
       control: () => activeRenameControl,
     });
-    return lastRename;
+    lastRename = executed;
+    return executed;
   } finally {
     renameRunning = false;
     activeRenameControl = undefined;
+    if (executed) {
+      const replacements = new Map(executed.operation.status === 'undone' ? [] : executed.operation.items.map((item) => [item.sourcePath, item.targetPath]));
+      watchedMediaPaths = watchedMediaPaths.map((filePath) => replacements.get(filePath) ?? filePath);
+    }
+    await mediaFileMonitor.setPaths(watchedMediaPaths);
   }
 });
 ipcMain.handle('rename:control', (_event, control: unknown) => {
@@ -240,9 +261,16 @@ ipcMain.handle('rename:undo', async (event, operationId: unknown) => {
   if (typeof operationId !== 'string') throw new Error('Invalid rename operation.');
   const recorded = await latestRename();
   if (!recorded || recorded.operation.id !== operationId) throw new Error('That rename operation is no longer the latest operation.');
-  const operation = await undoRenameOperation(recorded.operation, recorded.logPath, (completed, total) => event.sender.send('rename:progress', { operation: 'undo', completed, total }));
-  lastRename = { ...recorded, operation };
-  return lastRename;
+  mediaFileMonitor.close();
+  try {
+    const operation = await undoRenameOperation(recorded.operation, recorded.logPath, (completed, total) => event.sender.send('rename:progress', { operation: 'undo', completed, total }));
+    const replacements = new Map(recorded.operation.items.map((item) => [item.targetPath, item.sourcePath]));
+    watchedMediaPaths = watchedMediaPaths.map((filePath) => replacements.get(filePath) ?? filePath);
+    lastRename = { ...recorded, operation };
+    return lastRename;
+  } finally {
+    await mediaFileMonitor.setPaths(watchedMediaPaths);
+  }
 });
 ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid rename plan.');
@@ -307,3 +335,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => process.platform !== 'darwin' && app.quit());
+app.on('before-quit', () => mediaFileMonitor.close());

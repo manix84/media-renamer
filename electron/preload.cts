@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   pickFolders: (): Promise<string[]> => ipcRenderer.invoke('folders:pick'),
   pickDestinationFolder: (kind?: 'TV' | 'Movie' | 'Log'): Promise<string | undefined> => ipcRenderer.invoke('destination:pick', kind),
   expandPaths: (paths: string[]): Promise<string[]> => ipcRenderer.invoke('files:expand-paths', paths),
+  watchFiles: (paths: string[]): Promise<void> => ipcRenderer.invoke('files:watch', paths),
+  onWatchedFilesChanged: (listener: (changes: Array<{ type: 'moved'; previousPath: string; path: string } | { type: 'deleted'; path: string }>) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, changes: Array<{ type: 'moved'; previousPath: string; path: string } | { type: 'deleted'; path: string }>) => listener(changes);
+    ipcRenderer.on('files:changed', handler);
+    return () => ipcRenderer.removeListener('files:changed', handler);
+  },
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
