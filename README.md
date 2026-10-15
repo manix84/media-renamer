@@ -1,6 +1,6 @@
 # Media Renamer
 
-A confidence-first desktop renamer for TV episodes, designed as a modern replacement for Rename My TV Series. Movie support is planned on the same metadata and formatting foundation.
+A confidence-first desktop renamer for TV episodes and movies, designed as a modern replacement for Rename My TV Series with a shared metadata, formatting, and reversible-execution foundation.
 
 ![Early matching workspace](docs/mockup.svg)
 
@@ -48,7 +48,7 @@ This first scaffold includes:
 - background-worker matching with visible per-file progress;
 - lightweight monitoring of imported files so external deletes leave the batch and resolvable renames or moves update the tracked path;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
-- unit tests for the matching and release-tag core.
+- automated coverage for matching, formatting, metadata providers and caching, file monitoring, preflight, rename execution, rollback, and undo.
 
 The UI uses TMDB for search, artwork, movies, and show cross-references. TV shows use TVDB's English aired-order episode numbers and titles for Plex-oriented sorting. Disabled metadata-agent selectors in each Preferences tab reserve the provider boundary for future alternatives.
 
@@ -78,6 +78,12 @@ Create or retrieve the token under your TMDB account's **Settings → API** page
 Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are resolved to the corresponding TMDB record for artwork and show details, while episode numbering and names come directly from TVDB.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+## Local metadata cache
+
+Normalized provider results are cached in Electron's per-user application-data directory. Search results remain fresh for 6 hours, show and movie details for 7 days, and episode lists for 30 days. Entries are shared across restarts, concurrent requests for the same key are coalesced, and the cache is capped at 1,500 entries.
+
+Cache files are written through a flushed temporary file and atomically published, so a crash cannot leave a partially written cache as the active copy. If a provider is temporarily unavailable, an expired cached value can still be used as a fallback. Corrupt or unreadable cache data is discarded without preventing live provider requests.
 
 Run all current checks:
 
@@ -111,6 +117,20 @@ The syntax-highlighted editor lives in the right-side Preferences drawer, shows 
 
 The main batch toolbar includes a `Move files` / `In place` control. Moving uses the configured TV destination and show-folder template; in-place mode renames each video and its companion files inside their current directories. This is intentionally a current-batch flag and resets when the batch is cleared.
 
+## Review and file tracking
+
+Matches below the configured automatic-confirmation threshold remain blocked until they are confirmed or changed. The batch-level confirmation action accepts every currently suggested review match, while an individual tick accepts only its row. Row actions reserve fixed positions: after clicking the tick, it remains beneath the pointer as an inert confirmed indicator rather than being replaced by Refresh, Remove, or manual review. Double-clicking an episode in the manual matcher confirms it immediately.
+
+Imported videos are monitored with native filesystem events. A deleted source disappears from the batch automatically. A file renamed in a watched directory, moved between watched batch directories, or moved into a child directory is followed by filesystem identity so its match and detected metadata remain attached to the new path. Monitoring pauses around Media Renamer's own rename and undo operations to avoid treating intentional moves as external deletions.
+
+## Safe rename, move, and undo
+
+Before execution, the complete plan validates source files, portable destination names, and occupied targets. Duplicate destinations are numbered as a group (`Name.mkv`, `Name (2).mkv`, and so on), keeping companion filenames aligned with their video. Destination publication never overwrites an existing file: same-filesystem operations publish through a hard link before removing the source, while cross-filesystem moves copy to a temporary file before publishing.
+
+The rename dialog reports percentage complete, elapsed time, estimated total time, and estimated remaining time. `Stop` completes the current filesystem operation and records the finished subset as an undoable partial batch. The danger-coloured `Undo` control stops further work and immediately restores everything already completed.
+
+Every operation is stored as a durable JSON record in Electron's application-data directory, with an optional timestamped copy in the configured log folder or active destination. Plan errors roll completed work back. Undo first verifies every source and destination, performs the reverse transaction, and atomically updates its log; if that log update fails, restored files are returned to their renamed locations so disk state and durable history cannot disagree.
+
 ## Delivery plan
 
 ### Milestone 1 — useful TV renamer
@@ -137,7 +157,7 @@ The main batch toolbar includes a `Move files` / `In place` control. Moving uses
 
 ### Milestone 3 — movies and packaging
 
-- movie search/import workflow using the same provider and tag interfaces
+- [x] basic movie search/import workflow using the same provider and tag interfaces
 - editions, cuts, collections, and year/runtime disambiguation
 - signed macOS/Windows/Linux builds and update channel
 
