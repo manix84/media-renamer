@@ -6,9 +6,10 @@ export function matchFiles(
   episodes: Episode[],
   titleMatching: boolean,
   onProgress: (completed: number, total: number) => void,
+  confidenceThreshold = 0.8,
 ): FileMatch[] {
   return paths.map((path, index) => {
-    const match = matchFile(path, episodes, titleMatching);
+    const match = matchFile(path, episodes, titleMatching, confidenceThreshold);
     onProgress(index + 1, paths.length);
     return match;
   });

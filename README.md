@@ -35,6 +35,7 @@ This first scaffold includes:
 - separate persisted TV and Movie library destinations and folder patterns, so each workflow can target its own base folder;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
+- a persisted 50–100% automatic-confirmation threshold, defaulting to 80%;
 - complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;
 - companion-file discovery and planning for subtitles, NFO metadata, and named episode artwork, including preserved language/role suffixes and ambiguity blocking;
 - active-show poster and preferred English clear-logo artwork from TMDB when available;
@@ -85,7 +86,7 @@ Every imported file is ranked against the selected show's episodes. Evidence is 
 2. Normalize filename and episode titles (case, punctuation, diacritics, stop words, and release noise).
 3. Score title coverage with a high recall bias because filenames contain extra show and release tokens.
 4. Surface contradictions—such as `S02E07` containing the exact title of episode 8—as review items instead of hiding the decision.
-5. Show the best alternatives and require confirmation below the confidence threshold.
+5. Automatically accept matches at or above the configured confidence threshold (80% by default), and require confirmation below it.
 
 Future matching evidence can include duration, air date, embedded title, adjacent-file ordering, absolute/anime numbering, and multi-episode ranges. Provider ordering is metadata, not ground truth.
 

@@ -54,11 +54,11 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
     .sort((a, b) => b.score - a.score);
 }
 
-export function matchFile(path: string, episodes: Episode[], useTitle = true): FileMatch {
+export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8): FileMatch {
   const filename = path.split(/[\\/]/).pop() ?? path;
   const alternatives = rankEpisodes(filename, episodes, useTitle);
   const match = alternatives[0];
-  const margin = match ? match.score - (alternatives[1]?.score ?? 0) : 0;
-  const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= 0.78 && margin >= 0.12 ? 'confident' : 'review';
+  const threshold = Math.min(1, Math.max(0, confidenceThreshold));
+  const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= threshold ? 'confident' : 'review';
   return { path, filename, tags: parseReleaseTags(path), match, alternatives: alternatives.slice(1, 4), status };
 }

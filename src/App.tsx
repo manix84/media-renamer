@@ -152,6 +152,10 @@ export default function App() {
   const showMetadataAgent: ShowMetadataAgent = 'tvdb-aired';
   const [paths, setPaths] = useState<string[]>([]);
   const [titleMatching, setTitleMatching] = useState(true);
+  const [matchConfidenceThreshold, setMatchConfidenceThreshold] = useState(() => {
+    const saved = Number(localStorage.getItem('media-renamer-match-confidence-threshold'));
+    return Number.isFinite(saved) && saved >= 50 && saved <= 100 ? Math.round(saved) : 80;
+  });
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -421,6 +425,10 @@ export default function App() {
   }, [episodeTemplate]);
 
   useEffect(() => {
+    localStorage.setItem('media-renamer-match-confidence-threshold', String(matchConfidenceThreshold));
+  }, [matchConfidenceThreshold]);
+
+  useEffect(() => {
     localStorage.setItem('media-renamer-file-view-mode', fileViewMode);
   }, [fileViewMode]);
 
@@ -660,9 +668,9 @@ export default function App() {
       setWork(undefined);
       worker.terminate();
     };
-    worker.postMessage({ paths, episodes, titleMatching });
+    worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100 });
     return () => worker.terminate();
-  }, [activeMediaTab, addDebug, movie, paths, episodes, titleMatching]);
+  }, [activeMediaTab, addDebug, movie, paths, episodes, titleMatching, matchConfidenceThreshold]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -1293,7 +1301,7 @@ export default function App() {
           </div>
           {preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired supplies Plex-oriented episode numbering and titles. Search and artwork continue to use TMDB.</small></span><select value="tvdb-aired" disabled aria-label="Show metadata agent"><option value="tvdb-aired">TVDB Aired</option></select></label></div></section>
-            <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
+            <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label></section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Use seasonFolder for “Season 5” and “Specials” automatically.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>

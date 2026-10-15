@@ -59,4 +59,10 @@ describe('episode matcher', () => {
     expect(matchFile('Show.S01E02.mkv', combined).match?.episode.id).toBe('s1');
     expect(matchFile('Show.S04E02.mkv', combined).match?.episode.id).toBe('s4');
   });
+
+  it('uses the configured confidence threshold for automatic acceptance', () => {
+    const titleOnly = 'Dilbert.The.Merger.DVDRip.x264.mkv';
+    expect(matchFile(titleOnly, episodes, true, 0.5).status).toBe('confident');
+    expect(matchFile(titleOnly, episodes, true, 0.8).status).toBe('review');
+  });
 });
