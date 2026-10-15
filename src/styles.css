@@ -54,7 +54,7 @@ h1 { margin-bottom: 6px; font-size: 30px; letter-spacing: -.04em; } h1 span { co
 .search-clear:hover, .search-clear:focus-visible { background: #252c3a; color: #e0e6f3; outline: none; }
 .search-results { position: absolute; z-index: 10; top: 47px; right: 0; width: 100%; max-height: min(540px, calc(100dvh - 130px)); padding: 5px; overflow-y: auto; border: 1px solid #303849; border-radius: 10px; background: #111620; box-shadow: 0 20px 55px #000b; }
 .search-results button { width: 100%; min-height: 54px; padding: 6px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; cursor: pointer; }
-.search-results button:hover { background: #202634; }
+.search-results button:hover, .search-results button.active { background: #202634; }
 .search-results img, .poster-placeholder { width: 30px; height: 42px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; background: #282e3b; display: grid; place-items: center; color: #697388; }
 .search-results strong, .search-results small { display: block; } .search-results strong { font-size: 12px; } .search-results small { margin-top: 3px; color: #747e91; font-size: 10px; }
 .notice { min-height: 44px; margin: -10px 0 18px; padding: 10px 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #594d27; border-radius: 9px; background: #2c2618; color: #d8c375; font-size: 12px; }
@@ -337,7 +337,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .search, [data-theme="light"] .search-results { border-color: #d4d9e3; background: #fff; color: #6b7588; }
 [data-theme="light"] .search input { color: #172033; }
 [data-theme="light"] .search-results { box-shadow: 0 20px 55px #25324a26; }
-[data-theme="light"] .search-results button:hover { background: #f0f2f7; }
+[data-theme="light"] .search-results button:hover, [data-theme="light"] .search-results button.active { background: #f0f2f7; }
 [data-theme="light"] .search-results img, [data-theme="light"] .poster-placeholder { background: #e8ebf1; color: #6d788c; }
 [data-theme="light"] .search-results small { color: #68738a; }
 [data-theme="light"] .notice { border-color: #dfc978; background: #fff7d8; color: #755f12; }

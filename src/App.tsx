@@ -199,6 +199,7 @@ export default function App() {
   const [provider, setProvider] = useState<ProviderStatus>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ShowSearchResult[]>([]);
+  const [activeSearchResult, setActiveSearchResult] = useState(-1);
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
   const [movie, setMovie] = useState<MovieDetails>();
@@ -246,12 +247,18 @@ export default function App() {
   const seasonSequence = useRef(0);
   const autoSelectResult = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const searchResultButtons = useRef<Array<HTMLButtonElement | null>>([]);
   const posterPreviewDialog = useRef<HTMLElement>(null);
   const posterPreviewImage = useRef<HTMLImageElement>(null);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
   const removalTimers = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
+
+  useEffect(() => {
+    if (activeSearchResult < 0) return;
+    searchResultButtons.current[activeSearchResult]?.scrollIntoView({ block: 'nearest' });
+  }, [activeSearchResult]);
 
   const enterFileDropTarget = (event: ReactDragEvent<HTMLElement>) => {
     if (!event.dataTransfer.types.includes('Files')) return;
@@ -753,6 +760,7 @@ export default function App() {
             addDebug('info', `Automatically selecting ${found[0].name}`, 'Using the first result for the show name inferred from the imported files.');
             void selectShow(found[0]);
           } else {
+            setActiveSearchResult(-1);
             setResults(found);
           }
         }
@@ -770,6 +778,7 @@ export default function App() {
   }, [activeMediaTab, addDebug, movie?.name, provider?.configured, query, show?.name]);
 
   async function selectShow(result: ShowSearchResult, episodeAgent: ShowMetadataAgent = showMetadataAgent) {
+    setActiveSearchResult(-1);
     if (activeMediaTab === 'movies') {
       setQuery(result.name);
       setResults([]);
@@ -832,6 +841,7 @@ export default function App() {
     autoSelectResult.current = false;
     setQuery('');
     setResults([]);
+    setActiveSearchResult(-1);
     setSearching(false);
     setShow(undefined);
     setMovie(undefined);
@@ -1155,9 +1165,14 @@ export default function App() {
             </div>
           </div>
           <div className="show-search">
-            <div className="search"><Search size={17}/><input ref={searchInput} aria-label={activeMediaTab === 'movies' ? 'Search movies' : 'Search TV shows'} value={query} onChange={(event) => { autoSelectResult.current = false; setQuery(event.target.value); if (activeMediaTab === 'movies') { if (event.target.value !== movie?.name) setMovie(undefined); } else if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} placeholder={activeMediaTab === 'movies' ? 'Movie name or tmdb-…' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
-            {results.length > 0 && <div className="search-results">
-              {results.map((result) => <button key={result.id} onClick={() => void selectShow(result)}>
+            <div className="search"><Search size={17}/><input ref={searchInput} role="combobox" aria-autocomplete="list" aria-controls="media-search-results" aria-expanded={results.length > 0} aria-activedescendant={activeSearchResult >= 0 ? `media-search-result-${activeSearchResult}` : undefined} aria-label={activeMediaTab === 'movies' ? 'Search movies' : 'Search TV shows'} value={query} onChange={(event) => { autoSelectResult.current = false; setActiveSearchResult(-1); setQuery(event.target.value); if (activeMediaTab === 'movies') { if (event.target.value !== movie?.name) setMovie(undefined); } else if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} onKeyDown={(event) => {
+              if (!results.length) return;
+              if (event.key === 'ArrowDown') { event.preventDefault(); setActiveSearchResult((current) => current < results.length - 1 ? current + 1 : 0); }
+              else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSearchResult((current) => current > 0 ? current - 1 : results.length - 1); }
+              else if (event.key === 'Enter' && activeSearchResult >= 0) { event.preventDefault(); void selectShow(results[activeSearchResult]); }
+            }} placeholder={activeMediaTab === 'movies' ? 'Movie name or tmdb-…' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
+            {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label={`${activeMediaTab === 'movies' ? 'Movie' : 'TV show'} search results`}>
+              {results.map((result, index) => <button ref={(element) => { searchResultButtons.current[index] = element; }} id={`media-search-result-${index}`} role="option" aria-selected={activeSearchResult === index} className={activeSearchResult === index ? 'active' : ''} key={result.id} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => void selectShow(result)}>
                 {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder">{activeMediaTab === 'movies' ? <Film size={18}/> : <Tv size={18}/>}</span>}
                 <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}</small></span>
               </button>)}
