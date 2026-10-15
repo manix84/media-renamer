@@ -21,6 +21,7 @@ This first scaffold includes:
 - native file/folder selection and recursive drag-and-drop import;
 - immediate ordered display of every imported video, including pending and unmatched files;
 - automatic show-name inference from imported episode filenames, including seasonless `Ep. 01` and `Episode 01` naming, plus movie title/year inference that removes common release metadata;
+- per-file movie batch detection with bounded concurrent TMDB searches, confidence-based automatic acceptance, and row-level replacement search for ambiguous or unmatched titles;
 - literal-first title-and-year search with a structured year fallback for parenthesized and bare trailing years;
 - a durable local metadata cache for searches, show/movie details, and episode lists, with bounded retention, atomic writes, and stale-data fallback during provider outages;
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
@@ -187,9 +188,11 @@ Milestones describe product capability rather than strict release boundaries. Wo
 
 ### Milestone 4 — movies and library workflows (started)
 
-- [x] movie search/import workflow with automatic title/year inference using the same provider and tag interfaces
+- [x] per-file movie batch matching with automatic title/year inference, independent TMDB results, and manual row review
 - [x] separate persisted Movie destination, folder template, and filename template
-- [ ] year and runtime disambiguation
+- [ ] runtime-assisted movie disambiguation
+- [ ] multipart movie grouping and extras/sample detection
+- [ ] movie batch status filters and bulk retry controls
 - [ ] editions and cuts
 - [ ] collection-aware folder and filename fields
 - [ ] saved library roots and repeatable batch queues
