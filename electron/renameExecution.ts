@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { preflightRenameItems, renamePreflightItems, type RenamePreflightItem } from './renamePreflight.js';
+import { writeJsonAtomically } from './atomicJson.js';
 
 export type RenameOperation = {
   version: 1;
@@ -128,9 +129,7 @@ async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
 async function writeOperation(historyDirectory: string, operation: RenameOperation): Promise<string> {
   await fs.promises.mkdir(historyDirectory, { recursive: true });
   const logPath = path.join(historyDirectory, `${operation.createdAt.replace(/[:.]/g, '-')}-${operation.id}.json`);
-  const temporaryPath = `${logPath}.tmp`;
-  await fs.promises.writeFile(temporaryPath, `${JSON.stringify(operation, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
-  await fs.promises.rename(temporaryPath, logPath);
+  await writeJsonAtomically(logPath, operation);
   return logPath;
 }
 
@@ -151,7 +150,7 @@ async function writeExternalOperation(directory: string, operation: RenameOperat
   await fs.promises.mkdir(directory, { recursive: true });
   const timestamp = operation.completedAt.replace(/[:.]/g, '-');
   const logPath = path.join(directory, `media-renamer-${timestamp}-${operation.id}.json`);
-  await fs.promises.writeFile(logPath, `${JSON.stringify(operation, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+  await writeJsonAtomically(logPath, operation);
   return logPath;
 }
 
@@ -237,7 +236,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
       } catch (error) {
         operation.externalLogWarning = `Could not write the requested operation log: ${error instanceof Error ? error.message : String(error)}`;
       }
-      await fs.promises.writeFile(logPath, `${JSON.stringify(operation, null, 2)}\n`, 'utf8').catch(() => undefined);
+      await writeJsonAtomically(logPath, operation).catch(() => undefined);
     }
     return { operation, logPath };
   } catch (error) {
@@ -264,7 +263,12 @@ export async function undoRenameOperation(operation: RenameOperation, logPath: s
     throw new Error(`Undo failed; restored files were moved back to their renamed paths. ${error instanceof Error ? error.message : String(error)}`);
   }
   const undone = { ...operation, status: 'undone' as const, undoneAt: new Date().toISOString() };
-  await fs.promises.writeFile(logPath, `${JSON.stringify(undone, null, 2)}\n`, 'utf8');
+  try {
+    await writeJsonAtomically(logPath, undone);
+  } catch (error) {
+    for (const item of [...restored].reverse()) await moveFile(item.sourcePath, item.targetPath).catch(() => undefined);
+    throw new Error(`Undo log could not be updated; restored files were moved back to their renamed paths. ${error instanceof Error ? error.message : String(error)}`);
+  }
   return undone;
 }
 

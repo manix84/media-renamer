@@ -12,6 +12,7 @@ import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, 
 import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
+import { MetadataCache } from './metadataCache.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -27,6 +28,7 @@ let persistedPreferences: PersistedPreferences | undefined;
 let preferenceWrite = Promise.resolve();
 let renameRunning = false;
 let activeRenameControl: 'stop' | 'undo' | undefined;
+let metadataStore: MetadataCache | undefined;
 let watchedMediaPaths: string[] = [];
 const mediaFileMonitor = new MediaFileMonitor((changes) => {
   const replacements = new Map(changes.filter((change): change is Extract<WatchedFileChange, { type: 'moved' }> => change.type === 'moved').map((change) => [change.previousPath, change.path]));
@@ -42,6 +44,14 @@ function renameHistoryDirectory(): string {
 function preferencesFilePath(): string {
   return path.join(app.getPath('userData'), 'preferences.json');
 }
+
+function metadataCache(): MetadataCache {
+  return metadataStore ??= new MetadataCache(path.join(app.getPath('userData'), 'metadata-cache.json'));
+}
+
+const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
+const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
+const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());
@@ -284,44 +294,59 @@ ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
 });
 ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
-  const client = tmdb();
-  const results = await client.searchShows(search);
-  const tvdbId = search.match(/^tvdb-(\d+)$/i)?.[1];
-  if (results.length) return results;
-  if (tvdbId) {
-    const series = await tvdb().getSeries(tvdbId);
-    const candidates = series.tmdbId ? await client.searchShows(`tmdb-${series.tmdbId}`) : await client.searchShows(series.name);
-    const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
-    return ranked.map((candidate) => ({ ...candidate, tvdbId }));
-  }
-  if (!localEnv('TVDB_API_KEY')) return [];
-  try {
-    const aliases = await aniListClient.searchAnimeTitles(search);
-    for (const alias of aliases) {
-      const seriesMatches = await tvdb().searchSeries(alias);
-      for (const match of seriesMatches.slice(0, 3)) {
-        const series = await tvdb().getSeries(match.id);
-        if (!series.tmdbId) continue;
-        const [candidate] = await client.searchShows(`tmdb-${series.tmdbId}`);
-        if (candidate) return [{ ...candidate, tvdbId: series.id }];
-      }
+  return metadataCache().get(`search:shows:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => {
+    const client = tmdb();
+    const results = await client.searchShows(search);
+    const tvdbId = search.match(/^tvdb-(\d+)$/i)?.[1];
+    if (results.length) return results;
+    if (tvdbId) {
+      const series = await tvdb().getSeries(tvdbId);
+      const candidates = series.tmdbId ? await client.searchShows(`tmdb-${series.tmdbId}`) : await client.searchShows(series.name);
+      const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
+      return ranked.map((candidate) => ({ ...candidate, tvdbId }));
     }
-  } catch {
-    // Optional anime alias discovery must not turn an empty search into an error.
-  }
-  return [];
+    if (!localEnv('TVDB_API_KEY')) return [];
+    try {
+      const aliases = await aniListClient.searchAnimeTitles(search);
+      for (const alias of aliases) {
+        const seriesMatches = await tvdb().searchSeries(alias);
+        for (const match of seriesMatches.slice(0, 3)) {
+          const series = await tvdb().getSeries(match.id);
+          if (!series.tmdbId) continue;
+          const [candidate] = await client.searchShows(`tmdb-${series.tmdbId}`);
+          if (candidate) return [{ ...candidate, tvdbId: series.id }];
+        }
+      }
+    } catch {
+      // Optional anime alias discovery must not turn an empty search into an error.
+    }
+    return [];
+  });
 });
-ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => tmdb().getShow(textArgument(showId, 'show ID')));
-ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => tmdb().searchMovies(textArgument(query, 'search query')));
-ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown) => tmdb().getMovie(textArgument(movieId, 'movie ID')));
+ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
+  const id = textArgument(showId, 'show ID');
+  return metadataCache().get(`tmdb:show:${id}`, DETAILS_CACHE_AGE, () => tmdb().getShow(id));
+});
+ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => {
+  const search = textArgument(query, 'search query');
+  return metadataCache().get(`search:movies:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, () => tmdb().searchMovies(search));
+});
+ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown) => {
+  const id = textArgument(movieId, 'movie ID');
+  return metadataCache().get(`tmdb:movie:${id}`, DETAILS_CACHE_AGE, () => tmdb().getMovie(id));
+});
 ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');
   const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown };
-  if (request.agent === 'tvdb-aired') return tvdb().getSeriesEpisodes(textArgument(request.tvdbId, 'TVDB series ID'));
+  if (request.agent === 'tvdb-aired') {
+    const seriesId = textArgument(request.tvdbId, 'TVDB series ID');
+    return metadataCache().get(`tvdb:episodes:aired:eng:${seriesId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(seriesId));
+  }
   if (request.agent === 'tmdb-aired') {
     if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid TMDB season list.');
     const showId = textArgument(request.tmdbId, 'TMDB show ID');
-    return (await Promise.all(request.seasons.map((season) => tmdb().getSeasonEpisodes(showId, Number(season))))).flat();
+    const seasons = request.seasons.map(Number).sort((left, right) => left - right);
+    return metadataCache().get(`tmdb:episodes:aired:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => (await Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season)))).flat());
   }
   throw new Error('Unsupported show metadata agent.');
 });

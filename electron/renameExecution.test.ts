@@ -29,6 +29,20 @@ describe('rename execution', () => {
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('returns restored files to their renamed paths when the undo log cannot be updated', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'Old.mkv');
+    const target = path.join(root, 'New.mkv');
+    await fs.promises.writeFile(source, 'video');
+    const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'));
+    const occupiedParent = path.join(root, 'occupied');
+    await fs.promises.writeFile(occupiedParent, 'not a directory');
+
+    await expect(undoRenameOperation(executed.operation, path.join(occupiedParent, 'operation.json'))).rejects.toThrow(/log could not be updated/i);
+    await expect(fs.promises.readFile(target, 'utf8')).resolves.toBe('video');
+    await expect(fs.promises.stat(source)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('stops after the current file and leaves the completed subset undoable', async () => {
     const root = await temporaryDirectory();
     const firstSource = path.join(root, 'incoming', 'One.mkv');

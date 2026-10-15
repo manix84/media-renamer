@@ -22,6 +22,7 @@ This first scaffold includes:
 - immediate ordered display of every imported video, including pending and unmatched files;
 - automatic show-name inference from imported episode filenames;
 - literal-first title-and-year search with a structured year fallback;
+- a durable local metadata cache for searches, show/movie details, and episode lists, with bounded retention, atomic writes, and stale-data fallback during provider outages;
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
@@ -116,12 +117,12 @@ The main batch toolbar includes a `Move files` / `In place` control. Moving uses
 
 - [x] TMDB TV search/details/episode adapter
 - [x] TVDB English aired-order episode adapter and metadata-agent boundary
-- local metadata cache
+- [x] local metadata cache
 - [x] whole-show episode browser grouped by season, and file import
 - [x] candidate alternatives and manual rematching
 - [x] configurable name templates with live examples
 - [x] preflight collision/invalid-character checks
-- atomic rename/move plan, JSON log, and undo
+- [x] atomic rename/move plan, JSON log, and undo
 
 ### Milestone 2 — resilient matching and tags
 
@@ -154,4 +155,4 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 ## Next implementation slice
 
-Add companion-file planning for subtitles and other sidecars, then execute validated plans with operation logging and undo before enabling the final Rename button. Preview-only UI remains intentional until those safety rails exist.
+Milestone 1 is complete. The next implementation slice is duration-assisted matching and broader multi-episode, specials, absolute-order, and anime filename support, building on the existing TVDB-first workflow and reversible rename engine.
