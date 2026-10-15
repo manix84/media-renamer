@@ -91,6 +91,28 @@ describe('TMDB adapter', () => {
     expect(results[0]?.name).toBe('Literal (2000)');
   });
 
+  it('uses a bare trailing year as a fallback when the literal title has no results', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 4, name: 'The IT Crowd', first_air_date: '2006-02-03' }] }), { status: 200 }));
+    const results = await new TmdbClient('token', fetcher).searchShows('The IT Crowd 2006');
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((fetcher.mock.calls[0][0] as URL).searchParams.get('query')).toBe('The IT Crowd 2006');
+    const fallbackUrl = fetcher.mock.calls[1][0] as URL;
+    expect(fallbackUrl.searchParams.get('query')).toBe('The IT Crowd');
+    expect(fallbackUrl.searchParams.get('first_air_date_year')).toBe('2006');
+    expect(results[0]).toMatchObject({ name: 'The IT Crowd', year: 2006 });
+  });
+
+  it('keeps a successful literal title that ends in a year', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ results: [{ id: 5, name: 'Sealab 2021', first_air_date: '2000-12-21' }] }), { status: 200 }));
+    const results = await new TmdbClient('token', fetcher).searchShows('Sealab 2021');
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(results[0]?.name).toBe('Sealab 2021');
+  });
+
   it('finds a long punctuation-sensitive title through shorter title segments', async () => {
     const fullTitle = 'Now That I Can Control Reality With A Mouse Cursor Im Gonna Click Away On The Girls';
     const canonicalTitle = "Now That I Can Control Reality With A Mouse Cursor, I'm Gonna Click Away On The Girls!";

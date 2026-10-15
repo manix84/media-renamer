@@ -169,7 +169,8 @@ export class TmdbClient {
     const strongestLiteralMatch = Math.max(0, ...literalResults.map((result) => titleSimilarity(query, result.name)));
     if (literalResults.length && strongestLiteralMatch >= 0.72) return literalResults;
 
-    const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/);
+    const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/)
+      ?? query.match(/^(.*\S)\s+((?:19|20)\d{2})$/);
     if (datedTitle && !literalResults.length) return this.searchByTitle(datedTitle[1], datedTitle[2]);
 
     const fallbackQueries = longTitleFallbacks(query);
