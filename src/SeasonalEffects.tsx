@@ -32,7 +32,7 @@ function drawWeb(context: CanvasRenderingContext2D, origin: Point, direction: Po
   context.stroke();
 }
 
-function drawBatFlock(context: CanvasRenderingContext2D, progress: number, width: number, height: number, time: number, count: number, darkMode: boolean) {
+function drawBatFlock(context: CanvasRenderingContext2D, progress: number, width: number, height: number, time: number, count: number, darkMode: boolean, mouse?: Point) {
   const hoverStart = .28;
   const hoverEnd = .68;
   const travel = progress < hoverStart
@@ -45,8 +45,18 @@ function drawBatFlock(context: CanvasRenderingContext2D, progress: number, width
   for (let index = 0; index < count; index += 1) {
     const phase = index * 1.9;
     const scale = .27 + index * .018;
-    const x = leaderX - index * 24 + Math.sin(time / 145 + phase) * 9;
-    const y = leaderY + (index - 1) * 16 + Math.cos(time / 125 + phase) * 11;
+    let x = leaderX - index * 24 + Math.sin(time / 145 + phase) * 9;
+    let y = leaderY + (index - 1) * 16 + Math.cos(time / 125 + phase) * 11;
+    if (mouse) {
+      const dx = x - mouse.x;
+      const dy = y - mouse.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 105 && distance > 0) {
+        const avoidance = (105 - distance) * .72;
+        x += dx / distance * avoidance;
+        y += dy / distance * avoidance;
+      }
+    }
     const flap = Math.sin(time / 58 + phase) * 9;
     context.save();
     context.translate(x, y);
@@ -123,7 +133,7 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
         context.lineWidth = 1;
         drawWeb(context, { x: 0, y: 0 }, { x: 1, y: 1 }, webConfigs[0], webMouse, webMouseStrength, time, reducedMotion);
         drawWeb(context, { x: width, y: 0 }, { x: -1, y: 1 }, webConfigs[1], webMouse, webMouseStrength, time, reducedMotion);
-        if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawBatFlock(context, (time - ambientStart) / ambientDuration, width, height, time, batCount, document.documentElement.dataset.theme === 'dark');
+        if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawBatFlock(context, (time - ambientStart) / ambientDuration, width, height, time, batCount, document.documentElement.dataset.theme === 'dark', mouse);
       } else {
         context.fillStyle = 'rgba(230, 244, 255, .72)';
         for (const flake of snow) {
