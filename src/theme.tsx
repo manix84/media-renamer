@@ -2,16 +2,24 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = Exclude<ThemePreference, 'system'>;
+export type ThemePalette = 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'winter';
 
 const STORAGE_KEY = 'media-renamer-theme';
+const PALETTE_STORAGE_KEY = 'media-renamer-palette';
 const ThemeContext = createContext<{
   preference: ThemePreference;
   resolvedTheme: ResolvedTheme;
+  palette: ThemePalette;
   setPreference: (preference: ThemePreference) => void;
+  setPalette: (palette: ThemePalette) => void;
 } | undefined>(undefined);
 
 export function isThemePreference(value: unknown): value is ThemePreference {
   return value === 'system' || value === 'light' || value === 'dark';
+}
+
+export function isThemePalette(value: unknown): value is ThemePalette {
+  return value === 'classic' || value === 'ocean' || value === 'forest' || value === 'rose' || value === 'amber' || value === 'halloween' || value === 'winter';
 }
 
 export function resolveTheme(preference: ThemePreference, systemIsDark: boolean): ResolvedTheme {
@@ -27,12 +35,22 @@ function storedPreference(): ThemePreference {
   }
 }
 
+function storedPalette(): ThemePalette {
+  try {
+    const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
+    return isThemePalette(stored) ? stored : 'classic';
+  } catch {
+    return 'classic';
+  }
+}
+
 function systemIsDark(): boolean {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(storedPreference);
+  const [palette, setPaletteState] = useState<ThemePalette>(storedPalette);
   const [systemDark, setSystemDark] = useState(systemIsDark);
   const resolvedTheme = resolveTheme(preference, systemDark);
 
@@ -47,6 +65,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === STORAGE_KEY) setPreferenceState(isThemePreference(event.newValue) ? event.newValue : 'system');
+      if (event.key === PALETTE_STORAGE_KEY) setPaletteState(isThemePalette(event.newValue) ? event.newValue : 'classic');
     };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
@@ -54,8 +73,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.palette = palette;
     document.documentElement.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+  }, [palette, resolvedTheme]);
 
   function setPreference(next: ThemePreference) {
     setPreferenceState(next);
@@ -66,7 +86,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return <ThemeContext.Provider value={{ preference, resolvedTheme, setPreference }}>{children}</ThemeContext.Provider>;
+  function setPalette(next: ThemePalette) {
+    setPaletteState(next);
+    try {
+      window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
+    } catch {
+      // The palette still applies for this session if storage is unavailable.
+    }
+  }
+
+  return <ThemeContext.Provider value={{ preference, resolvedTheme, palette, setPreference, setPalette }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

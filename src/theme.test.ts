@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isThemePreference, resolveTheme } from './theme';
+import { isThemePalette, isThemePreference, resolveTheme } from './theme';
 
 describe('theme preference', () => {
   it('uses the system theme when automatic is selected', () => {
@@ -16,5 +16,11 @@ describe('theme preference', () => {
     expect(isThemePreference('system')).toBe(true);
     expect(isThemePreference('sepia')).toBe(false);
     expect(isThemePreference(null)).toBe(false);
+  });
+
+  it('accepts only supported colour palettes', () => {
+    expect(isThemePalette('classic')).toBe(true);
+    expect(isThemePalette('winter')).toBe(true);
+    expect(isThemePalette('sepia')).toBe(false);
   });
 });

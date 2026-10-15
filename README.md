@@ -40,6 +40,7 @@ This first scaffold includes:
 - complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;
 - companion-file discovery and planning for subtitles, NFO metadata, and named episode artwork, including preserved language/role suffixes and ambiguity blocking;
 - active-show poster and preferred English clear-logo artwork from TMDB when available;
+- persistent light/dark/system appearance controls plus independent regular and seasonal colour palettes with animated, reduced-motion-aware transitions;
 - background-worker matching with visible per-file progress;
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
