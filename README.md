@@ -20,7 +20,7 @@ This first scaffold includes:
 - an Electron + React + TypeScript desktop shell;
 - native file/folder selection and recursive drag-and-drop import;
 - immediate ordered display of every imported video, including pending and unmatched files;
-- automatic show-name inference from imported episode filenames, including seasonless `Ep. 01` and `Episode 01` naming;
+- automatic show-name inference from imported episode filenames, including seasonless `Ep. 01` and `Episode 01` naming, plus movie title/year inference that removes common release metadata;
 - literal-first title-and-year search with a structured year fallback for parenthesized and bare trailing years;
 - a durable local metadata cache for searches, show/movie details, and episode lists, with bounded retention, atomic writes, and stale-data fallback during provider outages;
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
@@ -187,7 +187,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 
 ### Milestone 4 — movies and library workflows (started)
 
-- [x] basic movie search/import workflow using the same provider and tag interfaces
+- [x] movie search/import workflow with automatic title/year inference using the same provider and tag interfaces
 - [x] separate persisted Movie destination, folder template, and filename template
 - [ ] year and runtime disambiguation
 - [ ] editions and cuts

@@ -6,6 +6,7 @@ import { createRenamePlan, destinationDirectoryForSource } from './core/renamePl
 import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
+import { inferMovieQuery } from './core/movieInference';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieDetails, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -753,6 +754,18 @@ export default function App() {
   }, [activeMediaTab, addDebug, paths, provider?.configured, query, show]);
 
   useEffect(() => {
+    if (activeMediaTab !== 'movies' || !provider?.configured || movie || query.trim() || paths.length === 0) return;
+    const inferred = inferMovieQuery(paths);
+    if (!inferred) {
+      addDebug('warning', 'Could not infer a movie name', 'No usable title was found before the year or release metadata.');
+      return;
+    }
+    addDebug('info', `Inferred movie query: ${inferred}`, `Derived from ${paths.length} imported file${paths.length === 1 ? '' : 's'}.`);
+    autoSelectResult.current = true;
+    setQuery(inferred);
+  }, [activeMediaTab, addDebug, movie, paths, provider?.configured, query]);
+
+  useEffect(() => {
     setMatchOverrides({});
     setConfirmedPaths(new Set());
     setHeldConfirmationPaths(new Set());
@@ -844,7 +857,7 @@ export default function App() {
           addDebug(found.length ? 'success' : 'warning', `Search returned ${found.length} result${found.length === 1 ? '' : 's'}`, found.length ? found.slice(0, 5).map((item) => `${item.name}${item.year ? ` (${item.year})` : ''}`).join(', ') : `No provider result matched “${trimmed}”.`);
           if (autoSelectResult.current && found[0]) {
             autoSelectResult.current = false;
-            addDebug('info', `Automatically selecting ${found[0].name}`, 'Using the first result for the show name inferred from the imported files.');
+            addDebug('info', `Automatically selecting ${found[0].name}`, `Using the first result for the ${activeMediaTab === 'movies' ? 'movie' : 'show'} name inferred from the imported files.`);
             void selectShow(found[0]);
           } else {
             setActiveSearchResult(-1);
@@ -1359,7 +1372,8 @@ export default function App() {
               {paths.map((path) => {
                 const item = matchesByPath.get(path);
                 const filename = item?.filename ?? filenameFromPath(path);
-                const tags = item ? applyReleaseOverrides({ ...item.tags, ...technicalTags[path] }, {
+                const baseTags = item?.tags ?? (activeMediaTab === 'movies' ? parseReleaseTags(path) : undefined);
+                const tags = baseTags ? applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
                   source: sourceOverride === 'auto' ? undefined : sourceOverride,
                   aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
                 }) : undefined;

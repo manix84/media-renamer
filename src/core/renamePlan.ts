@@ -65,9 +65,9 @@ export function createRenamePlan(inputs: RenamePlanInput[]): RenamePlan {
     if (input.configurationError) {
       issues.push(issue('invalid-destination', 'error', input.configurationError, input.sourcePath));
     } else if (!input.targetName || !targetPath || input.matchStatus === 'unmatched' || input.matchStatus === 'pending') {
-      issues.push(issue('unresolved-match', 'error', 'Choose an episode match before renaming this file.', input.sourcePath));
+      issues.push(issue('unresolved-match', 'error', 'Choose media metadata before renaming this file.', input.sourcePath));
     } else {
-      if (input.matchStatus === 'review') issues.push(issue('review-required', 'error', 'Confirm or change this suggested episode match before renaming.', input.sourcePath, targetPath));
+      if (input.matchStatus === 'review') issues.push(issue('review-required', 'error', 'Confirm or change this suggested match before renaming.', input.sourcePath, targetPath));
       const problem = filenameProblem(input.targetName);
       if (problem) issues.push(issue('invalid-filename', 'error', problem, input.sourcePath, targetPath));
       if (targetPath === input.sourcePath) issues.push(issue('no-change', 'warning', 'The source already has the proposed filename.', input.sourcePath, targetPath));
