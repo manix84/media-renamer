@@ -191,6 +191,7 @@ export default function App() {
     const saved = localStorage.getItem('media-renamer-episode-template');
     return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
   });
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [provider, setProvider] = useState<ProviderStatus>();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ShowSearchResult[]>([]);
@@ -424,6 +425,30 @@ export default function App() {
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
 
   useEffect(() => {
+    let active = true;
+    if (!window.mediaRenamer?.loadPreferences) {
+      setPreferencesHydrated(true);
+      return;
+    }
+    void window.mediaRenamer.loadPreferences().then((saved) => {
+      if (!active) return;
+      if (saved.episodeTemplate !== undefined) setEpisodeTemplate(saved.episodeTemplate === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved.episodeTemplate === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved.episodeTemplate);
+      if (saved.fileViewMode !== undefined) setFileViewMode(saved.fileViewMode);
+      if (saved.matchConfidenceThreshold !== undefined) setMatchConfidenceThreshold(saved.matchConfidenceThreshold);
+      if (saved.movieBaseFolder !== undefined) setMovieBaseFolder(saved.movieBaseFolder);
+      if (saved.movieFolderTemplate !== undefined) setMovieFolderTemplate(saved.movieFolderTemplate);
+      if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate);
+      if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
+      if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
+      if (saved.titleMatching !== undefined) setTitleMatching(saved.titleMatching);
+      if (saved.tvBaseFolder !== undefined) setTvBaseFolder(saved.tvBaseFolder);
+    }).catch((reason) => addDebug('warning', 'Could not load saved preferences', errorMessage(reason))).finally(() => {
+      if (active) setPreferencesHydrated(true);
+    });
+    return () => { active = false; };
+  }, [addDebug]);
+
+  useEffect(() => {
     localStorage.setItem('media-renamer-episode-template', episodeTemplate);
   }, [episodeTemplate]);
 
@@ -472,6 +497,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-debug-dock-sizes', JSON.stringify(dockSizes));
   }, [dockSizes]);
+
+  useEffect(() => {
+    if (!preferencesHydrated || !window.mediaRenamer?.savePreferences) return;
+    void window.mediaRenamer.savePreferences({
+      episodeTemplate,
+      fileViewMode,
+      matchConfidenceThreshold,
+      movieBaseFolder,
+      movieFolderTemplate,
+      movieTemplate,
+      removeEmptySourceParents,
+      showFolderTemplate,
+      titleMatching,
+      tvBaseFolder,
+    }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
+  }, [addDebug, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);

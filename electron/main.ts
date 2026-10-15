@@ -10,6 +10,7 @@ import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
 import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
+import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -21,9 +22,19 @@ let mainWindow: BrowserWindow | undefined;
 let debugSequence = 0;
 let debugEntries: DebugEntry[] = [];
 let lastRename: { operation: RenameOperation; logPath: string } | undefined;
+let persistedPreferences: PersistedPreferences | undefined;
+let preferenceWrite = Promise.resolve();
 
 function renameHistoryDirectory(): string {
   return path.join(app.getPath('userData'), 'rename-history');
+}
+
+function preferencesFilePath(): string {
+  return path.join(app.getPath('userData'), 'preferences.json');
+}
+
+async function loadPreferences(): Promise<PersistedPreferences> {
+  return persistedPreferences ??= await readPreferences(preferencesFilePath());
 }
 
 async function latestRename() {
@@ -176,6 +187,15 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 });
 
 ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
+ipcMain.handle('preferences:get', () => loadPreferences());
+ipcMain.handle('preferences:set', async (_event, value: unknown) => {
+  const next = normalizePreferences(value);
+  preferenceWrite = preferenceWrite.catch(() => undefined).then(async () => {
+    persistedPreferences = { ...await loadPreferences(), ...next };
+    await writePreferences(preferencesFilePath(), persistedPreferences);
+  });
+  await preferenceWrite;
+});
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('media:companions', (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid media paths.');

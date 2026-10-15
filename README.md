@@ -33,6 +33,7 @@ This first scaffold includes:
 - portable, byte-safe output names that normalize Windows-forbidden characters and shorten episode titles when necessary while preserving the show name, technical tags, TVDB ID, and extension;
 - a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, and JSON export;
 - separate persisted TV and Movie library destinations and folder patterns, so each workflow can target its own base folder;
+- durable Electron-level preference storage with automatic migration from renderer-local settings, so destinations and templates survive development origins, upgrades, and restarts;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
 - an opt-in move preference that removes each source file's immediate parent folder after a successful move, but only when that folder is empty and never recursively;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;

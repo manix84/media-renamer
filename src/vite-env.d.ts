@@ -18,6 +18,34 @@ declare global {
   interface Window {
     mediaRenamer?: {
       platform: string;
+      loadPreferences(): Promise<{
+        episodeTemplate?: string;
+        fileViewMode?: 'detailed' | 'summary' | 'compact';
+        matchConfidenceThreshold?: number;
+        movieBaseFolder?: string;
+        movieFolderTemplate?: string;
+        movieTemplate?: string;
+        removeEmptySourceParents?: boolean;
+        showFolderTemplate?: string;
+        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+        themePreference?: 'system' | 'light' | 'dark';
+        titleMatching?: boolean;
+        tvBaseFolder?: string;
+      }>;
+      savePreferences(preferences: {
+        episodeTemplate?: string;
+        fileViewMode?: 'detailed' | 'summary' | 'compact';
+        matchConfidenceThreshold?: number;
+        movieBaseFolder?: string;
+        movieFolderTemplate?: string;
+        movieTemplate?: string;
+        removeEmptySourceParents?: boolean;
+        showFolderTemplate?: string;
+        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+        themePreference?: 'system' | 'light' | 'dark';
+        titleMatching?: boolean;
+        tvBaseFolder?: string;
+      }): Promise<void>;
       pickFiles(): Promise<string[]>;
       pickFolders(): Promise<string[]>;
       pickDestinationFolder(kind?: 'TV' | 'Movie'): Promise<string | undefined>;

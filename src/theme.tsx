@@ -54,7 +54,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(storedPreference);
   const [palette, setPaletteState] = useState<ThemePalette>(storedPalette);
   const [systemDark, setSystemDark] = useState(systemIsDark);
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const resolvedTheme = resolveTheme(preference, systemDark);
+
+  useEffect(() => {
+    let active = true;
+    if (!window.mediaRenamer?.loadPreferences) {
+      setPreferencesHydrated(true);
+      return;
+    }
+    void window.mediaRenamer.loadPreferences().then((saved) => {
+      if (!active) return;
+      if (isThemePreference(saved.themePreference)) setPreferenceState(saved.themePreference);
+      if (isThemePalette(saved.themePalette) && isPaletteAvailable(saved.themePalette, new Date(), import.meta.env.DEV)) setPaletteState(saved.themePalette);
+    }).catch(() => undefined).finally(() => { if (active) setPreferencesHydrated(true); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const query = window.matchMedia?.('(prefers-color-scheme: dark)');
@@ -81,6 +96,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.palette = palette;
     document.documentElement.style.colorScheme = resolvedTheme;
   }, [palette, resolvedTheme]);
+
+  useEffect(() => {
+    if (!preferencesHydrated || !window.mediaRenamer?.savePreferences) return;
+    void window.mediaRenamer.savePreferences({ themePreference: preference, themePalette: palette }).catch(() => undefined);
+  }, [palette, preference, preferencesHydrated]);
 
   function setPreference(next: ThemePreference) {
     setPreferenceState(next);

@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof i
 
 contextBridge.exposeInMainWorld('mediaRenamer', {
   platform: process.platform,
+  loadPreferences: () => ipcRenderer.invoke('preferences:get'),
+  savePreferences: (preferences: unknown) => ipcRenderer.invoke('preferences:set', preferences),
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke('files:pick'),
   pickFolders: (): Promise<string[]> => ipcRenderer.invoke('folders:pick'),
   pickDestinationFolder: (kind?: 'TV' | 'Movie'): Promise<string | undefined> => ipcRenderer.invoke('destination:pick', kind),
