@@ -12,7 +12,7 @@ import { availablePalettes } from './seasonalThemes';
 import { useTheme, type ThemePalette } from './theme';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
-type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[] }; logPath: string };
+type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
@@ -162,6 +162,10 @@ export default function App() {
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
+  const [autoClearCompletedBatch, setAutoClearCompletedBatch] = useState(false);
+  const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
+  const [renameLogFolder, setRenameLogFolder] = useState('');
+  const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
@@ -439,6 +443,9 @@ export default function App() {
       if (saved.movieFolderTemplate !== undefined) setMovieFolderTemplate(saved.movieFolderTemplate);
       if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate);
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
+      if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
+      if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
+      if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
       if (saved.titleMatching !== undefined) setTitleMatching(saved.titleMatching);
       if (saved.tvBaseFolder !== undefined) setTvBaseFolder(saved.tvBaseFolder);
@@ -501,6 +508,8 @@ export default function App() {
   useEffect(() => {
     if (!preferencesHydrated || !window.mediaRenamer?.savePreferences) return;
     void window.mediaRenamer.savePreferences({
+      autoClearCompletedBatch,
+      createExternalRenameLog,
       episodeTemplate,
       fileViewMode,
       matchConfidenceThreshold,
@@ -508,11 +517,12 @@ export default function App() {
       movieFolderTemplate,
       movieTemplate,
       removeEmptySourceParents,
+      renameLogFolder,
       showFolderTemplate,
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -834,6 +844,7 @@ export default function App() {
     try {
       const selected = await window.mediaRenamer?.pickFiles();
       if (selected?.length) {
+        setBatchRenameCompleted(false);
         setPaths((current) => [...new Set([...current, ...selected])]);
         addDebug('success', `Added ${selected.length} file${selected.length === 1 ? '' : 's'}`, 'Supported video files were queued for matching.');
       } else addDebug('info', 'File selection cancelled');
@@ -851,6 +862,7 @@ export default function App() {
     try {
       const selected = await window.mediaRenamer?.pickFolders();
       if (selected?.length) {
+        setBatchRenameCompleted(false);
         setPaths((current) => [...new Set([...current, ...selected])]);
         addDebug('success', `Folder scan found ${selected.length} video file${selected.length === 1 ? '' : 's'}`, 'Subdirectories were included; unsupported files and symbolic links were ignored.');
       } else {
@@ -865,10 +877,10 @@ export default function App() {
     }
   }
 
-  async function chooseBaseFolder(kind: 'TV' | 'Movie') {
+  async function chooseBaseFolder(kind: 'TV' | 'Movie' | 'Log') {
     try {
       const selected = await window.mediaRenamer?.pickDestinationFolder(kind);
-      if (selected) (kind === 'TV' ? setTvBaseFolder : setMovieBaseFolder)(selected);
+      if (selected) (kind === 'TV' ? setTvBaseFolder : kind === 'Movie' ? setMovieBaseFolder : setRenameLogFolder)(selected);
     } catch (reason) {
       const message = errorMessage(reason);
       setError(message);
@@ -888,6 +900,7 @@ export default function App() {
     try {
       const expanded = await window.mediaRenamer?.expandPaths(dropped) ?? [];
       if (expanded.length) {
+        setBatchRenameCompleted(false);
         setPaths((current) => [...new Set([...current, ...expanded])]);
         addDebug('success', `Drop scan found ${expanded.length} video file${expanded.length === 1 ? '' : 's'}`, 'Unsupported files and symbolic links were ignored.');
       } else {
@@ -922,12 +935,24 @@ export default function App() {
     setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
-      const result = await window.mediaRenamer.executeRenamePlan(executableGroups, { removeEmptySourceParents: moveFiles && removeEmptySourceParents });
+      const preferredLogDirectory = renameLogFolder || (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) || undefined;
+      const result = await window.mediaRenamer.executeRenamePlan(executableGroups, {
+        removeEmptySourceParents: moveFiles && removeEmptySourceParents,
+        createExternalLog: createExternalRenameLog,
+        externalLogDirectory: createExternalRenameLog ? preferredLogDirectory : undefined,
+      });
       const removedDirectoryCount = result.operation.removedSourceDirectories?.length ?? 0;
-      addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}${removedDirectoryCount ? ` · Removed ${removedDirectoryCount} empty source folder${removedDirectoryCount === 1 ? '' : 's'}` : ''}`);
+      addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Undo log: ${result.logPath}${result.operation.externalLogPath ? ` · Saved log: ${result.operation.externalLogPath}` : ''}${removedDirectoryCount ? ` · Removed ${removedDirectoryCount} empty source folder${removedDirectoryCount === 1 ? '' : 's'}` : ''}`);
       for (const warning of result.operation.sourceDirectoryCleanupWarnings ?? []) addDebug('warning', 'Source folder was kept', warning);
+      if (result.operation.externalLogWarning) addDebug('warning', 'Could not save operation log', result.operation.externalLogWarning);
+      const renamedVideos = new Set(result.operation.items.filter((item) => isVideoPath(item.sourcePath)).map((item) => item.sourcePath));
+      const entireBatchRenamed = paths.length > 0 && paths.every((path) => renamedVideos.has(path));
       setLastRename(result);
-      replaceBatchPaths(result.operation.items, 'forward');
+      if (entireBatchRenamed && autoClearCompletedBatch) clearBatch();
+      else {
+        replaceBatchPaths(result.operation.items, 'forward');
+        setBatchRenameCompleted(entireBatchRenamed);
+      }
       setRenameConfirmationOpen(false);
     } catch (reason) {
       const message = errorMessage(reason);
@@ -960,6 +985,7 @@ export default function App() {
     try {
       const result = await window.mediaRenamer.undoRenameOperation(lastRename.operation.id);
       replaceBatchPaths(result.operation.items, 'backward');
+      setBatchRenameCompleted(false);
       setLastRename(result);
       setUndoConfirmationOpen(false);
       addDebug('success', `Restored ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, 'The batch now points to the original file locations.');
@@ -1004,6 +1030,7 @@ export default function App() {
     setReviewingPath(undefined);
     setPinnedPreviewPath(undefined);
     setRemovingPaths(new Set());
+    setBatchRenameCompleted(false);
     setClearConfirmation(false);
     setConfirmAllOpen(false);
     addDebug('info', 'Cleared imported media', `${paths.length} file${paths.length === 1 ? '' : 's'} removed from the current batch. No files were changed on disk.`);
@@ -1027,6 +1054,7 @@ export default function App() {
 
   function removeFileFromBatch(path: string) {
     if (removalTimers.current[path] !== undefined) return;
+    setBatchRenameCompleted(false);
     setRemovingPaths((current) => new Set(current).add(path));
     removalTimers.current[path] = window.setTimeout(() => finishRemovingFile(path), 360);
   }
@@ -1161,7 +1189,7 @@ export default function App() {
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">MATCH &amp; REVIEW</p><h2>{paths.length} imported files</h2></div>
-              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{moveFiles ? 'Move files' : 'In place'}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
+              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{moveFiles ? 'Move files' : 'In place'}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> Batch metadata{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> Refresh media</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => batchRenameCompleted ? clearBatch() : setClearConfirmation(true)}><Trash2 size={15}/> Clear all</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> Add files</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> Add folder</button></div>
             </div>
             {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
               <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
@@ -1352,6 +1380,11 @@ export default function App() {
             ))}
           </div></section>
           <section className="preference-section"><h3>File moves</h3><p>Choose what happens to source folders after files are moved.</p><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>Remove empty source folders</strong><small>Delete a moved file's immediate parent folder only when it is empty</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
+          <section className="preference-section after-rename-settings"><h3>After renaming</h3><p>Choose what happens after every file in a batch is renamed successfully.</p>
+            <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>Clear completed batches automatically</strong><small>Remove the finished batch from the workspace while keeping Undo available</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><FileText size={17}/><span><strong>Save a timestamped operation log</strong><small>Off by default; rename success is not blocked if this optional log cannot be written</small></span></span><input type="checkbox" checked={createExternalRenameLog} onChange={(event) => setCreateExternalRenameLog(event.target.checked)}/></label>
+            {createExternalRenameLog && <div className="destination-row standalone"><span><strong>Operation log folder</strong><small>{renameLogFolder || 'Use the active TV or Movie destination; otherwise use the renamed files’ common folder'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Log')}><FolderTree size={14}/>{renameLogFolder ? 'Change' : 'Choose'}</button>{renameLogFolder && <button className="icon-button" aria-label="Clear operation log folder" title="Use the active media destination" onClick={() => setRenameLogFolder('')}><X size={14}/></button>}</span></div>}
+          </section>
           <div className="preference-media-tabs" role="tablist" aria-label="Media settings">
             <button role="tab" aria-selected={preferenceMediaTab === 'shows'} className={preferenceMediaTab === 'shows' ? 'active' : ''} onClick={() => setPreferenceMediaTab('shows')}><Tv size={15}/> Shows</button>
             <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> Movies</button>

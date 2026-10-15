@@ -145,7 +145,7 @@ ipcMain.handle('folders:pick', async () => {
 });
 
 ipcMain.handle('destination:pick', async (_event, kind: unknown) => {
-  const result = await dialog.showOpenDialog({ title: kind === 'Movie' ? 'Choose movie base folder' : 'Choose TV base folder', properties: ['openDirectory', 'createDirectory'] });
+  const result = await dialog.showOpenDialog({ title: kind === 'Movie' ? 'Choose movie base folder' : kind === 'Log' ? 'Choose operation log folder' : 'Choose TV base folder', properties: ['openDirectory', 'createDirectory'] });
   return result.canceled ? undefined : result.filePaths[0];
 });
 
@@ -204,11 +204,18 @@ ipcMain.handle('media:companions', (_event, values: unknown) => {
 ipcMain.handle('rename:preflight', (_event, items: unknown) => preflightRenameItems(items));
 ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolveRenameCollisions(groups));
 ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown) => {
-  if (options !== undefined && (!options || typeof options !== 'object' || (options as { removeEmptySourceParents?: unknown }).removeEmptySourceParents !== undefined && typeof (options as { removeEmptySourceParents?: unknown }).removeEmptySourceParents !== 'boolean')) throw new Error('Invalid rename options.');
-  const removeEmptySourceParents = (options as { removeEmptySourceParents?: boolean } | undefined)?.removeEmptySourceParents ?? false;
+  if (options !== undefined && (!options || typeof options !== 'object')) throw new Error('Invalid rename options.');
+  const renameOptions = options as { removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown } | undefined;
+  if (renameOptions?.removeEmptySourceParents !== undefined && typeof renameOptions.removeEmptySourceParents !== 'boolean') throw new Error('Invalid rename options.');
+  if (renameOptions?.createExternalLog !== undefined && typeof renameOptions.createExternalLog !== 'boolean') throw new Error('Invalid rename options.');
+  if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
   const resolved = await resolveRenameCollisions(groups);
   const items = resolved.flatMap((group) => group.items);
-  lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total) => event.sender.send('rename:progress', { operation: 'rename', completed, total }), { removeEmptySourceParents });
+  lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total) => event.sender.send('rename:progress', { operation: 'rename', completed, total }), {
+    removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
+    createExternalLog: renameOptions?.createExternalLog ?? false,
+    externalLogDirectory: renameOptions?.externalLogDirectory as string | undefined,
+  });
   return lastRename;
 });
 ipcMain.handle('rename:last-operation', () => latestRename());

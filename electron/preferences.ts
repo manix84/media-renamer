@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export type PersistedPreferences = {
+  autoClearCompletedBatch?: boolean;
+  createExternalRenameLog?: boolean;
   episodeTemplate?: string;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
   matchConfidenceThreshold?: number;
@@ -9,6 +11,7 @@ export type PersistedPreferences = {
   movieFolderTemplate?: string;
   movieTemplate?: string;
   removeEmptySourceParents?: boolean;
+  renameLogFolder?: string;
   showFolderTemplate?: string;
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
   themePreference?: 'system' | 'light' | 'dark';
@@ -16,7 +19,7 @@ export type PersistedPreferences = {
   tvBaseFolder?: string;
 };
 
-const stringKeys = new Set(['episodeTemplate', 'movieBaseFolder', 'movieFolderTemplate', 'movieTemplate', 'showFolderTemplate', 'tvBaseFolder']);
+const stringKeys = new Set(['episodeTemplate', 'movieBaseFolder', 'movieFolderTemplate', 'movieTemplate', 'renameLogFolder', 'showFolderTemplate', 'tvBaseFolder']);
 
 export function normalizePreferences(value: unknown): PersistedPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -29,6 +32,8 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (source.fileViewMode === 'detailed' || source.fileViewMode === 'summary' || source.fileViewMode === 'compact') result.fileViewMode = source.fileViewMode;
   if (typeof source.matchConfidenceThreshold === 'number' && Number.isFinite(source.matchConfidenceThreshold) && source.matchConfidenceThreshold >= 50 && source.matchConfidenceThreshold <= 100) result.matchConfidenceThreshold = Math.round(source.matchConfidenceThreshold);
   if (typeof source.removeEmptySourceParents === 'boolean') result.removeEmptySourceParents = source.removeEmptySourceParents;
+  if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;
+  if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;

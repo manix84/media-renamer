@@ -13,9 +13,11 @@ export type RenameOperation = {
   items: RenamePreflightItem[];
   removedSourceDirectories?: string[];
   sourceDirectoryCleanupWarnings?: string[];
+  externalLogPath?: string;
+  externalLogWarning?: string;
 };
 
-export type RenameExecutionOptions = { removeEmptySourceParents?: boolean };
+export type RenameExecutionOptions = { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string };
 
 async function exists(filePath: string): Promise<boolean> {
   try { await fs.promises.lstat(filePath); return true; }
@@ -131,6 +133,27 @@ async function writeOperation(historyDirectory: string, operation: RenameOperati
   return logPath;
 }
 
+function commonTargetDirectory(items: RenamePreflightItem[]): string {
+  let common = path.dirname(items[0].targetPath);
+  for (const item of items.slice(1)) {
+    const directory = path.dirname(item.targetPath);
+    while (directory !== common && !directory.startsWith(`${common}${path.sep}`)) {
+      const parent = path.dirname(common);
+      if (parent === common) return common;
+      common = parent;
+    }
+  }
+  return common;
+}
+
+async function writeExternalOperation(directory: string, operation: RenameOperation): Promise<string> {
+  await fs.promises.mkdir(directory, { recursive: true });
+  const timestamp = operation.completedAt.replace(/[:.]/g, '-');
+  const logPath = path.join(directory, `media-renamer-${timestamp}-${operation.id}.json`);
+  await fs.promises.writeFile(logPath, `${JSON.stringify(operation, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+  return logPath;
+}
+
 async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{ removed: string[]; warnings: string[] }> {
   const directories = [...new Set(items
     .filter((item) => path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
@@ -185,7 +208,16 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     ...(cleanup.warnings.length ? { sourceDirectoryCleanupWarnings: cleanup.warnings } : {}),
   };
   try {
-    return { operation, logPath: await writeOperation(historyDirectory, operation) };
+    const logPath = await writeOperation(historyDirectory, operation);
+    if (options.createExternalLog) {
+      try {
+        operation.externalLogPath = await writeExternalOperation(options.externalLogDirectory ?? commonTargetDirectory(items), operation);
+      } catch (error) {
+        operation.externalLogWarning = `Could not write the requested operation log: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      await fs.promises.writeFile(logPath, `${JSON.stringify(operation, null, 2)}\n`, 'utf8').catch(() => undefined);
+    }
+    return { operation, logPath };
   } catch (error) {
     for (const item of [...completed].reverse()) await moveFile(item.targetPath, item.sourcePath).catch(() => undefined);
     throw new Error(`Could not write the operation log; renamed files were rolled back. ${error instanceof Error ? error.message : String(error)}`);

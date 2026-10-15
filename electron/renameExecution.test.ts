@@ -49,6 +49,33 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
   });
 
+  it('optionally writes a timestamped log to the common destination folder', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Episode.mkv');
+    const target = path.join(root, 'library', 'Some Show', 'Season 1', 'Episode.mkv');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, { createExternalLog: true });
+
+    expect(executed.operation.externalLogPath).toMatch(new RegExp(`^${path.dirname(target).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*media-renamer-`));
+    await expect(fs.promises.readFile(executed.operation.externalLogPath!, 'utf8')).resolves.toContain(executed.operation.id);
+  });
+
+  it('keeps a successful rename when the optional external log cannot be written', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Episode.mkv');
+    const target = path.join(root, 'library', 'Episode.mkv');
+    const invalidLogDirectory = path.join(root, 'not-a-directory');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    await fs.promises.writeFile(invalidLogDirectory, 'occupied');
+    const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, { createExternalLog: true, externalLogDirectory: invalidLogDirectory });
+
+    await expect(fs.promises.readFile(target, 'utf8')).resolves.toBe('video');
+    expect(executed.operation.externalLogPath).toBeUndefined();
+    expect(executed.operation.externalLogWarning).toContain('Could not write');
+  });
+
   it('recovers the latest valid operation from durable history', async () => {
     const root = await temporaryDirectory();
     const history = path.join(root, 'history');

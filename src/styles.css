@@ -132,6 +132,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .preference-section { margin: 0; padding: 21px 22px; border: 0; border-bottom: 1px solid #252c39; border-radius: 0; background: transparent; }
 .preference-section h3 { margin: 0 0 4px; font-size: 13px; } .preference-section > p, .format-heading p { margin: 0; color: #778196; font-size: 10px; line-height: 1.45; }
 .preference-toggle { margin-top: 13px; padding: 12px 13px; border: 1px solid #37315b; background: linear-gradient(90deg, #221d3b, #171927); border-radius: 9px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.preference-toggle + .preference-toggle { margin-top: 8px; }
+.after-rename-settings .destination-row.standalone { margin-top: 8px; border-radius: 9px; }
 .preference-toggle > span { display: flex; gap: 10px; align-items: center; } .preference-toggle svg { color: #9584ff; } .preference-toggle strong, .preference-toggle small { display: block; } .preference-toggle strong { font-size: 12px; } .preference-toggle small { margin-top: 3px; color: #80899b; font-size: 10px; } .preference-toggle input { width: 34px; accent-color: #7967ec; }
 .confidence-threshold { margin-top: 10px; padding: 12px 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 12px; border: 1px solid #303747; border-radius: 9px; background: #121721; }
 .confidence-threshold strong, .confidence-threshold small { display: block; } .confidence-threshold strong { font-size: 11px; } .confidence-threshold > span > small { margin-top: 3px; color: #727d91; font-size: 9px; line-height: 1.35; }

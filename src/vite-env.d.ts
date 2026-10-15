@@ -10,6 +10,8 @@ type RenameOperationRecord = {
     items: Array<{ sourcePath: string; targetPath: string }>;
     removedSourceDirectories?: string[];
     sourceDirectoryCleanupWarnings?: string[];
+    externalLogPath?: string;
+    externalLogWarning?: string;
   };
   logPath: string;
 };
@@ -19,6 +21,8 @@ declare global {
     mediaRenamer?: {
       platform: string;
       loadPreferences(): Promise<{
+        autoClearCompletedBatch?: boolean;
+        createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         matchConfidenceThreshold?: number;
@@ -26,6 +30,7 @@ declare global {
         movieFolderTemplate?: string;
         movieTemplate?: string;
         removeEmptySourceParents?: boolean;
+        renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
@@ -33,6 +38,8 @@ declare global {
         tvBaseFolder?: string;
       }>;
       savePreferences(preferences: {
+        autoClearCompletedBatch?: boolean;
+        createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         matchConfidenceThreshold?: number;
@@ -40,6 +47,7 @@ declare global {
         movieFolderTemplate?: string;
         movieTemplate?: string;
         removeEmptySourceParents?: boolean;
+        renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
@@ -48,14 +56,14 @@ declare global {
       }): Promise<void>;
       pickFiles(): Promise<string[]>;
       pickFolders(): Promise<string[]>;
-      pickDestinationFolder(kind?: 'TV' | 'Movie'): Promise<string | undefined>;
+      pickDestinationFolder(kind?: 'TV' | 'Movie' | 'Log'): Promise<string | undefined>;
       expandPaths(paths: string[]): Promise<string[]>;
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;
-      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { removeEmptySourceParents?: boolean }): Promise<RenameOperationRecord>;
+      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }): Promise<RenameOperationRecord>;
       getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
       undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;
       onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): () => void;
