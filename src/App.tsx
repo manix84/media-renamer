@@ -933,6 +933,20 @@ export default function App() {
     addDebug('info', 'Cleared imported media', `${paths.length} file${paths.length === 1 ? '' : 's'} removed from the current batch. No files were changed on disk.`);
   }
 
+  function removeFileFromBatch(path: string) {
+    probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
+    probedPaths.current.delete(path);
+    const withoutPath = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== path));
+    setPaths((current) => current.filter((item) => item !== path));
+    setTechnicalTags(withoutPath);
+    setProbeStates(withoutPath);
+    setMatchOverrides(withoutPath);
+    setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
+    if (reviewingPath === path) setReviewingPath(undefined);
+    if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
+    addDebug('info', `Removed ${filenameFromPath(path)} from the batch`, 'The source file was not changed on disk.');
+  }
+
   function confirmSuggestedMatch(path: string) {
     const item = matchesByPath.get(path);
     if (!item?.match) return;
@@ -1125,7 +1139,7 @@ export default function App() {
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
                     </div>}
                   </div>
-                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>{activeMediaTab === 'shows' && item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}{activeMediaTab === 'shows' && <button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}<button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button></div>
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>{activeMediaTab === 'shows' && item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}{activeMediaTab === 'shows' ? <button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder"/>}<button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button><button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button></div>
                 </article>;
               })}
             </div>}
