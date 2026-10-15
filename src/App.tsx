@@ -5,7 +5,7 @@ import { createRenamePlan, destinationDirectoryForSource } from './core/renamePl
 import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieDetails, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieDetails, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
@@ -149,6 +149,7 @@ function TemplateReferencePanel({ tab, onClose }: { tab: PreferenceMediaTab; onC
 
 export default function App() {
   const { preference, setPreference } = useTheme();
+  const showMetadataAgent: ShowMetadataAgent = 'tvdb-aired';
   const [paths, setPaths] = useState<string[]>([]);
   const [titleMatching, setTitleMatching] = useState(true);
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
@@ -573,6 +574,7 @@ export default function App() {
     window.mediaRenamer?.providerStatus().then((status) => {
       setProvider(status);
       addDebug(status.configured ? 'success' : 'warning', status.configured ? 'TMDB provider configured' : 'TMDB provider is not configured');
+      addDebug(status.tvdbConfigured ? 'success' : 'warning', status.tvdbConfigured ? 'TVDB provider configured' : 'TVDB provider is not configured');
     }).catch((reason) => {
       const message = errorMessage(reason);
       setError(message);
@@ -701,7 +703,7 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [activeMediaTab, addDebug, movie?.name, provider?.configured, query, show?.name]);
 
-  async function selectShow(result: ShowSearchResult) {
+  async function selectShow(result: ShowSearchResult, episodeAgent: ShowMetadataAgent = showMetadataAgent) {
     if (activeMediaTab === 'movies') {
       setQuery(result.name);
       setResults([]);
@@ -724,19 +726,26 @@ export default function App() {
     setResults([]);
     setError(undefined);
     setLoadingEpisodes(true);
-    addDebug('info', `Loading ${result.name}`, `Provider ID ${result.id}. Fetching every available season.`);
+    addDebug('info', `Loading ${result.name}`, `${episodeAgent === 'tvdb-aired' ? 'TVDB aired order' : 'TMDB aired order'} selected for episode numbering and titles.`);
     try {
       const details = await window.mediaRenamer?.getShow(result.id);
       if (!details) {
         addDebug('error', `Could not load ${result.name}`, 'The metadata provider returned no show details.');
         return;
       }
-      setShow({ ...details, tvdbId: details.tvdbId ?? result.tvdbId });
-      const seasons = await Promise.all(details.seasons.map((item) => window.mediaRenamer?.getSeasonEpisodes(details.id, item.number) ?? []));
+      const tvdbId = details.tvdbId ?? result.tvdbId;
+      if (episodeAgent === 'tvdb-aired' && !tvdbId) throw new Error(`TMDB does not provide a TVDB cross-reference for ${details.name}. Choose the TMDB agent or search by tvdb-ID.`);
+      const loadedEpisodes = await window.mediaRenamer?.getShowEpisodes({ agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) }) ?? [];
       if (seasonSequence.current === sequence) {
-        const loadedEpisodes = seasons.flat().sort((left, right) => left.season - right.season || left.number - right.number);
-        setEpisodes(loadedEpisodes);
-        addDebug('success', `Loaded ${details.name}`, `${loadedEpisodes.length} episodes across ${details.seasons.length} seasons.`);
+        const sortedEpisodes = loadedEpisodes.slice().sort((left, right) => left.season - right.season || left.number - right.number);
+        const seasonNumbers = [...new Set(sortedEpisodes.map((episode) => episode.season))];
+        const seasons = seasonNumbers.map((number) => {
+          const existing = details.seasons.find((season) => season.number === number);
+          return { number, name: existing?.name ?? (number === 0 ? 'Specials' : `Season ${number}`), episodeCount: sortedEpisodes.filter((episode) => episode.season === number).length, airDate: existing?.airDate };
+        });
+        setShow({ ...details, tvdbId, seasons });
+        setEpisodes(sortedEpisodes);
+        addDebug('success', `Loaded ${details.name}`, `${sortedEpisodes.length} ${episodeAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'} episodes across ${seasons.length} seasons.`);
       }
     } catch (reason) {
       if (seasonSequence.current === sequence) {
@@ -1054,7 +1063,7 @@ export default function App() {
               <p className="eyebrow">ACTIVE {activeMediaTab === 'movies' ? 'MOVIE' : 'SHOW'}</p>
               {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
               {!activeTitle?.logoUrl && <h1>{activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : activeMediaTab === 'movies' ? 'Choose a movie' : 'Choose a TV show'}</h1>}
-              <p>{activeMediaTab === 'movies' ? movie ? `${movie.year ?? 'Year unknown'} · TMDB movie` : 'Search TMDB to load movie metadata' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · TMDB` : 'Search TMDB to load real episode metadata'}</p>
+              <p>{activeMediaTab === 'movies' ? movie ? `${movie.year ?? 'Year unknown'} · TMDB movie` : 'Search TMDB to load movie metadata' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
             </div>
           </div>
           <div className="show-search">
@@ -1069,6 +1078,7 @@ export default function App() {
         </section>
 
         {!provider?.configured && provider && <div className="notice"><AlertCircle size={17}/><span><strong>TMDB access token needed.</strong> Add <code>TMDB_ACCESS_TOKEN=…</code> to <code>.env</code>, then restart the app.</span></div>}
+        {activeMediaTab === 'shows' && showMetadataAgent === 'tvdb-aired' && provider && !provider.tvdbConfigured && <div className="notice"><AlertCircle size={17}/><span><strong>TVDB API key needed for Plex-compatible episode ordering.</strong> Add <code>TVDB_API_KEY=…</code> to <code>.env</code>, then restart the app.</span></div>}
         {error && <div className="notice error"><AlertCircle size={17}/><span>{error}</span></div>}
 
         <section className="workflow">
@@ -1177,7 +1187,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightError ? 'preflight failed' : `${preflightPlan.blockedCount} blocked`} <span className="tmdb-attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{preflightPlan.readyCount} ready <span className="legend review"></span>{preflightError ? 'preflight failed' : `${preflightPlan.blockedCount} blocked`} <span className="tmdb-attribution">{activeMediaTab === 'shows' ? 'Episode metadata by TheTVDB. ' : ''}This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename?.operation.status === 'completed' && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} Undo last rename</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>Export plan</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} Rename {preflightPlan.readyCount} files <ChevronRight size={16}/></button></div></footer>
 
       {posterPreviewOpen && activeTitle?.posterUrl && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreviewOpen(false); setPosterZoomed(false); }}/>
@@ -1282,6 +1292,7 @@ export default function App() {
             <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> Movies</button>
           </div>
           {preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
+            <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired supplies Plex-oriented episode numbering and titles. Search and artwork continue to use TMDB.</small></span><select value="tvdb-aired" disabled aria-label="Show metadata agent"><option value="tvdb-aired">TVDB Aired</option></select></label></div></section>
             <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label></section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
@@ -1297,6 +1308,7 @@ export default function App() {
               {multiEpisodeFormatExample && <div className="format-preview"><span>Merged</span><strong>{multiEpisodeFormatExample}.mkv</strong></div>}
             </section>
           </div> : <div className="preference-media-panel" role="tabpanel" aria-label="Movies settings">
+            <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Movies</strong><small>TMDB currently supplies movie search, artwork, and metadata.</small></span><select value="tmdb" disabled aria-label="Movie metadata agent"><option value="tmdb">TMDB</option></select></label></div></section>
             <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
               <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Create the movie folder beside its source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Create the movie folder beside its source" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>

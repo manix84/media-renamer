@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowSearchResult } from './core/types';
+import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 type RenameOperationRecord = {
@@ -33,7 +33,7 @@ declare global {
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;
       getShow(showId: string): Promise<ShowDetails>;
-      getSeasonEpisodes(showId: string, season: number): Promise<Episode[]>;
+      getShowEpisodes(request: { agent: ShowMetadataAgent; tmdbId: string; tvdbId?: string; seasons: number[] }): Promise<Episode[]>;
       searchMovies(query: string): Promise<MovieSearchResult[]>;
       getMovie(movieId: string): Promise<MovieDetails>;
       openDebugConsole(): Promise<void>;

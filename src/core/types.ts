@@ -1,4 +1,5 @@
 export type Source = 'BluRay' | 'DVD' | 'WEB-DL' | 'WEBRip' | 'HDTV' | 'DVDRip' | 'TVRip' | 'Unknown';
+export type ShowMetadataAgent = 'tvdb-aired' | 'tmdb-aired';
 
 export interface Episode {
   id: string;
@@ -42,6 +43,7 @@ export type MovieDetails = MovieSearchResult;
 
 export interface ProviderStatus {
   configured: boolean;
+  tvdbConfigured: boolean;
 }
 
 export interface ReleaseTags {

@@ -42,7 +42,7 @@ This first scaffold includes:
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - unit tests for the matching and release-tag core.
 
-The UI searches TMDB and normalizes live show, season, and episode metadata. Safe filesystem execution is still intentionally disabled.
+The UI uses TMDB for search, artwork, movies, and show cross-references. TV shows use TVDB's English aired-order episode numbers and titles for Plex-oriented sorting. Disabled metadata-agent selectors in each Preferences tab reserve the provider boundary for future alternatives.
 
 ## Run it
 
@@ -56,15 +56,18 @@ npm run dev
 
 `npm run dev:electron` is also available as an explicit alias for the complete desktop development stack. Both commands compile the Electron main/preload code, start Vite, and launch the app. Changes under `electron/` automatically recompile and restart Electron so the renderer and preload bridge cannot drift out of sync.
 
-Add a TMDB v4 API Read Access Token to `.env` before starting the app:
+Add a TMDB v4 API Read Access Token and TVDB v4 API key to `.env` before starting the app:
 
 ```dotenv
 TMDB_ACCESS_TOKEN=your_long_read_access_token_here
+TVDB_API_KEY=your_tvdb_v4_api_key_here
+# Only required for subscriber-supported TVDB keys:
+TVDB_SUBSCRIBER_PIN=
 ```
 
 Create or retrieve the token under your TMDB account's **Settings → API** page. Do not add a `Bearer ` prefix. The token is read only by Electron's main process and is not exposed to the renderer. `.env` is ignored by Git.
 
-Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are first resolved through TMDB's external-ID endpoint. When TMDB has no cross-reference, the app uses `TVDB_API_KEY` (and optional `TVDB_SUBSCRIBER_PIN`) to retrieve the title from TVDB, then locates the corresponding TMDB show.
+Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are resolved to the corresponding TMDB record for artwork and show details, while episode numbering and names come directly from TVDB.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
@@ -105,8 +108,8 @@ The main batch toolbar includes a `Move files` / `In place` control. Moving uses
 ### Milestone 1 — useful TV renamer
 
 - [x] TMDB TV search/details/episode adapter
+- [x] TVDB English aired-order episode adapter and metadata-agent boundary
 - local metadata cache
-- TVDB adapter when credentials are configured
 - [x] whole-show episode browser grouped by season, and file import
 - [x] candidate alternatives and manual rematching
 - [x] configurable name templates with live examples

@@ -51,7 +51,7 @@ let tvdbClient: TvdbClient | undefined;
 const aniListClient = new AniListClient();
 function tvdb(): TvdbClient {
   const apiKey = localEnv('TVDB_API_KEY');
-  if (!apiKey) throw new Error('This TVDB ID is not mapped by TMDB. Add TVDB_API_KEY to .env to resolve it directly.');
+  if (!apiKey) throw new Error('TVDB is not configured. Add TVDB_API_KEY to .env to load Plex-compatible episode ordering.');
   return tvdbClient ??= new TvdbClient(apiKey, localEnv('TVDB_SUBSCRIBER_PIN'));
 }
 
@@ -175,7 +175,7 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
   publishDebugEntries();
 });
 
-ipcMain.handle('tmdb:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) }));
+ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('media:companions', (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid media paths.');
@@ -240,10 +240,16 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => tmdb().getShow(textArgument(showId, 'show ID')));
 ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => tmdb().searchMovies(textArgument(query, 'search query')));
 ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown) => tmdb().getMovie(textArgument(movieId, 'movie ID')));
-ipcMain.handle('tmdb:get-season-episodes', (_event, showId: unknown, season: unknown) => {
-  const seasonNumber = Number(season);
-  if (!Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 999) throw new Error('Invalid season number.');
-  return tmdb().getSeasonEpisodes(textArgument(showId, 'show ID'), seasonNumber);
+ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
+  if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');
+  const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown };
+  if (request.agent === 'tvdb-aired') return tvdb().getSeriesEpisodes(textArgument(request.tvdbId, 'TVDB series ID'));
+  if (request.agent === 'tmdb-aired') {
+    if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid TMDB season list.');
+    const showId = textArgument(request.tmdbId, 'TMDB show ID');
+    return (await Promise.all(request.seasons.map((season) => tmdb().getSeasonEpisodes(showId, Number(season))))).flat();
+  }
+  throw new Error('Unsupported show metadata agent.');
 });
 
 app.whenReady().then(() => {

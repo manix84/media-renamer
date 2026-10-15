@@ -5,12 +5,22 @@ type RemoteId = { id?: string; sourceName?: string; type?: number };
 type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
 type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
+type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number };
+type EpisodesResponse = { data?: { episodes?: RawEpisode[] }; links?: { next?: string | null } };
 
 export interface TvdbSeries {
   id: string;
   name: string;
   year?: number;
   tmdbId?: string;
+}
+
+export interface TvdbEpisode {
+  id: string;
+  season: number;
+  number: number;
+  title: string;
+  airDate?: string;
 }
 
 export class TvdbClient {
@@ -61,5 +71,30 @@ export class TvdbClient {
       const year = rawYear ? Number(rawYear) : undefined;
       return { id: String(series.tvdb_id ?? series.id), name: series.name.trim(), year: Number.isFinite(year) ? year : undefined };
     });
+  }
+
+  async getSeriesEpisodes(seriesId: string, language = 'eng'): Promise<TvdbEpisode[]> {
+    const episodes: TvdbEpisode[] = [];
+    for (let page = 0; page < 100; page += 1) {
+      const params = new URLSearchParams({ page: String(page) });
+      const response = await this.fetcher(`${API_ROOT}/series/${encodeURIComponent(seriesId)}/episodes/official/${encodeURIComponent(language)}?${params}`, {
+        headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
+      });
+      if (response.status === 404) throw new Error(`TVDB episodes for series ${seriesId} were not found.`);
+      if (!response.ok) throw new Error(`TVDB episode request failed (${response.status}).`);
+      const payload = await response.json() as EpisodesResponse;
+      for (const episode of payload.data?.episodes ?? []) {
+        if (!Number.isInteger(episode.id) || !Number.isInteger(episode.seasonNumber) || !Number.isInteger(episode.number)) continue;
+        episodes.push({
+          id: String(episode.id as number),
+          season: episode.seasonNumber as number,
+          number: episode.number as number,
+          title: episode.name?.trim() || `Episode ${episode.number}`,
+          airDate: episode.aired || undefined,
+        });
+      }
+      if (!payload.links?.next) break;
+    }
+    return episodes.sort((left, right) => left.season - right.season || left.number - right.number);
   }
 }

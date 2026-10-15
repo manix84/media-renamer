@@ -20,10 +20,10 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
     return () => ipcRenderer.removeListener('rename:progress', handler);
   },
   exportRenamePlan: (plan: unknown): Promise<string | undefined> => ipcRenderer.invoke('rename:export-plan', plan),
-  providerStatus: () => ipcRenderer.invoke('tmdb:status'),
+  providerStatus: () => ipcRenderer.invoke('metadata:status'),
   searchShows: (query: string) => ipcRenderer.invoke('tmdb:search-shows', query),
   getShow: (showId: string) => ipcRenderer.invoke('tmdb:get-show', showId),
-  getSeasonEpisodes: (showId: string, season: number) => ipcRenderer.invoke('tmdb:get-season-episodes', showId, season),
+  getShowEpisodes: (request: { agent: 'tvdb-aired' | 'tmdb-aired'; tmdbId: string; tvdbId?: string; seasons: number[] }) => ipcRenderer.invoke('metadata:get-show-episodes', request),
   searchMovies: (query: string) => ipcRenderer.invoke('tmdb:search-movies', query),
   getMovie: (movieId: string) => ipcRenderer.invoke('tmdb:get-movie', movieId),
   openDebugConsole: (): Promise<void> => ipcRenderer.invoke('debug:open'),
