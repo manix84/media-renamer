@@ -6,6 +6,7 @@ export type PersistedPreferences = {
   createExternalRenameLog?: boolean;
   episodeTemplate?: string;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
+  languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
   matchConfidenceThreshold?: number;
   movieBaseFolder?: string;
   movieFolderTemplate?: string;
@@ -30,6 +31,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
     if (typeof entry === 'string' && entry.length <= 32_768) (result as Record<string, unknown>)[key] = entry;
   }
   if (source.fileViewMode === 'detailed' || source.fileViewMode === 'summary' || source.fileViewMode === 'compact') result.fileViewMode = source.fileViewMode;
+  if (source.languagePreference === 'system' || source.languagePreference === 'en' || source.languagePreference === 'es' || source.languagePreference === 'fr' || source.languagePreference === 'de' || source.languagePreference === 'it' || source.languagePreference === 'pt-BR' || source.languagePreference === 'ja' || source.languagePreference === 'ko' || source.languagePreference === 'zh-CN') result.languagePreference = source.languagePreference;
   if (typeof source.matchConfidenceThreshold === 'number' && Number.isFinite(source.matchConfidenceThreshold) && source.matchConfidenceThreshold >= 50 && source.matchConfidenceThreshold <= 100) result.matchConfidenceThreshold = Math.round(source.matchConfidenceThreshold);
   if (typeof source.removeEmptySourceParents === 'boolean') result.removeEmptySourceParents = source.removeEmptySourceParents;
   if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;

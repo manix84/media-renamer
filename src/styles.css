@@ -131,6 +131,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .preferences-heading .eyebrow { margin-bottom: 3px; } .preferences-heading .icon-button { justify-self: auto; }
 .preference-section { margin: 0; padding: 21px 22px; border: 0; border-bottom: 1px solid #252c39; border-radius: 0; background: transparent; }
 .preference-section h3 { margin: 0 0 4px; font-size: 13px; } .preference-section > p, .format-heading p { margin: 0; color: #778196; font-size: 10px; line-height: 1.45; }
+.language-settings label { margin-top: 13px; display: grid; grid-template-columns: minmax(0, 1fr) 210px; align-items: center; gap: 12px; }
+.language-settings label span { font-size: 11px; font-weight: 650; }
+.language-settings select { width: 100%; padding: 8px 28px 8px 9px; border: 1px solid #353e50; border-radius: 7px; outline: 0; background: #191f2a; color: #d5dbe7; font-size: 10px; }
+.language-settings select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .preference-toggle { margin-top: 13px; padding: 12px 13px; border: 1px solid #37315b; background: linear-gradient(90deg, #221d3b, #171927); border-radius: 9px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .preference-toggle + .preference-toggle { margin-top: 8px; }
 .after-rename-settings .destination-row.standalone { margin-top: 8px; border-radius: 9px; }
@@ -379,6 +383,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .preference-section > p, [data-theme="light"] .format-heading p { color: #68758a; }
 [data-theme="light"] .format-help .reference-link.active { color: #5142a7; }
 [data-theme="light"] .preference-toggle { border-color: #d6cff5; background: linear-gradient(90deg, #f0edff, #fafaff); }
+[data-theme="light"] .language-settings select { border-color: #d4d9e3; background: #fff; color: #263249; }
 [data-theme="light"] .preference-toggle small { color: #667186; }
 [data-theme="light"] .confidence-threshold { border-color: #d9dee7; background: #f8f9fb; }
 [data-theme="light"] .confidence-threshold > span > small, [data-theme="light"] .confidence-range { color: #657186; }

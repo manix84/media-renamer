@@ -12,7 +12,7 @@ describe('persistent preferences', () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'media-renamer-preferences-'));
     temporaryDirectories.push(root);
     const filePath = path.join(root, 'preferences.json');
-    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', matchConfidenceThreshold: 76, removeEmptySourceParents: true, autoClearCompletedBatch: true, createExternalRenameLog: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false };
+    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', matchConfidenceThreshold: 76, removeEmptySourceParents: true, autoClearCompletedBatch: true, createExternalRenameLog: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, languagePreference: 'fr' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false };
     await writePreferences(filePath, preferences);
     await expect(readPreferences(filePath)).resolves.toEqual(preferences);
   });

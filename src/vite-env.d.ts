@@ -25,6 +25,7 @@ declare global {
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
+        languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
         matchConfidenceThreshold?: number;
         movieBaseFolder?: string;
         movieFolderTemplate?: string;
@@ -42,6 +43,7 @@ declare global {
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
+        languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
         matchConfidenceThreshold?: number;
         movieBaseFolder?: string;
         movieFolderTemplate?: string;
