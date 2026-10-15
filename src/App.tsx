@@ -228,7 +228,6 @@ export default function App() {
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
   const [movieMatches, setMovieMatches] = useState<Record<string, MovieFileMatch>>({});
-  const [selectedMoviePath, setSelectedMoviePath] = useState<string>();
   const [movieReviewPath, setMovieReviewPath] = useState<string>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
@@ -381,8 +380,7 @@ export default function App() {
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const movieFormatError = movieTemplateError(movieTemplate);
-  const focusedMoviePath = movieReviewPath ?? selectedMoviePath;
-  const focusedMovieMatch = focusedMoviePath ? movieMatches[focusedMoviePath] : undefined;
+  const focusedMovieMatch = movieReviewPath ? movieMatches[movieReviewPath] : undefined;
   const focusedMovie = focusedMovieMatch?.movie;
   const movieMatchCounts = useMemo(() => ({
     ready: paths.filter((path) => movieMatches[path]?.status === 'confident').length,
@@ -793,6 +791,15 @@ export default function App() {
           try {
             const found = await window.mediaRenamer?.searchMovies(inferred) ?? [];
             match = chooseMovieMatch(path, inferred, found);
+            if (match.movie && window.mediaRenamer?.getMovie) {
+              const matchedMovie = match.movie;
+              try {
+                const details = await window.mediaRenamer.getMovie(matchedMovie.id);
+                if (details) match = { ...match, movie: details, candidates: match.candidates.map((candidate) => candidate.id === details.id ? details : candidate) };
+              } catch (reason) {
+                addDebug('warning', `Could not load artwork for ${matchedMovie.name}`, errorMessage(reason));
+              }
+            }
           } catch (reason) {
             match = { path, query: inferred, candidates: [], status: 'error', confidence: 0, reasons: ['TMDB search failed'], error: errorMessage(reason) };
           }
@@ -811,20 +818,6 @@ export default function App() {
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
   }, [activeMediaTab, addDebug, paths, provider?.configured]);
-
-  useEffect(() => {
-    if (activeMediaTab !== 'movies' || !focusedMoviePath || !focusedMovie || focusedMovie.logoUrl) return;
-    let active = true;
-    window.mediaRenamer?.getMovie(focusedMovie.id).then((details) => {
-      if (!active || !details) return;
-      setMovieMatches((current) => {
-        const match = current[focusedMoviePath];
-        if (!match || match.movie?.id !== details.id) return current;
-        return { ...current, [focusedMoviePath]: { ...match, movie: details, candidates: match.candidates.map((candidate) => candidate.id === details.id ? details : candidate) } };
-      });
-    }).catch((reason) => addDebug('warning', `Could not load artwork for ${focusedMovie.name}`, errorMessage(reason)));
-    return () => { active = false; };
-  }, [activeMediaTab, addDebug, focusedMovie?.id, focusedMovie?.logoUrl, focusedMovie?.name, focusedMoviePath]);
 
   useEffect(() => {
     setMatchOverrides({});
@@ -903,7 +896,7 @@ export default function App() {
   useEffect(() => {
     const trimmed = query.trim();
     const selectedName = activeMediaTab === 'movies' ? focusedMovie?.name : show?.name;
-    if (!provider?.configured || trimmed.length < 2 || (activeMediaTab === 'movies' && !focusedMoviePath) || (activeMediaTab === 'shows' && selectedName && trimmed === selectedName)) {
+    if (!provider?.configured || trimmed.length < 2 || (activeMediaTab === 'movies' && !movieReviewPath) || (activeMediaTab === 'shows' && selectedName && trimmed === selectedName)) {
       searchSequence.current += 1;
       setResults([]);
       setSearching(false);
@@ -938,12 +931,12 @@ export default function App() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [activeMediaTab, addDebug, focusedMovie?.name, focusedMoviePath, provider?.configured, query, show?.name]);
+  }, [activeMediaTab, addDebug, focusedMovie?.name, movieReviewPath, provider?.configured, query, show?.name]);
 
   async function selectShow(result: ShowSearchResult, episodeAgent: ShowMetadataAgent = showMetadataAgent) {
     setActiveSearchResult(-1);
     if (activeMediaTab === 'movies') {
-      if (!focusedMoviePath) return;
+      if (!movieReviewPath) return;
       setQuery(result.name);
       setResults([]);
       setError(undefined);
@@ -951,11 +944,10 @@ export default function App() {
       try {
         const details = await window.mediaRenamer?.getMovie(result.id);
         if (details) {
-          setMovieMatches((current) => ({ ...current, [focusedMoviePath]: manuallySelectMovie(current[focusedMoviePath] ?? { path: focusedMoviePath, query, candidates: [], status: 'review', confidence: 0, reasons: [] }, details) }));
-          setSelectedMoviePath(focusedMoviePath);
+          setMovieMatches((current) => ({ ...current, [movieReviewPath]: manuallySelectMovie(current[movieReviewPath] ?? { path: movieReviewPath, query, candidates: [], status: 'review', confidence: 0, reasons: [] }, details) }));
           setMovieReviewPath(undefined);
           setQuery('');
-          addDebug('success', `Matched ${filenameFromPath(focusedMoviePath)} → ${details.name}`, `${details.year ?? 'Release year unknown'} · manually selected TMDB movie.`);
+          addDebug('success', `Matched ${filenameFromPath(movieReviewPath)} → ${details.name}`, `${details.year ?? 'Release year unknown'} · manually selected TMDB movie.`);
         }
       } catch (reason) {
         const message = errorMessage(reason);
@@ -1222,7 +1214,6 @@ export default function App() {
     setSearching(false);
     setShow(undefined);
     setMovieMatches({});
-    setSelectedMoviePath(undefined);
     setMovieReviewPath(undefined);
     setEpisodes([]);
     setLoadingEpisodes(false);
@@ -1260,7 +1251,6 @@ export default function App() {
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     if (reviewingPath === path) setReviewingPath(undefined);
-    if (selectedMoviePath === path) setSelectedMoviePath(undefined);
     if (movieReviewPath === path) { setMovieReviewPath(undefined); setQuery(''); setResults([]); }
     if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
     setRemovingPaths((current) => { const next = new Set(current); next.delete(path); return next; });
@@ -1347,7 +1337,7 @@ export default function App() {
     setPinnedPreviewPath(undefined);
   }
 
-  const activeTitle = activeMediaTab === 'movies' ? focusedMovie : show;
+  const activeTitle = activeMediaTab === 'shows' ? show : undefined;
   const selectablePalettes = availablePalettes(new Date(), import.meta.env.DEV);
 
   const renameCompleted = work?.completed ?? 0;
@@ -1378,17 +1368,17 @@ export default function App() {
             <div>
               <p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE BATCH' : t('hero.activeShow')}</p>
               {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
-              {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? focusedMovie ? <>{focusedMovie.name} {focusedMovie.year && <span>({focusedMovie.year})</span>}</> : `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
-              <p>{activeMediaTab === 'movies' ? focusedMoviePath ? `${movieReviewPath ? 'Reviewing' : 'Selected'} ${filenameFromPath(focusedMoviePath)}` : paths.length ? `${movieMatchCounts.ready} ready · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
+              {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
+              <p>{activeMediaTab === 'movies' ? movieReviewPath ? `Reviewing ${filenameFromPath(movieReviewPath)}` : paths.length ? `${movieMatchCounts.ready} ready · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
             </div>
           </div>
           <div className="show-search">
-            <div className="search"><Search size={17}/><input ref={searchInput} role="combobox" aria-autocomplete="list" aria-controls="media-search-results" aria-expanded={results.length > 0} aria-activedescendant={activeSearchResult >= 0 ? `media-search-result-${activeSearchResult}` : undefined} aria-label={activeMediaTab === 'movies' ? 'Search movies for selected file' : 'Search TV shows'} disabled={activeMediaTab === 'movies' && !focusedMoviePath} value={query} onChange={(event) => { autoSelectResult.current = false; setActiveSearchResult(-1); setQuery(event.target.value); if (activeMediaTab === 'movies') setMovieReviewPath(focusedMoviePath); else if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} onKeyDown={(event) => {
+            <div className="search"><Search size={17}/><input ref={searchInput} role="combobox" aria-autocomplete="list" aria-controls="media-search-results" aria-expanded={results.length > 0} aria-activedescendant={activeSearchResult >= 0 ? `media-search-result-${activeSearchResult}` : undefined} aria-label={activeMediaTab === 'movies' ? 'Search movies for selected file' : 'Search TV shows'} disabled={activeMediaTab === 'movies' && !movieReviewPath} value={query} onChange={(event) => { autoSelectResult.current = false; setActiveSearchResult(-1); setQuery(event.target.value); if (activeMediaTab === 'shows' && event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} onKeyDown={(event) => {
               if (!results.length) return;
               if (event.key === 'ArrowDown') { event.preventDefault(); setActiveSearchResult((current) => current < results.length - 1 ? current + 1 : 0); }
               else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSearchResult((current) => current > 0 ? current - 1 : results.length - 1); }
               else if (event.key === 'Enter' && activeSearchResult >= 0) { event.preventDefault(); void selectShow(results[activeSearchResult]); }
-            }} placeholder={activeMediaTab === 'movies' ? focusedMoviePath ? 'Search a replacement movie…' : 'Select a movie row to review' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : activeMediaTab === 'shows' && !searching && <kbd>⌘ K</kbd>}</div>
+            }} placeholder={activeMediaTab === 'movies' ? movieReviewPath ? 'Search a replacement movie…' : 'Select a movie row to review' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : activeMediaTab === 'shows' && !searching && <kbd>⌘ K</kbd>}</div>
             {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label={`${activeMediaTab === 'movies' ? 'Movie' : 'TV show'} search results`}>
               {results.map((result, index) => <button ref={(element) => { searchResultButtons.current[index] = element; }} id={`media-search-result-${index}`} role="option" aria-selected={activeSearchResult === index} className={activeSearchResult === index ? 'active' : ''} key={result.id} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => void selectShow(result)}>
                 {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder">{activeMediaTab === 'movies' ? <Film size={18}/> : <Tv size={18}/>}</span>}
@@ -1474,16 +1464,14 @@ export default function App() {
                 const movieReviewRequired = activeMediaTab === 'movies' && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
-                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${activeMediaTab === 'movies' ? 'movie-selectable' : ''} ${selectedMoviePath === path ? 'movie-selected' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onClick={() => {
-                  if (activeMediaTab !== 'movies') return;
-                  setSelectedMoviePath(path);
-                  if (movieReviewPath && movieReviewPath !== path) { setMovieReviewPath(undefined); setQuery(''); setResults([]); }
-                }} onPointerLeave={() => {
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
                 }}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
+                  {activeMediaTab === 'movies' && <div className="movie-row-poster">{movieFileMatch?.movie?.posterUrl ? <img src={movieFileMatch.movie.posterUrl} alt=""/> : <Film size={18}/>}</div>}
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
+                    {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
                       {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
@@ -1507,7 +1495,7 @@ export default function App() {
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
                       {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
-                      {activeMediaTab === 'movies' && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Review movie match for ${filename}`} title="Review movie match" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={(event) => { event.stopPropagation(); setSelectedMoviePath(path); setMovieReviewPath(path); setQuery(movieFileMatch?.query ?? ''); setResults(movieFileMatch?.candidates ?? []); setActiveSearchResult(-1); window.setTimeout(() => searchInput.current?.focus(), 0); }}><ListChecks size={14}/></button>}
+                      {activeMediaTab === 'movies' && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Review movie match for ${filename}`} title="Review movie match" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => { setMovieReviewPath(path); setQuery(movieFileMatch?.query ?? ''); setResults(movieFileMatch?.candidates ?? []); setActiveSearchResult(-1); window.setTimeout(() => searchInput.current?.focus(), 0); }}><ListChecks size={14}/></button>}
                     </div>
                     {matchingRequired && item?.match ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
                     {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
