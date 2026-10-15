@@ -9,7 +9,7 @@ export type RenameOperation = {
   createdAt: string;
   completedAt: string;
   undoneAt?: string;
-  status: 'completed' | 'undone';
+  status: 'completed' | 'stopped' | 'undone';
   items: RenamePreflightItem[];
   removedSourceDirectories?: string[];
   sourceDirectoryCleanupWarnings?: string[];
@@ -17,7 +17,8 @@ export type RenameOperation = {
   externalLogWarning?: string;
 };
 
-export type RenameExecutionOptions = { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string };
+export type RenameControl = 'stop' | 'undo';
+export type RenameExecutionOptions = { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
 
 async function exists(filePath: string): Promise<boolean> {
   try { await fs.promises.lstat(filePath); return true; }
@@ -174,17 +175,22 @@ async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{
   return { removed, warnings };
 }
 
-export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number) => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
+export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number, operation?: 'rename' | 'undo') => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
   const items = renamePreflightItems(value).filter((item) => item.sourcePath !== item.targetPath);
   if (!items.length) throw new Error('The rename plan has no file operations.');
   const issues = await preflightRenameItems(items);
   if (issues.length) throw new Error(`Rename preflight failed: ${issues[0].message}`);
   const completed: RenamePreflightItem[] = [];
+  let control: RenameControl | undefined;
   try {
     for (const item of items) {
+      control = options.control?.();
+      if (control) break;
       await moveFile(item.sourcePath, item.targetPath);
       completed.push(item);
-      onProgress?.(completed.length, items.length);
+      onProgress?.(completed.length, items.length, 'rename');
+      control = options.control?.();
+      if (control) break;
     }
   } catch (error) {
     const rollbackErrors: string[] = [];
@@ -195,15 +201,31 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     const detail = rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join('; ')}` : ' Completed moves were rolled back.';
     throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
   }
-  const cleanup = options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
+  if (control === 'undo') {
+    const rollbackErrors: string[] = [];
+    let restored = 0;
+    for (const item of [...completed].reverse()) {
+      try {
+        await moveFile(item.targetPath, item.sourcePath);
+        restored += 1;
+        onProgress?.(restored, completed.length, 'undo');
+      } catch (error) {
+        rollbackErrors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (rollbackErrors.length) throw new Error(`Undo was requested, but some completed renames could not be restored: ${rollbackErrors.join('; ')}`);
+  }
+  const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : 'completed';
+  const cleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
   const now = new Date().toISOString();
   const operation: RenameOperation = {
     version: 1,
     id: crypto.randomUUID(),
     createdAt: now,
     completedAt: now,
-    status: 'completed',
-    items,
+    status,
+    items: completed,
+    ...(status === 'undone' ? { undoneAt: now } : {}),
     ...(cleanup.removed.length ? { removedSourceDirectories: cleanup.removed } : {}),
     ...(cleanup.warnings.length ? { sourceDirectoryCleanupWarnings: cleanup.warnings } : {}),
   };
@@ -219,13 +241,13 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     }
     return { operation, logPath };
   } catch (error) {
-    for (const item of [...completed].reverse()) await moveFile(item.targetPath, item.sourcePath).catch(() => undefined);
+    if (status !== 'undone') for (const item of [...completed].reverse()) await moveFile(item.targetPath, item.sourcePath).catch(() => undefined);
     throw new Error(`Could not write the operation log; renamed files were rolled back. ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 export async function undoRenameOperation(operation: RenameOperation, logPath: string, onProgress?: (completed: number, total: number) => void): Promise<RenameOperation> {
-  if (operation.status !== 'completed') throw new Error('This rename operation has already been undone.');
+  if (operation.status !== 'completed' && operation.status !== 'stopped') throw new Error('This rename operation has already been undone.');
   for (const item of operation.items) {
     if (!(await exists(item.targetPath))) throw new Error(`Cannot undo because a renamed file is missing: ${item.targetPath}`);
     if (await exists(item.sourcePath)) throw new Error(`Cannot undo because the original path is occupied: ${item.sourcePath}`);
@@ -258,7 +280,7 @@ export async function readLatestRenameOperation(historyDirectory: string): Promi
     const logPath = path.join(historyDirectory, name);
     try {
       const value = JSON.parse(await fs.promises.readFile(logPath, 'utf8')) as Partial<RenameOperation>;
-      if (value.version !== 1 || typeof value.id !== 'string' || typeof value.createdAt !== 'string' || typeof value.completedAt !== 'string' || (value.status !== 'completed' && value.status !== 'undone')) continue;
+      if (value.version !== 1 || typeof value.id !== 'string' || typeof value.createdAt !== 'string' || typeof value.completedAt !== 'string' || (value.status !== 'completed' && value.status !== 'stopped' && value.status !== 'undone')) continue;
       const items = renamePreflightItems(value.items);
       return { operation: { ...value, items } as RenameOperation, logPath };
     } catch {

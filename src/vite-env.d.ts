@@ -6,7 +6,7 @@ import type { DebugEntry, DebugLevel } from './DebugConsole';
 type RenameOperationRecord = {
   operation: {
     id: string;
-    status: 'completed' | 'undone';
+    status: 'completed' | 'stopped' | 'undone';
     items: Array<{ sourcePath: string; targetPath: string }>;
     removedSourceDirectories?: string[];
     sourceDirectoryCleanupWarnings?: string[];
@@ -66,6 +66,7 @@ declare global {
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;
       executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }): Promise<RenameOperationRecord>;
+      controlRename(control: 'stop' | 'undo'): Promise<boolean>;
       getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
       undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;
       onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): () => void;

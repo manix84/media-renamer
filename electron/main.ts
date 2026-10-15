@@ -24,6 +24,8 @@ let debugEntries: DebugEntry[] = [];
 let lastRename: { operation: RenameOperation; logPath: string } | undefined;
 let persistedPreferences: PersistedPreferences | undefined;
 let preferenceWrite = Promise.resolve();
+let renameRunning = false;
+let activeRenameControl: 'stop' | 'undo' | undefined;
 
 function renameHistoryDirectory(): string {
   return path.join(app.getPath('userData'), 'rename-history');
@@ -204,19 +206,34 @@ ipcMain.handle('media:companions', (_event, values: unknown) => {
 ipcMain.handle('rename:preflight', (_event, items: unknown) => preflightRenameItems(items));
 ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolveRenameCollisions(groups));
 ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown) => {
+  if (renameRunning) throw new Error('A rename operation is already running.');
   if (options !== undefined && (!options || typeof options !== 'object')) throw new Error('Invalid rename options.');
   const renameOptions = options as { removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown } | undefined;
   if (renameOptions?.removeEmptySourceParents !== undefined && typeof renameOptions.removeEmptySourceParents !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.createExternalLog !== undefined && typeof renameOptions.createExternalLog !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
-  const resolved = await resolveRenameCollisions(groups);
-  const items = resolved.flatMap((group) => group.items);
-  lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total) => event.sender.send('rename:progress', { operation: 'rename', completed, total }), {
-    removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
-    createExternalLog: renameOptions?.createExternalLog ?? false,
-    externalLogDirectory: renameOptions?.externalLogDirectory as string | undefined,
-  });
-  return lastRename;
+  renameRunning = true;
+  activeRenameControl = undefined;
+  try {
+    const resolved = await resolveRenameCollisions(groups);
+    const items = resolved.flatMap((group) => group.items);
+    lastRename = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', { operation, completed, total }), {
+      removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
+      createExternalLog: renameOptions?.createExternalLog ?? false,
+      externalLogDirectory: renameOptions?.externalLogDirectory as string | undefined,
+      control: () => activeRenameControl,
+    });
+    return lastRename;
+  } finally {
+    renameRunning = false;
+    activeRenameControl = undefined;
+  }
+});
+ipcMain.handle('rename:control', (_event, control: unknown) => {
+  if (control !== 'stop' && control !== 'undo') throw new Error('Invalid rename control.');
+  if (!renameRunning) return false;
+  activeRenameControl = control;
+  return true;
 });
 ipcMain.handle('rename:last-operation', () => latestRename());
 ipcMain.handle('rename:undo', async (event, operationId: unknown) => {

@@ -190,7 +190,16 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .confirmation-dialog button.primary.destructive { border-color: #a94450; background: linear-gradient(#b64d59, #963943); box-shadow: 0 7px 22px #96394338; }
 .confirmation-dialog h2 { font-size: 17px; } .confirmation-dialog p { margin: 9px auto 20px; max-width: 340px; color: #818b9e; font-size: 11px; line-height: 1.55; }
 .confirmation-dialog > div { display: flex; justify-content: center; gap: 8px; }
-.rename-progress { width: 100%; height: 6px; margin: -7px 0 18px; accent-color: #7565e9; }
+.rename-progress-details { margin: -4px 0 18px; display: block !important; text-align: left; }
+.rename-progress-heading { display: flex !important; align-items: center; justify-content: space-between !important; gap: 12px; color: #cfd6e4; font-size: 11px; }
+.rename-progress-heading span { color: #a99cff; font: 700 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.rename-progress { width: 100%; height: 7px; margin: 9px 0 10px; accent-color: #7565e9; }
+.rename-time-grid { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 6px !important; }
+.rename-time-grid > span { min-width: 0; padding: 8px 9px; border: 1px solid #293141; border-radius: 7px; background: #0c1119; }
+.rename-time-grid small, .rename-time-grid strong { display: block; }
+.rename-time-grid small { color: #707b8f; font-size: 8px; text-transform: uppercase; letter-spacing: .06em; }
+.rename-time-grid strong { margin-top: 3px; overflow: hidden; color: #d6dce8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.rename-dialog-actions { display: flex !important; }
 .poster-preview-layer { position: fixed; z-index: 19; inset: 64px 0 0; padding: 24px; display: grid; place-items: center; }
 .poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
 .poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; }
@@ -409,6 +418,11 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .confirmation-icon { background: #eeeaff; color: #6552bd; }
 [data-theme="light"] .confirmation-icon.destructive { background: #fff0f1; color: #b43f4b; }
 [data-theme="light"] .confirmation-dialog p { color: #68758a; }
+[data-theme="light"] .rename-progress-heading { color: #354157; }
+[data-theme="light"] .rename-progress-heading span { color: var(--accent-text); }
+[data-theme="light"] .rename-time-grid > span { border-color: #d9dee7; background: #f8f9fb; }
+[data-theme="light"] .rename-time-grid small { color: #68758a; }
+[data-theme="light"] .rename-time-grid strong { color: #303b50; }
 [data-theme="light"] .variable-row { border-color: #dfe3ea; }
 [data-theme="light"] .syntax-legend, [data-theme="light"] .variable-list { border-color: #d9dee7; background: #f8f9fb; }
 [data-theme="light"] .syntax-legend code, [data-theme="light"] .variable-row code { color: #7b3f98; }

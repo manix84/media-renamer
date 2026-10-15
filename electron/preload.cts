@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
   executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }) => ipcRenderer.invoke('rename:execute', groups, options),
+  controlRename: (control: 'stop' | 'undo'): Promise<boolean> => ipcRenderer.invoke('rename:control', control),
   getLastRenameOperation: () => ipcRenderer.invoke('rename:last-operation'),
   undoRenameOperation: (operationId: string) => ipcRenderer.invoke('rename:undo', operationId),
   onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): (() => void) => {

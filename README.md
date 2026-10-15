@@ -31,7 +31,7 @@ This first scaffold includes:
 - anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;
 - editable multiline, Mustache-style output-name templates that produce single-line names with live rename previews;
 - portable, byte-safe output names that normalize Windows-forbidden characters and shorten episode titles when necessary while preserving the show name, technical tags, TVDB ID, and extension;
-- a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, and JSON export;
+- a non-destructive rename plan with portable filename validation, duplicate-destination detection, live source/target filesystem checks, JSON export, elapsed and estimated progress, and cooperative Stop/Undo controls;
 - separate persisted TV and Movie library destinations and folder patterns, so each workflow can target its own base folder;
 - durable Electron-level preference storage with automatic migration from renderer-local settings, so destinations and templates survive development origins, upgrades, and restarts;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;

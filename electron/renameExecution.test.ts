@@ -29,6 +29,57 @@ describe('rename execution', () => {
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('stops after the current file and leaves the completed subset undoable', async () => {
+    const root = await temporaryDirectory();
+    const firstSource = path.join(root, 'incoming', 'One.mkv');
+    const secondSource = path.join(root, 'incoming', 'Two.mkv');
+    const firstTarget = path.join(root, 'library', 'One.mkv');
+    const secondTarget = path.join(root, 'library', 'Two.mkv');
+    await fs.promises.mkdir(path.dirname(firstSource), { recursive: true });
+    await Promise.all([fs.promises.writeFile(firstSource, 'one'), fs.promises.writeFile(secondSource, 'two')]);
+    let control: 'stop' | undefined;
+    const executed = await executeRenamePlan([
+      { sourcePath: firstSource, targetPath: firstTarget },
+      { sourcePath: secondSource, targetPath: secondTarget },
+    ], path.join(root, 'history'), (completed) => { if (completed === 1) control = 'stop'; }, { control: () => control });
+
+    expect(executed.operation.status).toBe('stopped');
+    expect(executed.operation.items).toHaveLength(1);
+    await expect(fs.promises.readFile(firstTarget, 'utf8')).resolves.toBe('one');
+    await expect(fs.promises.readFile(secondSource, 'utf8')).resolves.toBe('two');
+    await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const undone = await undoRenameOperation(executed.operation, executed.logPath);
+    expect(undone.status).toBe('undone');
+    await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
+  });
+
+  it('undoes completed files immediately when undo is requested during a rename', async () => {
+    const root = await temporaryDirectory();
+    const firstSource = path.join(root, 'incoming', 'One.mkv');
+    const secondSource = path.join(root, 'incoming', 'Two.mkv');
+    const firstTarget = path.join(root, 'library', 'One.mkv');
+    const secondTarget = path.join(root, 'library', 'Two.mkv');
+    await fs.promises.mkdir(path.dirname(firstSource), { recursive: true });
+    await Promise.all([fs.promises.writeFile(firstSource, 'one'), fs.promises.writeFile(secondSource, 'two')]);
+    let control: 'undo' | undefined;
+    const phases: string[] = [];
+    const executed = await executeRenamePlan([
+      { sourcePath: firstSource, targetPath: firstTarget },
+      { sourcePath: secondSource, targetPath: secondTarget },
+    ], path.join(root, 'history'), (completed, _total, operation) => {
+      phases.push(`${operation}:${completed}`);
+      if (operation === 'rename' && completed === 1) control = 'undo';
+    }, { control: () => control });
+
+    expect(executed.operation.status).toBe('undone');
+    expect(phases).toEqual(['rename:1', 'undo:1']);
+    await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
+    await expect(fs.promises.readFile(secondSource, 'utf8')).resolves.toBe('two');
+    await expect(fs.promises.stat(firstTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('optionally removes only empty immediate source folders after moving', async () => {
     const root = await temporaryDirectory();
     const emptyAfterMove = path.join(root, 'incoming', 'Some Show');
