@@ -1358,13 +1358,13 @@ export default function App() {
                   </div>
                   <div className="row-trailing">
                     <div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>
-                    <div className={`row-extras ${activeMediaTab === 'shows' && !matchingRequired ? 'with-review' : ''}`}>
+                    <div className="row-extras">
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
-                      {activeMediaTab === 'shows' && !matchingRequired && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
+                      {activeMediaTab === 'shows' && !matchingRequired ? <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder" aria-hidden="true"/>}
                     </div>
-                    {matchingRequired && item?.match && <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button>}
-                    {matchingRequired && <button className="row-review required" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
+                    {matchingRequired && item?.match ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmed ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : <span className="row-confirm-placeholder" aria-hidden="true"/>}
+                    {matchingRequired ? <button className="row-review required" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder" aria-hidden="true"/>}
                   </div>
                 </article></div></div>;
               })}
