@@ -197,6 +197,7 @@ export default function App() {
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
+  const [removingPaths, setRemovingPaths] = useState<Set<string>>(() => new Set());
   const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
   const [companionScan, setCompanionScan] = useState<CompanionScan>({ byVideo: {}, ambiguous: [] });
@@ -236,6 +237,7 @@ export default function App() {
   const posterPreviewImage = useRef<HTMLImageElement>(null);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
+  const removalTimers = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
 
   const enterFileDropTarget = (event: ReactDragEvent<HTMLElement>) => {
@@ -454,6 +456,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-debug-dock-sizes', JSON.stringify(dockSizes));
   }, [dockSizes]);
+
+  useEffect(() => () => {
+    for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
+  }, []);
 
   const centerPosterPreview = useCallback(() => {
     const dialog = posterPreviewDialog.current;
@@ -901,6 +907,8 @@ export default function App() {
   }
 
   function clearBatch() {
+    for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
+    removalTimers.current = {};
     for (const path of paths) probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
     probedPaths.current.clear();
     setPaths([]);
@@ -928,12 +936,13 @@ export default function App() {
     setBatchMetadataOpen(false);
     setReviewingPath(undefined);
     setPinnedPreviewPath(undefined);
+    setRemovingPaths(new Set());
     setClearConfirmation(false);
     setConfirmAllOpen(false);
     addDebug('info', 'Cleared imported media', `${paths.length} file${paths.length === 1 ? '' : 's'} removed from the current batch. No files were changed on disk.`);
   }
 
-  function removeFileFromBatch(path: string) {
+  function finishRemovingFile(path: string) {
     probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
     probedPaths.current.delete(path);
     const withoutPath = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== path));
@@ -944,7 +953,15 @@ export default function App() {
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     if (reviewingPath === path) setReviewingPath(undefined);
     if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
+    setRemovingPaths((current) => { const next = new Set(current); next.delete(path); return next; });
+    delete removalTimers.current[path];
     addDebug('info', `Removed ${filenameFromPath(path)} from the batch`, 'The source file was not changed on disk.');
+  }
+
+  function removeFileFromBatch(path: string) {
+    if (removalTimers.current[path] !== undefined) return;
+    setRemovingPaths((current) => new Set(current).add(path));
+    removalTimers.current[path] = window.setTimeout(() => finishRemovingFile(path), 360);
   }
 
   function confirmSuggestedMatch(path: string) {
@@ -1119,7 +1136,8 @@ export default function App() {
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const fullProposedName = plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);
                 const previewPinned = pinnedPreviewPath === path;
-                return <article className={`match-row ${previewPinned ? 'preview-pinned' : ''}`} key={path}>
+                const removing = removingPaths.has(path);
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
@@ -1139,8 +1157,8 @@ export default function App() {
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
                     </div>}
                   </div>
-                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>{activeMediaTab === 'shows' && item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}{activeMediaTab === 'shows' ? <button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder"/>}<div className="row-extras"><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button><button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button></div></div>
-                </article>;
+                  <div className="row-trailing"><div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>{activeMediaTab === 'shows' && item?.match && !confirmed && status !== 'confident' ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : <span className="row-action-placeholder"/>}{activeMediaTab === 'shows' ? <button className={`row-review ${!confirmed && (status === 'review' || status === 'unmatched') ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder"/>}<div className="row-extras"><button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button><button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button></div></div>
+                </article></div></div>;
               })}
             </div>}
             {paths.length === 0 && <button className="dropzone dropzone-empty" onClick={addFiles}><FolderOpen size={30}/><span>Drop files or folders anywhere in this panel</span><small>or click to choose video files</small></button>}

@@ -192,7 +192,17 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .plan-status > span { min-width: 0; } .plan-status strong, .plan-status small { display: block; } .plan-status strong { color: #cbd7d1; font-size: 11px; } .plan-status small { margin-top: 2px; color: #718096; font-size: 9px; }
 .plan-status .confirm-suggestions { margin-left: auto; flex: 0 0 auto; border-color: #685728; background: #352d1d; color: #efbd52; }
 .match-list { flex: 1; min-height: 0; height: 0; padding: 0 12px; overflow-y: auto; }
-.match-row { position: relative; min-height: 82px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-top: 1px solid #242a36; }
+.match-row-slot { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .36s ease; }
+.match-row-collapse { min-height: 0; }
+.match-row-slot.removing { grid-template-rows: 0fr; pointer-events: none; }
+.match-row-slot.removing .match-row-collapse { overflow: hidden; }
+.match-row { --remove-row-background: #6b242d99; position: relative; min-height: 82px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-top: 1px solid #242a36; }
+.match-row.removing { z-index: 6; pointer-events: none; animation: remove-match-row .36s ease forwards; }
+@keyframes remove-match-row {
+  0% { opacity: 1; transform: translateX(0); background-color: transparent; }
+  24% { opacity: 1; transform: translateX(5px); background-color: var(--remove-row-background); }
+  100% { opacity: 0; transform: translateX(68px); background-color: var(--remove-row-background); }
+}
 .match-row:hover, .match-row.preview-pinned { z-index: 5; }
 .view-detailed .match-row { min-height: 112px; padding-top: 15px; padding-bottom: 15px; }
 .view-compact .match-row { min-height: 52px; }
@@ -215,8 +225,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .filename-preview button { position: absolute; top: 7px; right: 7px; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #7d879a; cursor: pointer; } .filename-preview button:hover { color: #e0e6f3; background: #272e3d; }
 .match-list:not(.view-detailed):not(.has-pinned-preview) .match-row:hover .filename-preview, .match-list:not(.view-detailed):not(.has-pinned-preview) .file-content:focus-within .filename-preview, .match-row.preview-pinned .filename-preview { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: .22s, 0s, .22s; }
 .match-row.preview-pinned .filename-preview { transition-delay: 0s; }
-.match-row:nth-last-child(-n+2) .filename-preview { top: auto; bottom: calc(100% - 2px); transform: translateY(3px); }
-.match-row:nth-last-child(-n+2) .filename-preview::before { top: auto; bottom: -5px; border-top: 0; border-left: 0; border-right: 1px solid #3a4356; border-bottom: 1px solid #3a4356; }
+.match-row-slot:nth-last-child(-n+2) .filename-preview { top: auto; bottom: calc(100% - 2px); transform: translateY(3px); }
+.match-row-slot:nth-last-child(-n+2) .filename-preview::before { top: auto; bottom: -5px; border-top: 0; border-left: 0; border-right: 1px solid #3a4356; border-bottom: 1px solid #3a4356; }
 .file-details { min-width: 0; margin-top: 12px; padding-left: 22px; display: flex; align-items: center; gap: 12px; color: #68748a; font-size: 9px; }
 .match-reasons { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .match-reasons.has-error { color: #d9a64d; }
@@ -313,6 +323,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .panel-heading { border-color: #dde1e9; }
 [data-theme="light"] .count { color: #596579; background: #edf0f4; }
 [data-theme="light"] .season-divider, [data-theme="light"] .match-row { border-color: #e1e4eb; }
+[data-theme="light"] .match-row { --remove-row-background: #f2aab5b8; }
 [data-theme="light"] .season-divider { color: #68748a; }
 [data-theme="light"] .episode { color: #39455a; }
 [data-theme="light"] .movie-summary strong { color: #263247; }
