@@ -16,6 +16,12 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/media/Jackie Chan Adventures - 1 x 25 - The New Atlantis.mp4'])).toBe('Jackie Chan Adventures');
   });
 
+  it('extracts titles before standalone Ep and Episode numbers', () => {
+    expect(inferShowQuery(['/media/MUMMIES ALIVE - Ep. 01 - Ra, Ra, Ra, Ra.mp4'])).toBe('MUMMIES ALIVE');
+    expect(inferShowQuery(['/media/Mummies.Alive.Ep.02.Sleep.Walk.mkv'])).toBe('Mummies Alive');
+    expect(inferShowQuery(['/media/Mummies Alive - Episode 03 - Pack to the Future.mp4'])).toBe('Mummies Alive');
+  });
+
   it('uses the most common title across a mixed import', () => {
     expect(inferShowQuery([
       '/tv/Main.Show.S01E01.mkv',
@@ -26,5 +32,6 @@ describe('show-name inference', () => {
 
   it('does not guess when no episode marker is available', () => {
     expect(inferShowQuery(['/tv/random-video.mkv'])).toBeUndefined();
+    expect(inferShowQuery(['/tv/The Episode Guide.mkv'])).toBeUndefined();
   });
 });

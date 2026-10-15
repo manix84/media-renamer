@@ -20,7 +20,7 @@ This first scaffold includes:
 - an Electron + React + TypeScript desktop shell;
 - native file/folder selection and recursive drag-and-drop import;
 - immediate ordered display of every imported video, including pending and unmatched files;
-- automatic show-name inference from imported episode filenames;
+- automatic show-name inference from imported episode filenames, including seasonless `Ep. 01` and `Episode 01` naming;
 - literal-first title-and-year search with a structured year fallback;
 - a durable local metadata cache for searches, show/movie details, and episode lists, with bounded retention, atomic writes, and stale-data fallback during provider outages;
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
