@@ -133,33 +133,74 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 
 ## Delivery plan
 
-### Milestone 1 — useful TV renamer
+| Milestone | Status | Progress |
+| --- | --- | --- |
+| 1 — TV matching foundation | Complete | 10 of 10 steps |
+| 2 — Safe execution and desktop workflow | Complete | 12 of 12 steps |
+| 3 — Resilient matching and metadata | In progress | 4 of 10 steps |
+| 4 — Movies and library workflows | Started | 2 of 6 steps |
+| 5 — Release readiness | Planned | 0 of 6 steps |
 
-- [x] TMDB TV search/details/episode adapter
+Milestones describe product capability rather than strict release boundaries. Work already completed for a later milestone remains checked even while the current focus is Milestone 3.
+
+### Milestone 1 — TV matching foundation (complete)
+
+- [x] Electron desktop shell with native file/folder selection and recursive drag-and-drop import
+- [x] TMDB TV search, details, artwork, direct-ID lookup, and literal-first year fallback
 - [x] TVDB English aired-order episode adapter and metadata-agent boundary
-- [x] local metadata cache
-- [x] whole-show episode browser grouped by season, and file import
-- [x] candidate alternatives and manual rematching
-- [x] configurable name templates with live examples
-- [x] preflight collision/invalid-character checks
-- [x] atomic rename/move plan, JSON log, and undo
+- [x] durable provider cache with stale-data fallback and bounded retention
+- [x] automatic show inference from common numbered and seasonless episode filenames
+- [x] whole-show episode browser grouped by season
+- [x] confidence scoring from episode numbers and normalized title evidence
+- [x] ranked alternatives, manual rematching, and explicit confirmation of uncertain matches
+- [x] configurable show-folder and episode-filename templates with live examples
+- [x] release-tag parsing and `ffprobe` inspection for video/audio technical metadata
 
-### Milestone 2 — resilient matching and tags
+### Milestone 2 — safe execution and desktop workflow (complete)
 
-- [x] video/audio stream detection through `ffprobe`
-- duration evidence through `ffprobe`
-- multi-episode, specials, absolute ordering, and anime filename patterns
-- editable release-tag vocabulary and aliases
-- folder parsing, per-show rules, and saved matching decisions
+- [x] portable filename validation and live source/destination preflight
+- [x] collision-safe numbering that keeps video and companion filenames aligned
+- [x] atomic same-filesystem renames and safely published cross-filesystem moves
+- [x] durable operation history, automatic rollback, and verified undo
+- [x] cooperative Stop and in-progress Undo controls
+- [x] per-batch Move/In place mode with separate TV and Movie destinations
 - [x] companion-file planning for subtitles, NFO metadata, and episode artwork
-- [x] JSON dry-run export
-- NFO export
+- [x] optional removal of empty immediate source folders
+- [x] filesystem monitoring for external deletes, renames, and moves
+- [x] animated progress, elapsed/estimated timing, and optional completion reports
+- [x] persisted preferences, appearance palettes, localization, and post-rename actions
+- [x] dockable debug console and JSON dry-run export
 
-### Milestone 3 — movies and packaging
+### Milestone 3 — resilient matching and metadata (in progress)
+
+- [x] compact, separated, and seasonless episode-marker variants
+- [x] best-effort title matching with number/title conflict review
+- [x] anime-style version suffixes normalized to release metadata
+- [x] confidence thresholds plus current-batch source and AI-upscale overrides
+- [ ] duration evidence through `ffprobe`
+- [ ] multi-episode, specials, absolute ordering, and anime filename patterns
+- [ ] editable release-tag vocabulary and aliases
+- [ ] folder parsing, per-show rules, and saved matching decisions
+- [ ] NFO export
+- [ ] embedded-title and adjacent-file ordering evidence
+
+### Milestone 4 — movies and library workflows (started)
 
 - [x] basic movie search/import workflow using the same provider and tag interfaces
-- editions, cuts, collections, and year/runtime disambiguation
-- signed macOS/Windows/Linux builds and update channel
+- [x] separate persisted Movie destination, folder template, and filename template
+- [ ] year and runtime disambiguation
+- [ ] editions and cuts
+- [ ] collection-aware folder and filename fields
+- [ ] saved library roots and repeatable batch queues
+
+### Milestone 5 — release readiness (planned)
+
+- [ ] signed and notarized macOS build
+- [ ] signed Windows build and packaged Linux build
+- [ ] update channel with release notes and safe migrations
+- [ ] in-app provider setup and first-run validation
+- [ ] keyboard, screen-reader, contrast, and reduced-motion audit
+- [ ] large-batch performance, interruption-recovery, and cross-platform integration testing
 
 ## Architecture boundary
 
@@ -175,4 +216,11 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 ## Next implementation slice
 
-Milestone 1 is complete. The next implementation slice is duration-assisted matching and broader multi-episode, specials, absolute-order, and anime filename support, building on the existing TVDB-first workflow and reversible rename engine.
+Milestones 1 and 2 are complete, and Milestone 3 is active. The remaining work is currently ordered as:
+
+1. Add duration-assisted matching using the existing `ffprobe` inspection path.
+2. Expand parsing and matching for multi-episode files, specials, absolute ordering, and anime naming.
+3. Add editable release-tag aliases, folder parsing, per-show rules, and saved match decisions.
+4. Add NFO export alongside the existing dry-run JSON export.
+5. Complete movie-specific disambiguation, editions, cuts, collections, and reusable library workflows.
+6. Finish release-readiness work: provider onboarding, accessibility, stress testing, signed packages, and updates.
