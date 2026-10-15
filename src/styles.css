@@ -137,6 +137,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .language-settings select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .preference-toggle { margin-top: 13px; padding: 12px 13px; border: 1px solid #37315b; background: linear-gradient(90deg, #221d3b, #171927); border-radius: 9px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .preference-toggle + .preference-toggle { margin-top: 8px; }
+.chime-preview { margin: 7px 1px 0; display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+.chime-preview button { padding: 6px 9px; color: var(--accent-text); }
+.chime-preview button svg { color: var(--accent-muted); }
+.chime-preview small { color: #727d91; font-size: 8px; }
+.chime-preview + .preference-toggle { margin-top: 8px; }
 .after-rename-settings .destination-row.standalone { margin-top: 8px; border-radius: 9px; }
 .preference-toggle > span { display: flex; gap: 10px; align-items: center; } .preference-toggle svg { color: #9584ff; } .preference-toggle strong, .preference-toggle small { display: block; } .preference-toggle strong { font-size: 12px; } .preference-toggle small { margin-top: 3px; color: #80899b; font-size: 10px; } .preference-toggle input { width: 34px; accent-color: #7967ec; }
 .confidence-threshold { margin-top: 10px; padding: 12px 13px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 12px; border: 1px solid #303747; border-radius: 9px; background: #121721; }
@@ -397,6 +402,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .preference-toggle { border-color: #d6cff5; background: linear-gradient(90deg, #f0edff, #fafaff); }
 [data-theme="light"] .language-settings select { border-color: #d4d9e3; background: #fff; color: #263249; }
 [data-theme="light"] .preference-toggle small { color: #667186; }
+[data-theme="light"] .chime-preview small { color: #68758a; }
 [data-theme="light"] .confidence-threshold { border-color: #d9dee7; background: #f8f9fb; }
 [data-theme="light"] .confidence-threshold > span > small, [data-theme="light"] .confidence-range { color: #657186; }
 [data-theme="light"] .confidence-threshold output { background: #eeeaff; color: #5948b4; }
