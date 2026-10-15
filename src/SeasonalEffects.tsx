@@ -3,16 +3,16 @@ import type { ThemePalette } from './theme';
 
 type Point = { x: number; y: number };
 type Snowflake = Point & { size: number; speed: number; drift: number; phase: number };
+type WebConfig = { rings: number; spokes: number; spacing: number };
 
-function drawWeb(context: CanvasRenderingContext2D, origin: Point, direction: Point, mouse: Point | undefined, mouseStrength: number, time: number, reducedMotion: boolean) {
-  const rings = 5;
-  const spokes = 7;
+function drawWeb(context: CanvasRenderingContext2D, origin: Point, direction: Point, config: WebConfig, mouse: Point | undefined, mouseStrength: number, time: number, reducedMotion: boolean) {
+  const { rings, spokes, spacing } = config;
   const points: Point[][] = [];
   for (let ring = 1; ring <= rings; ring += 1) {
     points[ring] = [];
     for (let spoke = 0; spoke < spokes; spoke += 1) {
       const angle = (spoke / (spokes - 1)) * Math.PI / 2;
-      const distance = ring * 27;
+      const distance = ring * spacing;
       const base = { x: origin.x + Math.cos(angle) * distance * direction.x, y: origin.y + Math.sin(angle) * distance * direction.y };
       const mouseDistance = mouse ? Math.hypot(base.x - mouse.x, base.y - mouse.y) : Infinity;
       const influence = Math.max(0, 1 - mouseDistance / 115) * mouseStrength;
@@ -32,42 +32,37 @@ function drawWeb(context: CanvasRenderingContext2D, origin: Point, direction: Po
   context.stroke();
 }
 
-function drawBat(context: CanvasRenderingContext2D, progress: number, width: number, height: number, time: number) {
-  const x = -55 + progress * (width + 110);
-  const y = Math.max(75, height * .18 + Math.sin(progress * Math.PI * 5) * 45);
-  const flap = Math.sin(time / 80) * 9;
-  context.save();
-  context.translate(x, y);
-  context.fillStyle = '#16121de0';
-  context.beginPath();
-  context.moveTo(0, 2);
-  context.quadraticCurveTo(-18, -13 - flap, -35, 2);
-  context.quadraticCurveTo(-18, -2 + flap, -7, 8);
-  context.quadraticCurveTo(0, 13, 7, 8);
-  context.quadraticCurveTo(18, -2 + flap, 35, 2);
-  context.quadraticCurveTo(18, -13 - flap, 0, 2);
-  context.fill();
-  context.restore();
-}
-
-function drawSleigh(context: CanvasRenderingContext2D, progress: number, width: number) {
-  const x = width + 180 - progress * (width + 360);
-  const y = 62 + Math.sin(progress * Math.PI * 3) * 12;
-  context.save();
-  context.translate(x, y);
-  context.strokeStyle = '#7b2531cc';
-  context.fillStyle = '#a8323fcc';
-  context.lineWidth = 3;
-  context.beginPath(); context.roundRect(-12, -12, 50, 22, 6); context.fill();
-  context.beginPath(); context.moveTo(-18, 13); context.quadraticCurveTo(15, 24, 48, 10); context.stroke();
-  context.fillStyle = '#f2eadbcc'; context.beginPath(); context.arc(27, -20, 8, 0, Math.PI * 2); context.fill();
-  context.strokeStyle = '#8f5639b8'; context.lineWidth = 2;
-  context.beginPath(); context.moveTo(-16, -1); context.lineTo(-68, -8); context.stroke();
-  for (const offset of [-80, -115]) {
-    context.beginPath(); context.ellipse(offset, -9, 14, 7, 0, 0, Math.PI * 2); context.stroke();
-    context.beginPath(); context.moveTo(offset + 7, -15); context.lineTo(offset + 13, -27); context.lineTo(offset + 18, -20); context.stroke();
+function drawBatFlock(context: CanvasRenderingContext2D, progress: number, width: number, height: number, time: number, count: number, darkMode: boolean) {
+  const hoverStart = .28;
+  const hoverEnd = .68;
+  const travel = progress < hoverStart
+    ? progress / hoverStart * .33
+    : progress < hoverEnd
+      ? .33 + Math.sin((progress - hoverStart) / (hoverEnd - hoverStart) * Math.PI * 4) * .018
+      : .33 + (progress - hoverEnd) / (1 - hoverEnd) * .74;
+  const leaderX = -28 + travel * (width + 56);
+  const leaderY = Math.max(60, height * .17 + Math.sin(progress * Math.PI * 15) * 18);
+  for (let index = 0; index < count; index += 1) {
+    const phase = index * 1.9;
+    const scale = .27 + index * .018;
+    const x = leaderX - index * 24 + Math.sin(time / 145 + phase) * 9;
+    const y = leaderY + (index - 1) * 16 + Math.cos(time / 125 + phase) * 11;
+    const flap = Math.sin(time / 58 + phase) * 9;
+    context.save();
+    context.translate(x, y);
+    context.scale(scale, scale);
+    context.fillStyle = '#16121df0';
+    if (darkMode) { context.shadowColor = 'rgba(185, 26, 39, .62)'; context.shadowBlur = 24; }
+    context.beginPath();
+    context.moveTo(0, 2);
+    context.quadraticCurveTo(-18, -13 - flap, -35, 2);
+    context.quadraticCurveTo(-18, -2 + flap, -7, 8);
+    context.quadraticCurveTo(0, 13, 7, 8);
+    context.quadraticCurveTo(18, -2 + flap, 35, 2);
+    context.quadraticCurveTo(18, -13 - flap, 0, 2);
+    context.fill();
+    context.restore();
   }
-  context.restore();
 }
 
 export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
@@ -86,8 +81,10 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
     let webMouse: Point | undefined;
     let webMouseStrength = 0;
     let lastTime = performance.now();
-    let ambientStart = lastTime + (import.meta.env.DEV ? (palette === 'halloween' ? 2500 : 6000) : 12000 + Math.random() * 10000);
-    let ambientDuration = palette === 'halloween' ? 6000 : 9000;
+    let ambientStart = palette === 'halloween' ? lastTime + (import.meta.env.DEV ? 2500 : 45000 + Math.random() * 75000) : Infinity;
+    const ambientDuration = 8500;
+    let batCount = 2 + Math.floor(Math.random() * 2);
+    const webConfigs: [WebConfig, WebConfig] = [0, 1].map(() => ({ rings: 4 + Math.floor(Math.random() * 2), spokes: 6 + Math.floor(Math.random() * 2), spacing: 15 + Math.random() * 5 })) as [WebConfig, WebConfig];
     let snow: Snowflake[] = [];
 
     const resize = () => {
@@ -104,7 +101,9 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
     const pointerMove = (event: PointerEvent) => { mouse = { x: event.clientX, y: event.clientY - 64 }; };
     const pointerLeave = () => { mouse = undefined; };
     const scheduleNext = (time: number) => {
-      ambientStart = time + (palette === 'halloween' ? 18000 + Math.random() * 22000 : 35000 + Math.random() * 40000);
+      if (palette !== 'halloween') return;
+      ambientStart = time + (import.meta.env.DEV ? 30000 + Math.random() * 30000 : 180000 + Math.random() * 240000);
+      batCount = 2 + Math.floor(Math.random() * 2);
     };
     const render = (time: number) => {
       const delta = Math.min((time - lastTime) / 1000, .05);
@@ -120,11 +119,11 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
           webMouseStrength *= .92;
           if (webMouseStrength < .01) webMouse = undefined;
         }
-        context.strokeStyle = 'rgba(102, 91, 117, .23)';
+        context.strokeStyle = 'rgba(102, 91, 117, .105)';
         context.lineWidth = 1;
-        drawWeb(context, { x: 0, y: 0 }, { x: 1, y: 1 }, webMouse, webMouseStrength, time, reducedMotion);
-        drawWeb(context, { x: width, y: 0 }, { x: -1, y: 1 }, webMouse, webMouseStrength, time, reducedMotion);
-        if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawBat(context, (time - ambientStart) / ambientDuration, width, height, time);
+        drawWeb(context, { x: 0, y: 0 }, { x: 1, y: 1 }, webConfigs[0], webMouse, webMouseStrength, time, reducedMotion);
+        drawWeb(context, { x: width, y: 0 }, { x: -1, y: 1 }, webConfigs[1], webMouse, webMouseStrength, time, reducedMotion);
+        if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawBatFlock(context, (time - ambientStart) / ambientDuration, width, height, time, batCount, document.documentElement.dataset.theme === 'dark');
       } else {
         context.fillStyle = 'rgba(230, 244, 255, .72)';
         for (const flake of snow) {
@@ -141,9 +140,8 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
           }
           context.beginPath(); context.arc(flake.x, flake.y, flake.size, 0, Math.PI * 2); context.fill();
         }
-        if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawSleigh(context, (time - ambientStart) / ambientDuration, width);
       }
-      if (!reducedMotion && time > ambientStart + ambientDuration) scheduleNext(time);
+      if (!reducedMotion && palette === 'halloween' && time > ambientStart + ambientDuration) scheduleNext(time);
       frame = requestAnimationFrame(render);
     };
     resize();
