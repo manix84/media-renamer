@@ -250,6 +250,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .match-row-slot.removing { grid-template-rows: 0fr; pointer-events: none; }
 .match-row-slot.removing .match-row-collapse { overflow: hidden; }
 .match-row { --remove-row-background: #6b242d99; position: relative; min-height: 82px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-top: 1px solid #242a36; }
+.match-row.movie-selectable { cursor: pointer; }
+.match-row.movie-selectable:hover { background: color-mix(in srgb, var(--accent-soft) 38%, transparent); }
+.match-row.movie-selected { background: color-mix(in srgb, var(--accent-soft) 72%, transparent); box-shadow: inset 3px 0 var(--accent); }
 .match-row.removing { z-index: 6; pointer-events: none; animation: remove-match-row .36s ease forwards; }
 @keyframes remove-match-row {
   0% { opacity: 1; transform: translateX(0); background-color: transparent; }
