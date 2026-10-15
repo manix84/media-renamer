@@ -19,6 +19,7 @@ type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
 type PreferenceMediaTab = 'shows' | 'movies';
+type RenameReport = { result: RenameOperationRecord; moved: boolean };
 
 const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
   { label: 'Show', fields: [
@@ -159,6 +160,14 @@ function TemplateReferencePanel({ tab, onClose }: { tab: PreferenceMediaTab; onC
   </aside>;
 }
 
+function SmoothProgress({ value, max, className = '' }: { value: number; max: number; className?: string }) {
+  const boundedMax = Math.max(1, max);
+  const boundedValue = Math.max(0, Math.min(value, boundedMax));
+  return <div className={`smooth-progress ${className}`.trim()} role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.min(value, max)}>
+    <span style={{ width: `${(boundedValue / boundedMax) * 100}%` }}/>
+  </div>;
+}
+
 export default function App() {
   const { preference, palette, setPreference, setPalette } = useTheme();
   const { language, preference: languagePreference, setPreference: setLanguagePreference, t } = useI18n();
@@ -175,6 +184,7 @@ export default function App() {
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
   const [autoClearCompletedBatch, setAutoClearCompletedBatch] = useState(false);
   const [completionChime, setCompletionChime] = useState(false);
+  const [completionReport, setCompletionReport] = useState(true);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
@@ -194,6 +204,7 @@ export default function App() {
   const [renaming, setRenaming] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [lastRename, setLastRename] = useState<RenameOperationRecord>();
+  const [renameReport, setRenameReport] = useState<RenameReport>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
@@ -468,6 +479,7 @@ export default function App() {
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
+      if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
@@ -534,6 +546,7 @@ export default function App() {
     void window.mediaRenamer.savePreferences({
       autoClearCompletedBatch,
       completionChime,
+      completionReport,
       createExternalRenameLog,
       episodeTemplate,
       fileViewMode,
@@ -547,7 +560,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, completionChime, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -701,11 +714,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming && !undoing) { setPreferencesOpen(false); setTemplateReferenceOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setUndoConfirmationOpen(false); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !renameReport && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming && !undoing) { setPreferencesOpen(false); setTemplateReferenceOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setUndoConfirmationOpen(false); setRenameReport(undefined); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renaming, undoing, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renameReport, renaming, undoing, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -1030,6 +1043,7 @@ export default function App() {
       const renamedVideos = new Set(result.operation.status === 'undone' ? [] : result.operation.items.filter((item) => isVideoPath(item.sourcePath)).map((item) => item.sourcePath));
       const entireBatchRenamed = paths.length > 0 && paths.every((path) => renamedVideos.has(path));
       setLastRename(result);
+      if (completionReport) setRenameReport({ result, moved: moveFiles });
       if (result.operation.status === 'completed') preparedChime?.play();
       else preparedChime?.dispose();
       if (result.operation.status === 'undone') setBatchRenameCompleted(false);
@@ -1246,6 +1260,8 @@ export default function App() {
   const renameElapsed = renameStartedAt === undefined ? 0 : Math.max(0, renameClock - renameStartedAt);
   const estimatedRenameTotal = renameCompleted > 0 && work?.operation !== 'Undoing' ? (renameElapsed / renameCompleted) * renameTotal : undefined;
   const estimatedRenameRemaining = estimatedRenameTotal === undefined ? undefined : Math.max(0, estimatedRenameTotal - renameElapsed);
+  const reportOperation = renameReport?.result.operation;
+  const reportWarnings = (reportOperation?.sourceDirectoryCleanupWarnings?.length ?? 0) + (reportOperation?.externalLogWarning ? 1 : 0);
 
   return (
     <div className={`app-shell platform-${window.mediaRenamer?.platform ?? 'web'} ${debugDocked ? `debug-docked dock-${dockPosition}` : ''} ${preferencesOpen ? 'preferences-open' : ''}`} style={{ '--debug-size': `${dockSizes[dockPosition]}px` } as CSSProperties}>
@@ -1324,7 +1340,7 @@ export default function App() {
             {work && <div className="work-status" role="status" aria-live="polite">
               <LoaderCircle className="spin" size={18}/>
               <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
-              {work.total > 0 && <progress value={work.completed} max={work.total}/>}
+              {work.total > 0 && <SmoothProgress value={work.completed} max={work.total}/>}
             </div>}
             {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
@@ -1449,7 +1465,7 @@ export default function App() {
           <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty immediate source folders will be removed after the move.' : ''}</p>
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
             <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : `Renaming ${renameCompleted} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
-            <progress className="rename-progress" value={renameCompleted} max={renameTotal}/>
+            <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal}/>
             <div className="rename-time-grid">
               <span><small>Elapsed</small><strong>{formatDuration(renameElapsed)}</strong></span>
               <span><small>Estimated total</small><strong>{work.operation === 'Undoing' ? '—' : estimatedRenameTotal === undefined ? 'Calculating…' : formatDuration(estimatedRenameTotal)}</strong></span>
@@ -1457,6 +1473,26 @@ export default function App() {
             </div>
           </div>}
           <div className="rename-dialog-actions">{renaming ? <><button className="primary destructive" disabled={Boolean(renameControl)} onClick={() => void controlActiveRename('undo')}><RotateCcw size={15}/> {renameControl === 'undo' ? 'Undo requested' : 'Undo'}</button><button className="secondary" disabled={Boolean(renameControl)} onClick={() => void controlActiveRename('stop')}><Square size={14}/> {renameControl === 'stop' ? 'Stopping…' : 'Stop'}</button></> : <><button className="secondary" autoFocus onClick={() => setRenameConfirmationOpen(false)}>Cancel</button><button className="primary" onClick={() => void executeRenames()}><FileCheck2 size={15}/> Rename files</button></>}</div>
+        </section>
+      </div>}
+
+      {renameReport && reportOperation && <div className="confirmation-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Close rename report" onClick={() => setRenameReport(undefined)}/>
+        <section className={`confirmation-dialog rename-report ${reportOperation.status === 'completed' ? '' : 'warning'}`} role="dialog" aria-modal="true" aria-labelledby="rename-report-title" aria-describedby="rename-report-description">
+          <span className="confirmation-icon">{reportOperation.status === 'completed' ? <Check size={20}/> : reportOperation.status === 'undone' ? <RotateCcw size={20}/> : <Square size={18}/>}</span>
+          <h2 id="rename-report-title">{reportOperation.status === 'completed' ? 'Rename complete' : reportOperation.status === 'undone' ? 'Rename undone' : 'Rename stopped'}</h2>
+          <p id="rename-report-description">{reportOperation.status === 'completed' ? `${reportOperation.items.length} file${reportOperation.items.length === 1 ? '' : 's'} ${renameReport.moved ? 'moved and renamed' : 'renamed'} successfully.` : reportOperation.status === 'undone' ? `${reportOperation.items.length} completed file operation${reportOperation.items.length === 1 ? ' was' : 's were'} restored.` : `${reportOperation.items.length} file${reportOperation.items.length === 1 ? '' : 's'} completed before the operation stopped.`}</p>
+          <div className="rename-report-grid">
+            <span><strong>{reportOperation.items.length}</strong><small>Files processed</small></span>
+            <span><strong>{reportOperation.removedSourceDirectories?.length ?? 0}</strong><small>Folders removed</small></span>
+            <span className={reportWarnings ? 'has-warnings' : ''}><strong>{reportWarnings}</strong><small>Warnings</small></span>
+          </div>
+          <div className="rename-report-notes">
+            <span><RotateCcw size={14}/><span><strong>{reportOperation.status === 'undone' ? 'Original paths restored' : 'Undo is available'}</strong><small>{renameReport.result.logPath}</small></span></span>
+            {reportOperation.externalLogPath && <span><FileText size={14}/><span><strong>Operation log saved</strong><small>{reportOperation.externalLogPath}</small></span></span>}
+            {reportWarnings > 0 && <span className="warning"><TriangleAlert size={14}/><span><strong>{reportWarnings} warning{reportWarnings === 1 ? '' : 's'} recorded</strong><small>Open the debug console for details.</small></span></span>}
+          </div>
+          <div><button className="primary" autoFocus onClick={() => setRenameReport(undefined)}>Done</button></div>
         </section>
       </div>}
 
@@ -1518,6 +1554,7 @@ export default function App() {
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><ListChecks size={17}/><span><strong>{t('prefs.completionReport')}</strong><small>{t('prefs.completionReportHelp')}</small></span></span><input type="checkbox" checked={completionReport} onChange={(event) => setCompletionReport(event.target.checked)}/></label>
             <label className="preference-toggle"><span><FileText size={17}/><span><strong>{t('prefs.saveLog')}</strong><small>{t('prefs.saveLogHelp')}</small></span></span><input type="checkbox" checked={createExternalRenameLog} onChange={(event) => setCreateExternalRenameLog(event.target.checked)}/></label>
             {createExternalRenameLog && <div className="destination-row standalone"><span><strong>Operation log folder</strong><small>{renameLogFolder || 'Use the active TV or Movie destination; otherwise use the renamed files’ common folder'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Log')}><FolderTree size={14}/>{renameLogFolder ? 'Change' : 'Choose'}</button>{renameLogFolder && <button className="icon-button" aria-label="Clear operation log folder" title="Use the active media destination" onClick={() => setRenameLogFolder('')}><X size={14}/></button>}</span></div>}
           </section>
