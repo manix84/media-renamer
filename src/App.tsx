@@ -217,6 +217,7 @@ export default function App() {
   const [matches, setMatches] = useState<FileMatch[]>([]);
   const [matchOverrides, setMatchOverrides] = useState<Record<string, MatchCandidate>>({});
   const [confirmedPaths, setConfirmedPaths] = useState<Set<string>>(() => new Set());
+  const [heldConfirmationPaths, setHeldConfirmationPaths] = useState<Set<string>>(() => new Set());
   const [reviewingPath, setReviewingPath] = useState<string>();
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
@@ -738,6 +739,7 @@ export default function App() {
     if (activeMediaTab === 'movies') {
       setMatchOverrides({});
       setConfirmedPaths(new Set());
+      setHeldConfirmationPaths(new Set());
       setReviewingPath(undefined);
       setPinnedPreviewPath(undefined);
       setWork(undefined);
@@ -755,6 +757,7 @@ export default function App() {
       setMatches([]);
       setMatchOverrides({});
       setConfirmedPaths(new Set());
+      setHeldConfirmationPaths(new Set());
       setReviewingPath(undefined);
       setPinnedPreviewPath(undefined);
       setWork(undefined);
@@ -764,6 +767,7 @@ export default function App() {
     const worker = new Worker(new URL('./workers/matchWorker.ts', import.meta.url), { type: 'module' });
     setMatchOverrides({});
     setConfirmedPaths(new Set());
+    setHeldConfirmationPaths(new Set());
     setReviewingPath(undefined);
     setPinnedPreviewPath(undefined);
     setWork({ operation: 'Importing', completed: 0, total: paths.length });
@@ -1106,6 +1110,7 @@ export default function App() {
     setMatches([]);
     setMatchOverrides({});
     setConfirmedPaths(new Set());
+    setHeldConfirmationPaths(new Set());
     setTechnicalTags({});
     setCompanionScan({ byVideo: {}, ambiguous: [] });
     setProbeStates({});
@@ -1133,6 +1138,7 @@ export default function App() {
     setProbeStates(withoutPath);
     setMatchOverrides(withoutPath);
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
+    setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     if (reviewingPath === path) setReviewingPath(undefined);
     if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
     setRemovingPaths((current) => { const next = new Set(current); next.delete(path); return next; });
@@ -1151,12 +1157,14 @@ export default function App() {
     const item = matchesByPath.get(path);
     if (!item?.match) return;
     setConfirmedPaths((current) => new Set(current).add(path));
+    setHeldConfirmationPaths((current) => new Set(current).add(path));
     addDebug('success', `Confirmed ${item.filename} → ${episodeCode(item.match.episode)} ${item.match.episode.title}`, item.match.reasons.join('; ') || 'Accepted the suggested match.');
   }
 
   function confirmAllSuggestedMatches() {
     if (!confirmablePaths.length) return;
     setConfirmedPaths((current) => new Set([...current, ...confirmablePaths]));
+    setHeldConfirmationPaths(new Set());
     addDebug('success', `Confirmed ${confirmablePaths.length} suggested episode match${confirmablePaths.length === 1 ? '' : 'es'}`, 'Accepted the currently displayed suggestion for each file.');
     setConfirmAllOpen(false);
   }
@@ -1336,7 +1344,12 @@ export default function App() {
                 const previewPinned = pinnedPreviewPath === path;
                 const removing = removingPaths.has(path);
                 const matchingRequired = activeMediaTab === 'shows' && !confirmed && (status === 'review' || status === 'unmatched');
-                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`}>
+                const confirmationHeld = heldConfirmationPaths.has(path);
+                const keepReviewActionsFixed = matchingRequired || confirmationHeld;
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
+                  if (!confirmationHeld) return;
+                  setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
+                }}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : '…'}</div>
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
@@ -1358,13 +1371,13 @@ export default function App() {
                   </div>
                   <div className="row-trailing">
                     <div className="score"><strong>{item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : activeMediaTab === 'movies' && item ? 'selected' : confirmed ? 'confirmed' : status}</small></div>
-                    <div className="row-extras">
+                    <div className={`row-extras ${activeMediaTab === 'shows' && !keepReviewActionsFixed ? 'with-review' : ''}`}>
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
-                      {activeMediaTab === 'shows' && !matchingRequired ? <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder" aria-hidden="true"/>}
+                      {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
                     </div>
-                    {matchingRequired && item?.match ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmed ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : <span className="row-confirm-placeholder" aria-hidden="true"/>}
-                    {matchingRequired ? <button className="row-review required" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button> : <span className="row-action-placeholder" aria-hidden="true"/>}
+                    {matchingRequired && item?.match ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
+                    {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
                   </div>
                 </article></div></div>;
               })}

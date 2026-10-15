@@ -119,7 +119,7 @@ The main batch toolbar includes a `Move files` / `In place` control. Moving uses
 
 ## Review and file tracking
 
-Matches below the configured automatic-confirmation threshold remain blocked until they are confirmed or changed. The batch-level confirmation action accepts every currently suggested review match, while an individual tick accepts only its row. Row actions reserve fixed positions: after clicking the tick, it remains beneath the pointer as an inert confirmed indicator rather than being replaced by Refresh, Remove, or manual review. Double-clicking an episode in the manual matcher confirms it immediately.
+Matches below the configured automatic-confirmation threshold remain blocked until they are confirmed or changed. The batch-level confirmation action accepts every currently suggested review match, while an individual tick accepts only its row. After clicking an individual tick, it remains beneath the pointer until the pointer leaves that row; later hovers use the compact Refresh, Remove, and manual-review tray. Double-clicking an episode in the manual matcher confirms it immediately.
 
 Imported videos are monitored with native filesystem events. A deleted source disappears from the batch automatically. A file renamed in a watched directory, moved between watched batch directories, or moved into a child directory is followed by filesystem identity so its match and detected metadata remain attached to the new path. Monitoring pauses around Media Renamer's own rename and undo operations to avoid treating intentional moves as external deletions.
 

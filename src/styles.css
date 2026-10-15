@@ -279,9 +279,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .row-trailing { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
 .row-trailing .score { width: 58px; flex: 0 0 58px; }
 .row-extras { width: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; opacity: 0; transition: width .14s ease, opacity .1s ease; }
-.match-row:hover .row-extras, .row-extras:focus-within { width: 82px; opacity: 1; }
-.row-action-placeholder { width: 24px; height: 24px; flex: 0 0 24px; pointer-events: none; }
-.row-confirm, .row-confirm-placeholder { width: 24px; height: 24px; flex: 0 0 24px; }
+.match-row:hover .row-extras, .row-extras:focus-within { width: 53px; opacity: 1; }
+.match-row:hover .row-extras.with-review, .row-extras.with-review:focus-within { width: 82px; }
+.row-confirm { width: 24px; height: 24px; flex: 0 0 24px; }
 .row-confirm { padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: #153a2e; color: #54d59d; cursor: pointer; }
 .row-confirm:hover, .row-confirm:focus-visible { background: #1d4b3c; color: #7ae5b8; outline: none; }
 .row-confirm.confirmed { pointer-events: none; cursor: default; }
