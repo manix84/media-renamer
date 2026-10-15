@@ -675,9 +675,9 @@ export default function App() {
       setWork(undefined);
       worker.terminate();
     };
-    worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100 });
+    worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100, showTitle: show?.name });
     return () => worker.terminate();
-  }, [activeMediaTab, addDebug, movie, paths, episodes, titleMatching, matchConfidenceThreshold]);
+  }, [activeMediaTab, addDebug, movie, paths, episodes, show?.name, titleMatching, matchConfidenceThreshold]);
 
   useEffect(() => {
     const trimmed = query.trim();

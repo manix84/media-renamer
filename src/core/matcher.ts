@@ -16,9 +16,10 @@ export function normalizeTitle(value: string): string[] {
     .filter((token) => token && !stopWords.has(token));
 }
 
-function titleSimilarity(filename: string, title: string): number {
-  const left = new Set(normalizeTitle(filename));
-  const right = new Set(normalizeTitle(title));
+function titleSimilarity(filename: string, title: string, showTitle?: string): number {
+  const showTokens = new Set(showTitle ? normalizeTitle(showTitle) : []);
+  const left = new Set(normalizeTitle(filename).filter((token) => !showTokens.has(token)));
+  const right = new Set(normalizeTitle(title).filter((token) => !showTokens.has(token)));
   if (!left.size || !right.size) return 0;
   const intersection = [...right].filter((token) => left.has(token)).length;
   const precision = intersection / left.size;
@@ -33,7 +34,7 @@ function numberedEpisode(filename: string): { season: number; episode: number } 
   return match ? { season: Number(match[1]), episode: Number(match[2]) } : undefined;
 }
 
-export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true): MatchCandidate[] {
+export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string): MatchCandidate[] {
   const numbered = numberedEpisode(filename);
   return episodes
     .map((episode) => {
@@ -44,7 +45,7 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
         reasons.push('season and episode number');
       }
       if (useTitle) {
-        const similarity = titleSimilarity(filename, episode.title);
+        const similarity = titleSimilarity(filename, episode.title, showTitle);
         score += similarity * 0.65;
         if (similarity >= 0.5) reasons.push(`title ${Math.round(similarity * 100)}%`);
       }
@@ -54,9 +55,9 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
     .sort((a, b) => b.score - a.score);
 }
 
-export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8): FileMatch {
+export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8, showTitle?: string): FileMatch {
   const filename = path.split(/[\\/]/).pop() ?? path;
-  const alternatives = rankEpisodes(filename, episodes, useTitle);
+  const alternatives = rankEpisodes(filename, episodes, useTitle, showTitle);
   const match = alternatives[0];
   const threshold = Math.min(1, Math.max(0, confidenceThreshold));
   const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= threshold ? 'confident' : 'review';

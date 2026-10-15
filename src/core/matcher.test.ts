@@ -70,4 +70,24 @@ describe('episode matcher', () => {
     expect(matchFile(titleOnly, episodes, true, 0.5).status).toBe('confident');
     expect(matchFile(titleOnly, episodes, true, 0.8).status).toBe('review');
   });
+
+  it('does not use the show title as episode-title evidence', () => {
+    const result = matchFile('His.Dark.Materials.S01E04.1080p.BluRay.x265-RARBG.mp4', [
+      { id: 'special', season: 0, number: 1, title: 'Making His Dark Materials' },
+      { id: 'episode', season: 1, number: 4, title: 'Armour' },
+    ], true, 0.8, 'His Dark Materials');
+
+    expect(result.match?.episode.id).toBe('episode');
+    expect(result.match?.score).toBe(0.45);
+    expect(result.match?.reasons).toEqual(['season and episode number']);
+  });
+
+  it('still matches the unique part of an episode title that repeats the show name', () => {
+    const result = matchFile('The.Office.S02E03.Office.Olympics.mkv', [
+      { id: 'episode', season: 2, number: 3, title: 'Office Olympics' },
+    ], true, 0.8, 'The Office');
+
+    expect(result.match?.episode.id).toBe('episode');
+    expect(result.match?.reasons.some((reason) => reason.startsWith('title '))).toBe(true);
+  });
 });
