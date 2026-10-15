@@ -29,6 +29,26 @@ describe('rename execution', () => {
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('optionally removes only empty immediate source folders after moving', async () => {
+    const root = await temporaryDirectory();
+    const emptyAfterMove = path.join(root, 'incoming', 'Some Show');
+    const stillOccupied = path.join(root, 'incoming', 'Another Show');
+    const firstSource = path.join(emptyAfterMove, 'Episode 1.mkv');
+    const secondSource = path.join(stillOccupied, 'Episode 2.mkv');
+    await Promise.all([fs.promises.mkdir(emptyAfterMove, { recursive: true }), fs.promises.mkdir(stillOccupied, { recursive: true })]);
+    await Promise.all([fs.promises.writeFile(firstSource, 'one'), fs.promises.writeFile(secondSource, 'two'), fs.promises.writeFile(path.join(stillOccupied, 'keep.txt'), 'keep')]);
+    const executed = await executeRenamePlan([
+      { sourcePath: firstSource, targetPath: path.join(root, 'library', 'Some Show', 'Episode 1.mkv') },
+      { sourcePath: secondSource, targetPath: path.join(root, 'library', 'Another Show', 'Episode 2.mkv') },
+    ], path.join(root, 'history'), undefined, { removeEmptySourceParents: true });
+
+    await expect(fs.promises.stat(emptyAfterMove)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.readFile(path.join(stillOccupied, 'keep.txt'), 'utf8')).resolves.toBe('keep');
+    expect(executed.operation.removedSourceDirectories).toEqual([emptyAfterMove]);
+    await undoRenameOperation(executed.operation, executed.logPath);
+    await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
+  });
+
   it('recovers the latest valid operation from durable history', async () => {
     const root = await temporaryDirectory();
     const history = path.join(root, 'history');

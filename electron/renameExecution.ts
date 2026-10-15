@@ -11,7 +11,11 @@ export type RenameOperation = {
   undoneAt?: string;
   status: 'completed' | 'undone';
   items: RenamePreflightItem[];
+  removedSourceDirectories?: string[];
+  sourceDirectoryCleanupWarnings?: string[];
 };
+
+export type RenameExecutionOptions = { removeEmptySourceParents?: boolean };
 
 async function exists(filePath: string): Promise<boolean> {
   try { await fs.promises.lstat(filePath); return true; }
@@ -127,7 +131,27 @@ async function writeOperation(historyDirectory: string, operation: RenameOperati
   return logPath;
 }
 
-export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number) => void): Promise<{ operation: RenameOperation; logPath: string }> {
+async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{ removed: string[]; warnings: string[] }> {
+  const directories = [...new Set(items
+    .filter((item) => path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
+    .map((item) => path.dirname(item.sourcePath)))]
+    .filter((directory) => directory !== path.parse(directory).root)
+    .sort((left, right) => right.length - left.length);
+  const removed: string[] = [];
+  const warnings: string[] = [];
+  for (const directory of directories) {
+    try {
+      await fs.promises.rmdir(directory);
+      removed.push(directory);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'ENOTEMPTY' && code !== 'EEXIST') warnings.push(`Could not remove empty source folder ${directory}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return { removed, warnings };
+}
+
+export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number) => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
   const items = renamePreflightItems(value).filter((item) => item.sourcePath !== item.targetPath);
   if (!items.length) throw new Error('The rename plan has no file operations.');
   const issues = await preflightRenameItems(items);
@@ -148,8 +172,18 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     const detail = rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join('; ')}` : ' Completed moves were rolled back.';
     throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
   }
+  const cleanup = options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
   const now = new Date().toISOString();
-  const operation: RenameOperation = { version: 1, id: crypto.randomUUID(), createdAt: now, completedAt: now, status: 'completed', items };
+  const operation: RenameOperation = {
+    version: 1,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    completedAt: now,
+    status: 'completed',
+    items,
+    ...(cleanup.removed.length ? { removedSourceDirectories: cleanup.removed } : {}),
+    ...(cleanup.warnings.length ? { sourceDirectoryCleanupWarnings: cleanup.warnings } : {}),
+  };
   try {
     return { operation, logPath: await writeOperation(historyDirectory, operation) };
   } catch (error) {

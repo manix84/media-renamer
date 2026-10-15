@@ -10,7 +10,7 @@ import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { useTheme } from './theme';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
-type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }> }; logPath: string };
+type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[] }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
@@ -159,6 +159,7 @@ export default function App() {
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
+  const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
   const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
@@ -427,6 +428,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('media-renamer-match-confidence-threshold', String(matchConfidenceThreshold));
   }, [matchConfidenceThreshold]);
+
+  useEffect(() => {
+    localStorage.setItem('media-renamer-remove-empty-source-parents', String(removeEmptySourceParents));
+  }, [removeEmptySourceParents]);
 
   useEffect(() => {
     localStorage.setItem('media-renamer-file-view-mode', fileViewMode);
@@ -874,8 +879,10 @@ export default function App() {
     setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
-      const result = await window.mediaRenamer.executeRenamePlan(executableGroups);
-      addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}`);
+      const result = await window.mediaRenamer.executeRenamePlan(executableGroups, { removeEmptySourceParents: moveFiles && removeEmptySourceParents });
+      const removedDirectoryCount = result.operation.removedSourceDirectories?.length ?? 0;
+      addDebug('success', `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`, `Operation log: ${result.logPath}${removedDirectoryCount ? ` · Removed ${removedDirectoryCount} empty source folder${removedDirectoryCount === 1 ? '' : 's'}` : ''}`);
+      for (const warning of result.operation.sourceDirectoryCleanupWarnings ?? []) addDebug('warning', 'Source folder was kept', warning);
       setLastRename(result);
       replaceBatchPaths(result.operation.items, 'forward');
       setRenameConfirmationOpen(false);
@@ -1240,7 +1247,7 @@ export default function App() {
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
           <h2 id="rename-title">Rename {executableGroups.length} {activeMediaTab === 'movies' ? 'movie' : 'episode'}{executableGroups.length === 1 ? '' : 's'}?</h2>
-          <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.</p>
+          <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty immediate source folders will be removed after the move.' : ''}</p>
           {renaming && work && <progress className="rename-progress" value={work.completed} max={work.total}/>}
           <div><button className="secondary" autoFocus disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={renaming} onClick={() => void executeRenames()}>{renaming ? <LoaderCircle className="spin" size={15}/> : <FileCheck2 size={15}/>} {renaming ? `Renaming ${work?.completed ?? 0}/${work?.total ?? executableFileCount}` : 'Rename files'}</button></div>
         </section>
@@ -1295,6 +1302,7 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
+          <section className="preference-section"><h3>File moves</h3><p>Choose what happens to source folders after files are moved.</p><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>Remove empty source folders</strong><small>Delete a moved file's immediate parent folder only when it is empty</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <div className="preference-media-tabs" role="tablist" aria-label="Media settings">
             <button role="tab" aria-selected={preferenceMediaTab === 'shows'} className={preferenceMediaTab === 'shows' ? 'active' : ''} onClick={() => setPreferenceMediaTab('shows')}><Tv size={15}/> Shows</button>
             <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> Movies</button>
