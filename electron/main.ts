@@ -50,6 +50,7 @@ function metadataCache(): MetadataCache {
 }
 
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
+const SHOW_SEARCH_CACHE_VERSION = 2;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 
@@ -294,7 +295,7 @@ ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
 });
 ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
-  return metadataCache().get(`search:shows:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => {
+  return metadataCache().get(`search:v${SHOW_SEARCH_CACHE_VERSION}:shows:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => {
     const client = tmdb();
     const results = await client.searchShows(search);
     const tvdbId = search.match(/^tvdb-(\d+)$/i)?.[1];
