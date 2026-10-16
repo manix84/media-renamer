@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TvdbClient } from './tvdb.js';
+import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 
 describe('TVDB adapter', () => {
+  it('selects a unique normalized title and prefers the requested year', () => {
+    const candidates = [
+      { id: '1', name: 'The Great British Bake Off', year: 2010 },
+      { id: '2', name: 'The Great British Bake-Off', year: 2025 },
+      { id: '3', name: 'Bake Off: The Professionals', year: 2016 },
+    ];
+    expect(selectTvdbSeriesMatch(candidates, 'The Great British Bake Off', 2010)?.id).toBe('1');
+    expect(selectTvdbSeriesMatch(candidates, 'Unknown Bake Off', 2010)).toBeUndefined();
+  });
+
   it('authenticates once and resolves a series ID', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))

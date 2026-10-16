@@ -25,6 +25,19 @@ export interface TvdbEpisode {
   runtimeMinutes?: number;
 }
 
+function normalizedSeriesName(value: string): string {
+  return value.normalize('NFKD').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function selectTvdbSeriesMatch(candidates: TvdbSeries[], name: string, year?: number): TvdbSeries | undefined {
+  const normalized = normalizedSeriesName(name);
+  const exact = candidates.filter((candidate) => normalizedSeriesName(candidate.name) === normalized);
+  if (!exact.length) return undefined;
+  const sameYear = year === undefined ? [] : exact.filter((candidate) => candidate.year === year);
+  if (sameYear.length === 1) return sameYear[0];
+  return exact.length === 1 ? exact[0] : undefined;
+}
+
 export class TvdbClient {
   private token?: string;
 

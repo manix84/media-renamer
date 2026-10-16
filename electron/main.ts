@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
-import { TvdbClient } from './tvdb.js';
+import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
@@ -328,6 +328,14 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
   const id = textArgument(showId, 'show ID');
   return metadataCache().get(`tmdb:show:${id}`, DETAILS_CACHE_AGE, () => tmdb().getShow(id));
+});
+ipcMain.handle('metadata:resolve-tvdb-series', async (_event, value: unknown) => {
+  if (!value || typeof value !== 'object') throw new Error('Invalid TVDB series lookup.');
+  const request = value as { name?: unknown; year?: unknown };
+  const name = textArgument(request.name, 'show name');
+  const year = request.year === undefined ? undefined : Number(request.year);
+  if (year !== undefined && (!Number.isInteger(year) || year < 1800 || year > 3000)) throw new Error('Invalid show year.');
+  return selectTvdbSeriesMatch(await tvdb().searchSeries(name), name, year);
 });
 ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => {
   const search = textArgument(query, 'search query');

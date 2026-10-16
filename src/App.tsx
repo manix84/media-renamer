@@ -996,8 +996,13 @@ export default function App() {
         addDebug('error', `Could not load ${result.name}`, 'The metadata provider returned no show details.');
         return;
       }
-      const tvdbId = details.tvdbId ?? result.tvdbId;
-      if (episodeAgent === 'tvdb-aired' && !tvdbId) throw new Error(`TMDB does not provide a TVDB cross-reference for ${details.name}. Choose the TMDB agent or search by tvdb-ID.`);
+      let tvdbId = details.tvdbId ?? result.tvdbId;
+      if (episodeAgent === 'tvdb-aired' && !tvdbId) {
+        const resolved = await window.mediaRenamer?.resolveTvdbSeries({ name: details.name, year: details.year });
+        tvdbId = resolved?.id;
+        if (resolved) addDebug('info', 'Resolved missing TVDB cross-reference', `${resolved.name}${resolved.year ? ` (${resolved.year})` : ''} · TVDB ${resolved.id}.`);
+      }
+      if (episodeAgent === 'tvdb-aired' && !tvdbId) throw new Error(`Could not safely resolve a TVDB series for ${details.name}. Choose the TMDB agent or search by tvdb-ID.`);
       const loadedEpisodes = await window.mediaRenamer?.getShowEpisodes({ agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) }) ?? [];
       if (seasonSequence.current === sequence) {
         const sortedEpisodes = loadedEpisodes.slice().sort((left, right) => left.season - right.season || left.number - right.number);
