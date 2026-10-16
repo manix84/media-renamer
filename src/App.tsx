@@ -7,6 +7,7 @@ import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './co
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery } from './core/movieInference';
+import { classifyMediaBatch } from './core/mediaClassification';
 import { chooseMovieMatch, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
@@ -1044,12 +1045,26 @@ export default function App() {
     searchInput.current?.focus();
   }
 
+  function addImportedPaths(imported: string[]): void {
+    const metadataAlreadyChosen = Boolean(show || query.trim() || results.length || searching || movieReviewPath || Object.keys(movieMatches).length);
+    if (paths.length === 0 && !metadataAlreadyChosen) {
+      const inferredKind = classifyMediaBatch(imported);
+      if (inferredKind) {
+        if (inferredKind !== activeMediaTab) switchMediaTab(inferredKind);
+        addDebug('info', `Detected a ${inferredKind === 'movies' ? 'movie' : 'TV'} batch`, inferredKind === 'movies'
+          ? 'Movie-style title, year, and release metadata were found without episode markers.'
+          : 'Season, episode, special, or anime episode markers were found.');
+      } else addDebug('info', 'Batch type was ambiguous', `Keeping the current ${activeMediaTab === 'movies' ? 'Movies' : 'TV'} mode.`);
+    }
+    setPaths((current) => [...new Set([...current, ...imported])]);
+  }
+
   async function addFiles() {
     try {
       const selected = await window.mediaRenamer?.pickFiles();
       if (selected?.length) {
         setBatchRenameCompleted(false);
-        setPaths((current) => [...new Set([...current, ...selected])]);
+        addImportedPaths(selected);
         addDebug('success', `Added ${selected.length} file${selected.length === 1 ? '' : 's'}`, 'Supported video files were queued for matching.');
       } else addDebug('info', 'File selection cancelled');
     } catch (reason) {
@@ -1067,7 +1082,7 @@ export default function App() {
       const selected = await window.mediaRenamer?.pickFolders();
       if (selected?.length) {
         setBatchRenameCompleted(false);
-        setPaths((current) => [...new Set([...current, ...selected])]);
+        addImportedPaths(selected);
         addDebug('success', `Folder scan found ${selected.length} video file${selected.length === 1 ? '' : 's'}`, 'Subdirectories were included; unsupported files and symbolic links were ignored.');
       } else {
         setWork(undefined);
@@ -1105,7 +1120,7 @@ export default function App() {
       const expanded = await window.mediaRenamer?.expandPaths(dropped) ?? [];
       if (expanded.length) {
         setBatchRenameCompleted(false);
-        setPaths((current) => [...new Set([...current, ...expanded])]);
+        addImportedPaths(expanded);
         addDebug('success', `Drop scan found ${expanded.length} video file${expanded.length === 1 ? '' : 's'}`, 'Unsupported files and symbolic links were ignored.');
       } else {
         setWork(undefined);
