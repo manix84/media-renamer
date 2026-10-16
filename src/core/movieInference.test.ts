@@ -19,6 +19,11 @@ describe('movie-name inference', () => {
     expect(inferMovieQuery(['/movies/Arrival.1080p.WEB-DL.x265.mkv'], 2026)).toBe('Arrival');
   });
 
+  it('keeps edition evidence out of the metadata search query', () => {
+    expect(inferMovieQuery(['/movies/Elektra.DIRECTORS.CUT.2005.1080p.BluRay.mkv'], 2026)).toBe('Elektra (2005)');
+    expect(inferMovieQuery(['/movies/Blade Runner (1982) {edition-Final Cut}.mkv'], 2026)).toBe('Blade Runner (1982)');
+  });
+
   it('uses the most common candidate for a multi-file import', () => {
     expect(inferMovieQuery([
       '/movies/Main.Movie.2020.Disc.1.1080p.mkv',

@@ -2,12 +2,14 @@ import type { Episode, ReleaseTags } from './types';
 
 export const PREVIOUS_DEFAULT_EPISODE_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}';
 export const PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE = `${PREVIOUS_DEFAULT_EPISODE_TEMPLATE}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
+export const PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE = '{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}';
+export const PREVIOUS_DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
 export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} -
   {{episode.range}} -
   {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
 export const DEFAULT_SHOW_FOLDER_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}}';
-export const DEFAULT_MOVIE_FOLDER_TEMPLATE = '{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}';
-export const DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
+export const DEFAULT_MOVIE_FOLDER_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#movie.edition}} {edition-{{movie.edition}}}{{/movie.edition}}`;
+export const DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
 
 type TemplateValue = string | number | boolean | TemplateContext[] | TemplateContext | undefined;
 type TemplateContext = { [key: string]: TemplateValue };
@@ -24,9 +26,9 @@ const VALID_NAMES = new Set([
   'release.channels', 'release.group', 'release.flags',
 ]);
 const MOVIE_VALID_NAMES = new Set([
-  'movie.name', 'movie.year', 'movie.tmdbId', 'technical',
+  'movie.name', 'movie.year', 'movie.tmdbId', 'movie.edition', 'technical',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
-  'release.channels', 'release.group', 'release.flags',
+  'release.channels', 'release.group', 'release.flags', 'release.edition',
 ]);
 
 function parseTemplate(template: string): TemplateNode[] {
@@ -121,9 +123,11 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
 }
 
 function releaseContext(tags: ReleaseTags): Pick<TemplateContext, 'technical' | 'release'> {
+  const technicalFlags = tags.edition ? tags.flags.filter((flag) => flag !== 'EXTENDED') : tags.flags;
   return {
-    technical: [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...tags.flags, tags.videoCodec, tags.audioCodec, tags.channels].filter(Boolean).join(' '),
+    technical: [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...technicalFlags, tags.videoCodec, tags.audioCodec, tags.channels].filter(Boolean).join(' '),
     release: {
+      edition: tags.edition,
       resolution: tags.resolution,
       source: tags.source === 'Unknown' ? undefined : tags.source,
       videoCodec: tags.videoCodec,
@@ -202,8 +206,8 @@ export function formatShowFolder(template: string, show: string, year: number | 
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
 }
 
-export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string): string {
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId } }])
+export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string, edition?: string): string {
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, edition } }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').trim();
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
@@ -260,7 +264,7 @@ export function showFolderTemplateError(template: string): string | undefined {
 }
 
 export function movieFolderTemplateError(template: string): string | undefined {
-  try { return validationError(template, new Set(['movie.name', 'movie.year', 'movie.tmdbId'])); }
+  try { return validationError(template, new Set(['movie.name', 'movie.year', 'movie.tmdbId', 'movie.edition'])); }
   catch (error) { return error instanceof Error ? error.message : String(error); }
 }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileImage, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime } from './completionChime';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
 import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
@@ -57,6 +57,7 @@ const MOVIE_TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> =
     { name: 'movie.name', description: 'Movie title', example: 'Blade Runner: 2049' },
     { name: 'movie.year', description: 'Release year, when known', example: '2017' },
     { name: 'movie.tmdbId', description: 'Canonical TMDB movie ID', example: '335984' },
+    { name: 'release.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
   ] },
   TEMPLATE_FIELDS.find((group) => group.label === 'Release')!,
 ];
@@ -73,6 +74,7 @@ const MOVIE_FOLDER_FIELDS: TemplateField[] = [
   { name: 'movie.name', description: 'Movie title', example: 'Blade Runner: 2049' },
   { name: 'movie.year', description: 'Release year', example: '2017' },
   { name: 'movie.tmdbId', description: 'TMDB movie ID', example: '335984' },
+  { name: 'movie.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
 ];
 
 const SOURCE_OPTIONS: Source[] = ['DVD', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip'];
@@ -214,8 +216,14 @@ export default function App() {
   const [tvBaseFolder, setTvBaseFolder] = useState(() => localStorage.getItem('media-renamer-tv-base-folder') ?? '');
   const [showFolderTemplate, setShowFolderTemplate] = useState(() => localStorage.getItem('media-renamer-show-folder-template') ?? DEFAULT_SHOW_FOLDER_TEMPLATE);
   const [movieBaseFolder, setMovieBaseFolder] = useState(() => localStorage.getItem('media-renamer-movie-base-folder') ?? '');
-  const [movieFolderTemplate, setMovieFolderTemplate] = useState(() => localStorage.getItem('media-renamer-movie-folder-template') ?? DEFAULT_MOVIE_FOLDER_TEMPLATE);
-  const [movieTemplate, setMovieTemplate] = useState(() => localStorage.getItem('media-renamer-movie-template') ?? DEFAULT_MOVIE_TEMPLATE);
+  const [movieFolderTemplate, setMovieFolderTemplate] = useState(() => {
+    const saved = localStorage.getItem('media-renamer-movie-folder-template');
+    return !saved || saved === PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE ? DEFAULT_MOVIE_FOLDER_TEMPLATE : saved;
+  });
+  const [movieTemplate, setMovieTemplate] = useState(() => {
+    const saved = localStorage.getItem('media-renamer-movie-template');
+    return !saved || saved === PREVIOUS_DEFAULT_MOVIE_TEMPLATE ? DEFAULT_MOVIE_TEMPLATE : saved;
+  });
   const [episodeTemplate, setEpisodeTemplate] = useState(() => {
     const saved = localStorage.getItem('media-renamer-episode-template');
     return !saved || saved === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved;
@@ -415,7 +423,7 @@ export default function App() {
     }) : undefined;
     const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
     const showFolder = item?.match && show && !folderFormatError ? formatShowFolder(showFolderTemplate, show.name, show.year, show.tvdbId, item.match.episode.season) : undefined;
-    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id) : undefined;
+    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition) : undefined;
     const companions = companionScan.byVideo[path] ?? [];
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
@@ -487,8 +495,8 @@ export default function App() {
       if (saved.fileViewMode !== undefined) setFileViewMode(saved.fileViewMode);
       if (saved.matchConfidenceThreshold !== undefined) setMatchConfidenceThreshold(saved.matchConfidenceThreshold);
       if (saved.movieBaseFolder !== undefined) setMovieBaseFolder(saved.movieBaseFolder);
-      if (saved.movieFolderTemplate !== undefined) setMovieFolderTemplate(saved.movieFolderTemplate);
-      if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate);
+      if (saved.movieFolderTemplate !== undefined) setMovieFolderTemplate(saved.movieFolderTemplate === PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE ? DEFAULT_MOVIE_FOLDER_TEMPLATE : saved.movieFolderTemplate);
+      if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate === PREVIOUS_DEFAULT_MOVIE_TEMPLATE ? DEFAULT_MOVIE_TEMPLATE : saved.movieTemplate);
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
@@ -1454,7 +1462,7 @@ export default function App() {
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
-                const detailTags = tags ? [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
+                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const fullProposedName = plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);
@@ -1675,13 +1683,13 @@ export default function App() {
             <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
               <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Create the movie folder beside its source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Create the movie folder beside its source" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
-              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.tmdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.edition}}'}</code><code>{'{{movie.tmdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : <div className="format-preview"><span>Output</span><strong>{joinPath(movieBaseFolder || 'Source folder', formatMovieFolder(movieFolderTemplate, 'Blade Runner: 2049', 2017, '335984'))}</strong></div>}
             </section>
             <section className={`preference-section format-editor ${movieFormatError ? 'invalid' : ''}`}>
               <div className="format-heading"><span><h3>Movie filename template</h3><p>Controls the filename produced by the movie workflow.</p></span><button onClick={() => setMovieTemplate(DEFAULT_MOVIE_TEMPLATE)} disabled={movieTemplate === DEFAULT_MOVIE_TEMPLATE}>Reset</button></div>
               <TemplateEditor value={movieTemplate} onChange={setMovieTemplate}/>
-              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFormatExample && <div className="format-preview"><span>Output</span><strong>{movieFormatExample}.mkv</strong></div>}
             </section>
           </div>}

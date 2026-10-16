@@ -11,6 +11,30 @@ const sources: Array<[RegExp, Source]> = [
 
 const knownFlags = ['UNCENSORED', 'REPACK', 'REPACKED', 'PROPER', 'EXTENDED', 'REMASTERED', 'INTERNAL', 'LIMITED'];
 
+const editionPatterns: Array<[RegExp, string]> = [
+  [/\bdirector(?:'|’)?s[ ._-]+cut\b/i, "Director's Cut"],
+  [/\bfinal[ ._-]+cut\b/i, 'Final Cut'],
+  [/\bextended(?:[ ._-]+(?:edition|cut))?\b/i, 'Extended Edition'],
+  [/\bunrated(?:[ ._-]+extended)?\b/i, 'Unrated'],
+  [/\bspecial[ ._-]+edition\b/i, 'Special Edition'],
+  [/\btheatrical(?:[ ._-]+(?:edition|cut))?\b/i, 'Theatrical Cut'],
+  [/\bultimate[ ._-]+cut\b/i, 'Ultimate Cut'],
+  [/\bopen[ ._-]+matte\b/i, 'Open Matte'],
+  [/\bimax(?:[ ._-]+edition)?\b/i, 'IMAX'],
+  [/\bredux\b/i, 'Redux'],
+  [/\b3d\b/i, '3D'],
+];
+
+export function parseEdition(value: string): string | undefined {
+  const explicit = value.match(/\{edition-([^}]{1,32})\}/i)?.[1].trim();
+  if (explicit) return explicit;
+  return editionPatterns.find(([pattern]) => pattern.test(value))?.[1];
+}
+
+export function stripEditionTokens(value: string): string {
+  return editionPatterns.reduce((result, [pattern]) => result.replace(pattern, ' '), value.replace(/\{edition-[^}]+\}/ig, ' '));
+}
+
 export function parseReleaseTags(filename: string): ReleaseTags {
   const leaf = filename.split(/[\\/]/).at(-1) ?? filename;
   const stem = leaf.replace(/\.[a-z0-9]{2,5}$/i, '');
@@ -27,6 +51,7 @@ export function parseReleaseTags(filename: string): ReleaseTags {
 
   return {
     source,
+    edition: parseEdition(evidence),
     resolution,
     videoCodec,
     audioCodec: audio?.[1].toUpperCase(),

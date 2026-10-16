@@ -96,6 +96,7 @@ describe('episode filename templates', () => {
 
   it('formats and validates movie folders independently from shows', () => {
     expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Blade Runner: 2049', 2017, '335984')).toBe('Blade Runner - 2049 (2017)');
+    expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Blade Runner', 1982, '78', "Director's Cut")).toBe("Blade Runner (1982) {edition-Director's Cut}");
     expect(formatMovieFolder('Movies/{{movie.name}} {tmdb-{{movie.tmdbId}}}', 'Arrival', 2016, '329865')).toBe('Movies/Arrival {tmdb-329865}');
     expect(movieFolderTemplateError('{{show.name}}')).toBe('Unknown field “show.name”');
   });
@@ -104,6 +105,12 @@ describe('episode filename templates', () => {
     expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'Blade Runner: 2049', 2017, tags, '335984'))
       .toBe('Blade Runner: 2049 (2017) [1080p WEB-DL H.264 AAC 2.0] {tmdb-335984}');
     expect(movieTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
+  });
+
+  it('writes a detected Plex edition without duplicating its extended flag', () => {
+    const editionTags: ReleaseTags = { ...tags, edition: 'Extended Edition', flags: ['EXTENDED'] };
+    expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'The Movie', 2020, editionTags, '123'))
+      .toBe('The Movie (2020) {edition-Extended Edition} [1080p WEB-DL H.264 AAC 2.0] {tmdb-123}');
   });
 
   it('creates portable byte-bounded movie filenames without dropping technical data or the TMDB ID', () => {

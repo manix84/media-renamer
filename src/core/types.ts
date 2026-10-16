@@ -49,6 +49,7 @@ export interface ProviderStatus {
 
 export interface ReleaseTags {
   source: Source;
+  edition?: string;
   resolution?: string;
   videoCodec?: string;
   audioCodec?: string;

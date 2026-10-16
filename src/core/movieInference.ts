@@ -1,3 +1,5 @@
+import { stripEditionTokens } from './releaseTags';
+
 const releaseTokenPattern = /\b(?:2160p|1080p|720p|576p|480p|uhd|hdr10?|dv|dolby[ ._-]?vision|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos|proper|repack|yify|rarbg)\b/i;
 
 function filenameFromPath(filePath: string): string {
@@ -14,18 +16,18 @@ function cleanTitle(value: string): string {
 
 function inferCandidate(filePath: string, latestYear: number): string | undefined {
   const stem = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-  const normalized = cleanTitle(stem);
+  const normalized = cleanTitle(stripEditionTokens(stem));
   const years = [...normalized.matchAll(/\b((?:18|19|20)\d{2})\b/g)]
     .filter((match) => Number(match[1]) <= latestYear);
 
   for (const match of years.reverse()) {
-    const title = normalized.slice(0, match.index).trim();
+    const title = cleanTitle(stripEditionTokens(normalized.slice(0, match.index)));
     const suffix = normalized.slice((match.index ?? 0) + match[0].length).trim();
     if (title && (!suffix || releaseTokenPattern.test(suffix))) return `${title} (${match[1]})`;
   }
 
   const releaseMarker = normalized.search(releaseTokenPattern);
-  const title = (releaseMarker > 0 ? normalized.slice(0, releaseMarker) : normalized).trim();
+  const title = cleanTitle(stripEditionTokens(releaseMarker > 0 ? normalized.slice(0, releaseMarker) : normalized));
   return title.length >= 2 ? title : undefined;
 }
 

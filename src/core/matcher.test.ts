@@ -33,6 +33,20 @@ describe('release tag parser', () => {
   });
 
   it.each([
+    ["Blade.Runner.1982.Directors.Cut.1080p.BluRay.mkv", "Director's Cut"],
+    ['Blade.Runner.1982.Final.Cut.2160p.mkv', 'Final Cut'],
+    ['Movie.2020.Extended.Edition.1080p.mkv', 'Extended Edition'],
+    ['Movie.2020.Open.Matte.1080p.mkv', 'Open Matte'],
+    ['Movie (2020) {edition-Fan Restoration v2}.mkv', 'Fan Restoration v2'],
+  ])('detects Plex movie editions: %s', (filename, edition) => {
+    expect(parseReleaseTags(filename).edition).toBe(edition);
+  });
+
+  it('prefers an explicit Plex edition over vocabulary detection', () => {
+    expect(parseReleaseTags("Movie.Directors.Cut.{edition-35mm Restoration}.mkv").edition).toBe('35mm Restoration');
+  });
+
+  it.each([
     ['Anime.S01E01v2.1080p.mkv', 'REPACK'],
     ['Anime.S05E10v3.1080p.mkv', 'REPACK'],
     ['Anime.01x02v4.1080p.mkv', 'REPACK'],
