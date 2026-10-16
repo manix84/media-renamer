@@ -180,6 +180,23 @@ describe('episode matcher', () => {
     expect(result.match?.reasons).toContain('duration matches 66m runtime');
   });
 
+  it.each(['Show.SP01.mkv', 'Show.Special.01.mkv', 'Show.OVA01.mkv', 'Show.OAD.01.mkv'])
+    ('matches explicit special filename %s to season zero', (filename) => {
+      const result = matchFile(filename, [{ id: 'special', season: 0, number: 1, title: 'Bonus Story' }]);
+      expect(result.match?.episode.id).toBe('special');
+      expect(result.match?.reasons).toContain('special episode number');
+    });
+
+  it('uses retained TVDB absolute order for a bare anime episode number', () => {
+    const result = matchFile('Long Running Show - 037 [1080p].mkv', [
+      { id: 's1e37', season: 1, number: 37, absoluteNumber: 50, title: 'Earlier Episode' },
+      { id: 's2e11', season: 2, number: 11, absoluteNumber: 37, title: 'Current Episode' },
+    ]);
+
+    expect(result.match?.episode.id).toBe('s2e11');
+    expect(result.match?.reasons).toContain('absolute episode number');
+  });
+
   it('does not use the show title as episode-title evidence', () => {
     const result = matchFile('His.Dark.Materials.S01E04.1080p.BluRay.x265-RARBG.mp4', [
       { id: 'special', season: 0, number: 1, title: 'Making His Dark Materials' },

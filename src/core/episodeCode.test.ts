@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEpisodeCode, parseEpisodeCodes, parseStandaloneEpisode } from './episodeCode';
+import { parseEpisodeCode, parseEpisodeCodes, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
 
 describe('episode code parser', () => {
   it.each([
@@ -35,4 +35,14 @@ describe('episode code parser', () => {
   ])('extracts multi-episode code %s', (filename, numbers) => {
     expect(parseEpisodeCodes(filename).map((item) => item.episode)).toEqual(numbers);
   });
+
+  it.each(['Show.SP01.mkv', 'Show - Special 01.mkv', 'Show.OVA.01.mkv', 'Show_OAD01.mkv'])
+    ('recognises explicit special episode marker %s', (filename) => {
+      expect(parseSpecialEpisode(filename)).toMatchObject({ episode: 1 });
+    });
+
+  it.each(['Show.SPECIALS.mkv', 'Show.OVATION.01.mkv', 'Show.SP1080p.mkv'])
+    ('rejects a partial special marker %s', (filename) => {
+      expect(parseSpecialEpisode(filename)).toBeUndefined();
+    });
 });

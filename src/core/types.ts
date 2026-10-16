@@ -5,6 +5,7 @@ export interface Episode {
   id: string;
   season: number;
   number: number;
+  absoluteNumber?: number;
   title: string;
   airDate?: string;
   runtimeMinutes?: number;

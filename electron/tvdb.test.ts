@@ -23,7 +23,7 @@ describe('TVDB adapter', () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        data: { episodes: [{ id: 12, seasonNumber: 1, number: 2, name: ' Second ', aired: '1987-10-05', runtime: 45 }] },
+        data: { episodes: [{ id: 12, seasonNumber: 1, number: 2, absoluteNumber: 26, name: ' Second ', aired: '1987-10-05', runtime: 45 }] },
         links: { next: '/v4/series/71470/episodes/official/eng?page=1' },
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -33,7 +33,7 @@ describe('TVDB adapter', () => {
 
     await expect(new TvdbClient('api-key', undefined, fetcher).getSeriesEpisodes('71470')).resolves.toEqual([
       { id: '11', season: 1, number: 1, title: 'First', airDate: '1987-09-28' },
-      { id: '12', season: 1, number: 2, title: 'Second', airDate: '1987-10-05', runtimeMinutes: 45 },
+      { id: '12', season: 1, number: 2, absoluteNumber: 26, title: 'Second', airDate: '1987-10-05', runtimeMinutes: 45 },
     ]);
     expect(fetcher.mock.calls[1][0]).toBe('https://api4.thetvdb.com/v4/series/71470/episodes/official/eng?page=0');
     expect(fetcher.mock.calls[2][0]).toBe('https://api4.thetvdb.com/v4/series/71470/episodes/official/eng?page=1');

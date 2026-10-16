@@ -1,6 +1,6 @@
 import type { Episode, FileMatch, MatchCandidate } from './types';
 import { parseReleaseTags } from './releaseTags';
-import { parseEpisodeCodes, parseStandaloneEpisode } from './episodeCode';
+import { parseEpisodeCodes, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
 
 const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
 
@@ -30,13 +30,17 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
   return recall * 0.85 + precision * 0.15;
 }
 
-function numberedEpisodes(filename: string, episodes: Episode[]): { season: number; episodeNumbers: number[]; explicitSeason: boolean } | undefined {
+function numberedEpisodes(filename: string, episodes: Episode[]): { season: number; episodeNumbers: number[]; evidence: 'season' | 'special' | 'absolute' | 'sole-season' } | undefined {
   const matches = parseEpisodeCodes(filename);
-  if (matches.length) return { season: matches[0].season, episodeNumbers: matches.map((match) => match.episode), explicitSeason: true };
+  if (matches.length) return { season: matches[0].season, episodeNumbers: matches.map((match) => match.episode), evidence: 'season' };
+  const special = parseSpecialEpisode(filename);
+  if (special) return { season: 0, episodeNumbers: [special.episode], evidence: 'special' };
   const standalone = parseStandaloneEpisode(filename);
   if (!standalone) return undefined;
+  const absoluteMatches = episodes.filter((episode) => episode.absoluteNumber === standalone.episode);
+  if (absoluteMatches.length === 1) return { season: absoluteMatches[0].season, episodeNumbers: [absoluteMatches[0].number], evidence: 'absolute' };
   const matchingSeasons = [...new Set(episodes.filter((episode) => episode.number === standalone.episode).map((episode) => episode.season))];
-  return matchingSeasons.length === 1 ? { season: matchingSeasons[0], episodeNumbers: [standalone.episode], explicitSeason: false } : undefined;
+  return matchingSeasons.length === 1 ? { season: matchingSeasons[0], episodeNumbers: [standalone.episode], evidence: 'sole-season' } : undefined;
 }
 
 function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: number | undefined): { score: number; reason?: string } {
@@ -58,7 +62,11 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
       let score = 0;
       if (numbered?.season === episode.season && numbered.episodeNumbers[0] === episode.number && completeNumberedMatch) {
         score += 0.45;
-        reasons.push(numbered.explicitSeason ? completeNumberedMatch.length > 1 ? `${completeNumberedMatch.length} episode numbers` : 'season and episode number' : 'episode number in the only matching season');
+        reasons.push(numbered.evidence === 'season'
+          ? completeNumberedMatch.length > 1 ? `${completeNumberedMatch.length} episode numbers` : 'season and episode number'
+          : numbered.evidence === 'special' ? 'special episode number'
+            : numbered.evidence === 'absolute' ? 'absolute episode number'
+              : 'episode number in the only matching season');
       }
       if (useTitle) {
         const similarity = titleSimilarity(filename, episode.title, showTitle);

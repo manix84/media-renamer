@@ -53,7 +53,7 @@ const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 2;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
-const EPISODE_CACHE_VERSION = 2;
+const EPISODE_CACHE_VERSION = 3;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());

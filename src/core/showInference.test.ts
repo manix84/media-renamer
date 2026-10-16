@@ -27,6 +27,10 @@ describe('show-name inference', () => {
       .toBe("Marika's Love Meter Malfunction");
   });
 
+  it('extracts a show title before an explicit special marker', () => {
+    expect(inferShowQuery(['/anime/Some.Show.OVA.01.1080p.mkv'])).toBe('Some Show');
+  });
+
   it('uses the most common title across a mixed import', () => {
     expect(inferShowQuery([
       '/tv/Main.Show.S01E01.mkv',
