@@ -140,7 +140,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | --- | --- | --- |
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 12 of 12 steps |
-| 3 — Resilient matching and metadata | In progress | 5 of 10 steps |
+| 3 — Resilient matching and metadata | In progress | 6 of 11 steps |
 | 4 — Movies and library workflows | Started | 2 of 6 steps |
 | 5 — Release readiness | Planned | 0 of 6 steps |
 
@@ -181,7 +181,8 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] anime-style version suffixes normalized to release metadata
 - [x] confidence thresholds plus current-batch source and AI-upscale overrides
 - [x] duration evidence through `ffprobe`
-- [ ] multi-episode, specials, absolute ordering, and anime filename patterns
+- [x] contiguous multi-episode filename detection, grouped matching, combined runtime evidence, and range formatting
+- [ ] specials, absolute ordering, and broader anime filename patterns
 - [ ] editable release-tag vocabulary and aliases
 - [ ] folder parsing, per-show rules, and saved matching decisions
 - [ ] NFO export
@@ -225,7 +226,7 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete, and Milestone 3 is active. The remaining work is currently ordered as:
 
-1. Expand parsing and matching for multi-episode files, specials, absolute ordering, and anime naming.
+1. Expand parsing and matching for specials, absolute ordering, and broader anime naming.
 2. Add editable release-tag aliases, folder parsing, per-show rules, and saved match decisions.
 3. Add NFO export alongside the existing dry-run JSON export.
 4. Add embedded-title and adjacent-file ordering evidence.

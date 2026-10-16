@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEpisodeCode, parseStandaloneEpisode } from './episodeCode';
+import { parseEpisodeCode, parseEpisodeCodes, parseStandaloneEpisode } from './episodeCode';
 
 describe('episode code parser', () => {
   it.each([
@@ -27,4 +27,12 @@ describe('episode code parser', () => {
     ('rejects an ambiguous bare number: %s', (filename) => {
       expect(parseStandaloneEpisode(filename)).toBeUndefined();
     });
+
+  it.each([
+    ['Show.S01E01E02.mkv', [1, 2]],
+    ['Show.S01E01-E02.mkv', [1, 2]],
+    ['Show.S01E01-03.mkv', [1, 2, 3]],
+  ])('extracts multi-episode code %s', (filename, numbers) => {
+    expect(parseEpisodeCodes(filename).map((item) => item.episode)).toEqual(numbers);
+  });
 });

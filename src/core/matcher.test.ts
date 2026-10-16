@@ -168,6 +168,18 @@ describe('episode matcher', () => {
     expect(result.match).toBeUndefined();
   });
 
+  it('matches and groups a contiguous multi-episode filename', () => {
+    const result = matchFile('Show.S01E01-E03.1080p.mkv', [
+      { id: 'e1', season: 1, number: 1, title: 'One', runtimeMinutes: 22 },
+      { id: 'e2', season: 1, number: 2, title: 'Two', runtimeMinutes: 22 },
+      { id: 'e3', season: 1, number: 3, title: 'Three', runtimeMinutes: 22 },
+    ], true, .8, 'Show', 66 * 60);
+
+    expect(result.match?.episodes?.map((episode) => episode.id)).toEqual(['e1', 'e2', 'e3']);
+    expect(result.match?.reasons).toContain('3 episode numbers');
+    expect(result.match?.reasons).toContain('duration matches 66m runtime');
+  });
+
   it('does not use the show title as episode-title evidence', () => {
     const result = matchFile('His.Dark.Materials.S01E04.1080p.BluRay.x265-RARBG.mp4', [
       { id: 'special', season: 0, number: 1, title: 'Making His Dark Materials' },

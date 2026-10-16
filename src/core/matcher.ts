@@ -1,6 +1,6 @@
 import type { Episode, FileMatch, MatchCandidate } from './types';
 import { parseReleaseTags } from './releaseTags';
-import { parseEpisodeCode, parseStandaloneEpisode } from './episodeCode';
+import { parseEpisodeCodes, parseStandaloneEpisode } from './episodeCode';
 
 const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
 
@@ -30,13 +30,13 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
   return recall * 0.85 + precision * 0.15;
 }
 
-function numberedEpisode(filename: string, episodes: Episode[]): { season: number; episode: number; explicitSeason: boolean } | undefined {
-  const match = parseEpisodeCode(filename);
-  if (match) return { season: match.season, episode: match.episode, explicitSeason: true };
+function numberedEpisodes(filename: string, episodes: Episode[]): { season: number; episodeNumbers: number[]; explicitSeason: boolean } | undefined {
+  const matches = parseEpisodeCodes(filename);
+  if (matches.length) return { season: matches[0].season, episodeNumbers: matches.map((match) => match.episode), explicitSeason: true };
   const standalone = parseStandaloneEpisode(filename);
   if (!standalone) return undefined;
   const matchingSeasons = [...new Set(episodes.filter((episode) => episode.number === standalone.episode).map((episode) => episode.season))];
-  return matchingSeasons.length === 1 ? { season: matchingSeasons[0], episode: standalone.episode, explicitSeason: false } : undefined;
+  return matchingSeasons.length === 1 ? { season: matchingSeasons[0], episodeNumbers: [standalone.episode], explicitSeason: false } : undefined;
 }
 
 function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: number | undefined): { score: number; reason?: string } {
@@ -49,24 +49,29 @@ function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: n
 }
 
 export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string, durationSeconds?: number): MatchCandidate[] {
-  const numbered = numberedEpisode(filename, episodes);
+  const numbered = numberedEpisodes(filename, episodes);
+  const numberedMatches = numbered?.episodeNumbers.map((number) => episodes.find((episode) => episode.season === numbered.season && episode.number === number));
+  const completeNumberedMatch = numberedMatches?.every((episode): episode is Episode => Boolean(episode)) ? numberedMatches as Episode[] : undefined;
   return episodes
     .map((episode) => {
       const reasons: string[] = [];
       let score = 0;
-      if (numbered?.season === episode.season && numbered.episode === episode.number) {
+      if (numbered?.season === episode.season && numbered.episodeNumbers[0] === episode.number && completeNumberedMatch) {
         score += 0.45;
-        reasons.push(numbered.explicitSeason ? 'season and episode number' : 'episode number in the only matching season');
+        reasons.push(numbered.explicitSeason ? completeNumberedMatch.length > 1 ? `${completeNumberedMatch.length} episode numbers` : 'season and episode number' : 'episode number in the only matching season');
       }
       if (useTitle) {
         const similarity = titleSimilarity(filename, episode.title, showTitle);
         score += similarity * 0.65;
         if (similarity >= 0.5) reasons.push(`title ${Math.round(similarity * 100)}%`);
       }
-      const duration = durationEvidence(durationSeconds, episode.runtimeMinutes);
+      const combinedRuntime = completeNumberedMatch?.[0].id === episode.id && completeNumberedMatch.every((item) => item.runtimeMinutes)
+        ? completeNumberedMatch.reduce((total, item) => total + (item.runtimeMinutes ?? 0), 0)
+        : episode.runtimeMinutes;
+      const duration = durationEvidence(durationSeconds, combinedRuntime);
       score += duration.score;
       if (duration.reason) reasons.push(duration.reason);
-      return { episode, score: Math.min(score, 1), reasons };
+      return { episode, episodes: completeNumberedMatch?.[0].id === episode.id && completeNumberedMatch.length > 1 ? completeNumberedMatch : undefined, score: Math.min(score, 1), reasons };
     })
     .filter(({ score }) => score > 0.12)
     .sort((a, b) => b.score - a.score);

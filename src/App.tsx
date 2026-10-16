@@ -104,6 +104,24 @@ function episodeCode(episode: Episode): string {
   return `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
 }
 
+function candidateEpisodes(candidate: MatchCandidate): Episode[] {
+  return candidate.episodes?.length ? candidate.episodes : [candidate.episode];
+}
+
+function candidateKey(candidate: MatchCandidate): string {
+  return candidateEpisodes(candidate).map((episode) => episode.id).join('|');
+}
+
+function candidateLabel(candidate: MatchCandidate): string {
+  const episodes = candidateEpisodes(candidate);
+  const first = episodes[0];
+  return `${episodeCode(first)}${episodes.slice(1).map((episode) => `-${episode.season === first.season ? `E${String(episode.number).padStart(2, '0')}` : episodeCode(episode)}`).join('')}`;
+}
+
+function candidateTitle(candidate: MatchCandidate): string {
+  return candidateEpisodes(candidate).map((episode) => episode.title).join(', ');
+}
+
 function joinPath(directory: string, relativePath: string): string {
   if (!relativePath) return directory.replace(/[\\/]+$/, '');
   const separator = directory.includes('\\') && !directory.includes('/') ? '\\' : '/';
@@ -364,7 +382,7 @@ export default function App() {
     const counts = new Map<string, number>();
     for (const item of matchesByPath.values()) {
       if (!item.match) continue;
-      counts.set(item.match.episode.id, (counts.get(item.match.episode.id) ?? 0) + 1);
+      for (const episode of candidateEpisodes(item.match)) counts.set(episode.id, (counts.get(episode.id) ?? 0) + 1);
     }
     return counts;
   }, [matchesByPath]);
@@ -377,7 +395,7 @@ export default function App() {
   const suggestedCandidates = useMemo(() => {
     if (!reviewingItem) return [];
     const candidates = [reviewingItem.match, reviewingAutomaticItem?.match, ...reviewingItem.alternatives].filter((candidate): candidate is MatchCandidate => Boolean(candidate));
-    return [...new Map(candidates.map((candidate) => [candidate.episode.id, candidate])).values()];
+    return [...new Map(candidates.map((candidate) => [candidateKey(candidate), candidate])).values()];
   }, [reviewingAutomaticItem, reviewingItem]);
   const reviewCandidates = useMemo(() => {
     const search = reviewSearch.trim().toLocaleLowerCase();
@@ -433,7 +451,7 @@ export default function App() {
     const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
       ? movieForPath && tags && !movieFormatError ? formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget) : undefined
-      : item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, item.match.episode, tags, extension, show.tvdbId, videoFilenameBudget) : undefined;
+      : item?.match && show && tags && !formatError ? formatEpisodeFilename(episodeTemplate, show.name, show.year, candidateEpisodes(item.match), tags, extension, show.tvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
       targetName,
@@ -881,8 +899,7 @@ export default function App() {
           setMatches(event.data.matches);
           for (const item of event.data.matches) {
             const score = Math.round((item.match?.score ?? 0) * 100);
-            const episode = item.match?.episode;
-            const target = episode ? `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')} ${episode.title}` : 'no episode';
+            const target = item.match ? `${candidateLabel(item.match)} ${candidateTitle(item.match)}` : 'no episode';
             const evidence = item.match?.reasons.length ? item.match.reasons.join('; ') : 'no sufficiently strong matching evidence';
             if (item.status === 'confident') addDebug('success', `Accepted ${item.filename} → ${target}`, `${score}% confidence: ${evidence}.`);
             else if (item.status === 'review') addDebug('warning', `Review ${item.filename} → ${target}`, `${score}% confidence: ${evidence}. Manual confirmation is required.`);
@@ -1280,7 +1297,7 @@ export default function App() {
     if (!item?.match) return;
     setConfirmedPaths((current) => new Set(current).add(path));
     setHeldConfirmationPaths((current) => new Set(current).add(path));
-    addDebug('success', `Confirmed ${item.filename} → ${episodeCode(item.match.episode)} ${item.match.episode.title}`, item.match.reasons.join('; ') || 'Accepted the suggested match.');
+    addDebug('success', `Confirmed ${item.filename} → ${candidateLabel(item.match)} ${candidateTitle(item.match)}`, item.match.reasons.join('; ') || 'Accepted the suggested match.');
   }
 
   function confirmAllSuggestedMatches() {
@@ -1302,7 +1319,7 @@ export default function App() {
     if (!reviewingPath || !candidate) return;
     setMatchOverrides((current) => ({ ...current, [reviewingPath]: candidate }));
     setConfirmedPaths((current) => new Set(current).add(reviewingPath));
-    addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${episodeCode(candidate.episode)} ${candidate.episode.title}`, candidate.reasons.join('; ') || 'Manually confirmed.');
+    addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${candidateLabel(candidate)} ${candidateTitle(candidate)}`, candidate.reasons.join('; ') || 'Manually confirmed.');
     setReviewingPath(undefined);
   }
 
@@ -1617,11 +1634,11 @@ export default function App() {
           <div className="review-results-heading"><strong>{reviewSearch.trim() ? 'Search results' : 'Suggested matches'}</strong><small>{reviewCandidates.length} episode{reviewCandidates.length === 1 ? '' : 's'}</small></div>
           <div className="review-candidates">
             {reviewCandidates.map((candidate) => {
-              const selected = reviewCandidate?.episode.id === candidate.episode.id;
+              const selected = reviewCandidate ? candidateKey(reviewCandidate) === candidateKey(candidate) : false;
               const manual = candidate.reasons.includes('manually selected');
-              return <button key={candidate.episode.id} className={selected ? 'selected' : ''} title="Double-click to confirm this episode" onClick={() => setReviewCandidate(candidate)} onDoubleClick={() => confirmMatchReview(candidate)}>
-                <span className="candidate-code">{episodeCode(candidate.episode)}</span>
-                <span><strong>{candidate.episode.title}</strong><small>{manual ? 'Manual selection' : candidate.reasons.join(' · ') || 'No matching evidence'}</small></span>
+              return <button key={candidateKey(candidate)} className={selected ? 'selected' : ''} title="Double-click to confirm this episode" onClick={() => setReviewCandidate(candidate)} onDoubleClick={() => confirmMatchReview(candidate)}>
+                <span className="candidate-code">{candidateLabel(candidate)}</span>
+                <span><strong>{candidateTitle(candidate)}</strong><small>{manual ? 'Manual selection' : candidate.reasons.join(' · ') || 'No matching evidence'}</small></span>
                 <span className="candidate-score">{manual ? 'Manual' : `${Math.round(candidate.score * 100)}%`}</span>
                 {selected && <Check size={15}/>}
               </button>;

@@ -68,6 +68,7 @@ export interface CompanionScan { byVideo: Record<string, MediaCompanion[]>; ambi
 
 export interface MatchCandidate {
   episode: Episode;
+  episodes?: Episode[];
   score: number;
   reasons: string[];
 }
