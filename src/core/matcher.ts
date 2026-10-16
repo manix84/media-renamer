@@ -9,7 +9,7 @@ export function normalizeTitle(value: string): string[] {
     .normalize('NFKD')
     .replace(/[’']/g, '')
     .toLowerCase()
-    .replace(/\b(?:s\d{1,2}e\d{1,3}|\d{1,2}x\d{1,3})\b/g, ' ')
+    .replace(/\b(?:s\d{1,2}(?:e|[ ._-])\d{1,3}|\d{1,2}x\d{1,3})\b/g, ' ')
     .replace(/\b(?:2160p|1080p|720p|576p|480p|web[ ._-]?dl|web[ ._-]?rip|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts)\b/g, ' ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()

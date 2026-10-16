@@ -136,6 +136,7 @@ describe('episode matcher', () => {
     'Show_S01.E02_An Early Episode.mkv',
     'Show - 1x02 - An Early Episode.mkv',
     'Show - 1 x 2 - An Early Episode.mkv',
+    'Show_S01_02_An Early Episode.mkv',
   ])('matches separated episode code format %s', (filename) => {
     const result = matchFile(filename, [{ id: 's1e2', season: 1, number: 2, title: 'An Early Episode' }]);
     expect(result.match?.episode.id).toBe('s1e2');
