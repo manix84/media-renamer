@@ -41,6 +41,22 @@ function preferredStream(streams: ProbeStream[], type: string): ProbeStream | un
   return matching.find((stream) => stream.disposition?.default === 1) ?? matching[0];
 }
 
+function standardResolution(width?: number, height?: number): string | undefined {
+  if (!width || !height) return undefined;
+  const longEdge = Math.max(width, height);
+  const shortEdge = Math.min(width, height);
+  // Cinematic encodes commonly crop letterbox pixels (for example 1920x816),
+  // so classify HD/UHD by the retained long edge rather than exposing the raw height.
+  if (longEdge >= 3000 || shortEdge >= 1600) return '2160p';
+  if (longEdge >= 1600 || shortEdge >= 900) return '1080p';
+  if (longEdge >= 1100 || shortEdge >= 650) return '720p';
+  if (shortEdge >= 540) return '576p';
+  if (shortEdge >= 450) return '480p';
+  if (shortEdge >= 300) return '360p';
+  if (shortEdge >= 200) return '240p';
+  return '144p';
+}
+
 export function parseProbeOutput(output: string): MediaTechnicalTags {
   const data = JSON.parse(output) as { streams?: ProbeStream[]; format?: { duration?: string } };
   const streams = data.streams ?? [];
@@ -48,7 +64,7 @@ export function parseProbeOutput(output: string): MediaTechnicalTags {
   const audio = preferredStream(streams, 'audio');
   const duration = Number(data.format?.duration);
   return {
-    resolution: video?.height ? `${video.height}p` : undefined,
+    resolution: standardResolution(video?.width, video?.height),
     videoCodec: videoCodec(video?.codec_name),
     audioCodec: audioCodec(audio?.codec_name),
     channels: channelLayout(audio),

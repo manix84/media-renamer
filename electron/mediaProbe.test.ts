@@ -14,4 +14,15 @@ describe('media probe', () => {
     expect(parseProbeOutput(JSON.stringify({ streams: [{ codec_type: 'audio', codec_name: 'flac', channels: 8 }] })))
       .toEqual({ resolution: undefined, videoCodec: undefined, audioCodec: 'FLAC', channels: '7.1', durationSeconds: undefined });
   });
+
+  it.each([
+    [1920, 816, '1080p'],
+    [1920, 800, '1080p'],
+    [1280, 536, '720p'],
+    [720, 576, '576p'],
+    [720, 480, '480p'],
+  ])('maps a %ix%i cropped frame to the standard %s class', (width, height, resolution) => {
+    expect(parseProbeOutput(JSON.stringify({ streams: [{ codec_type: 'video', width, height }] })).resolution)
+      .toBe(resolution);
+  });
 });
