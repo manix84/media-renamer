@@ -3,7 +3,7 @@ import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileI
 import { prepareCompletionChime } from './completionChime';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
-import { applyReleaseOverrides, parseReleaseTags } from './core/releaseTags';
+import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery } from './core/movieInference';
@@ -416,7 +416,9 @@ export default function App() {
   const renamePlan = useMemo(() => createRenamePlan(paths.map((path) => {
     const item = matchesByPath.get(path);
     const movieForPath = movieMatches[path]?.movie;
-    const baseTags = item?.tags ?? (activeMediaTab === 'movies' ? parseReleaseTags(path) : undefined);
+    const detectedTags = item?.tags ?? (activeMediaTab === 'movies' ? parseReleaseTags(path) : undefined);
+    const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year) : undefined;
+    const baseTags = detectedTags ? activeMediaTab === 'movies' ? { ...detectedTags, edition: movieEdition?.edition, editionError: movieEdition?.error } : detectedTags : undefined;
     const tags = baseTags ? applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
@@ -436,7 +438,7 @@ export default function App() {
       sourcePath: path,
       targetName,
       targetDirectory: moveFiles && activeMediaTab === 'movies' && movieFolder !== undefined ? destinationDirectoryForSource(path, movieBaseFolder, movieFolder) : moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, tvBaseFolder, showFolder) : undefined,
-      configurationError: moveFiles && activeMediaTab === 'movies' && movieFolderFormatError ? `Fix the movie folder pattern: ${movieFolderFormatError}` : moveFiles && activeMediaTab === 'shows' && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined,
+      configurationError: tags?.editionError ?? (moveFiles && activeMediaTab === 'movies' && movieFolderFormatError ? `Fix the movie folder pattern: ${movieFolderFormatError}` : moveFiles && activeMediaTab === 'shows' && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined),
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',

@@ -28,7 +28,7 @@ This first scaffold includes:
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
 - parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, release group, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels and contributing duration evidence to episode matching;
-- Plex movie-edition detection from explicit `{edition-…}` tags and common cut names, with edition tags preserved in default movie folders and filenames;
+- FlexGet-aligned Plex edition handling: movie editions use a fixed canonical vocabulary with ordered multi-edition normalisation, while TV/anime preserve explicit arbitrary `{edition-…}` names and block malformed or conflicting markers;
 - guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
 - parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
 - anime-style episode versions such as `S01E01v2` and `S05E10v3`, normalized to the `REPACK` flag;
@@ -194,7 +194,8 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [ ] runtime-assisted movie disambiguation
 - [ ] multipart movie grouping and extras/sample detection
 - [ ] movie batch status filters and bulk retry controls
-- [x] Plex-compatible movie edition and cut detection with arbitrary explicit edition names
+- [x] FlexGet-compatible movie edition vocabulary, aliases, source-order joining, and title-safe suffix detection
+- [x] explicit arbitrary TV/anime editions with malformed/conflict validation
 - [ ] per-file edition editing and saved custom edition aliases
 - [ ] collection-aware folder and filename fields
 - [ ] saved library roots and repeatable batch queues

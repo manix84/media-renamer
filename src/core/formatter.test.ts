@@ -108,9 +108,9 @@ describe('episode filename templates', () => {
   });
 
   it('writes a detected Plex edition without duplicating its extended flag', () => {
-    const editionTags: ReleaseTags = { ...tags, edition: 'Extended Edition', flags: ['EXTENDED'] };
+    const editionTags: ReleaseTags = { ...tags, edition: 'Extended', flags: ['EXTENDED'] };
     expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'The Movie', 2020, editionTags, '123'))
-      .toBe('The Movie (2020) {edition-Extended Edition} [1080p WEB-DL H.264 AAC 2.0] {tmdb-123}');
+      .toBe('The Movie (2020) {edition-Extended} [1080p WEB-DL H.264 AAC 2.0] {tmdb-123}');
   });
 
   it('creates portable byte-bounded movie filenames without dropping technical data or the TMDB ID', () => {

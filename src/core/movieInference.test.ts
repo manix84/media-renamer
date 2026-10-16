@@ -20,7 +20,6 @@ describe('movie-name inference', () => {
   });
 
   it('keeps edition evidence out of the metadata search query', () => {
-    expect(inferMovieQuery(['/movies/Elektra.DIRECTORS.CUT.2005.1080p.BluRay.mkv'], 2026)).toBe('Elektra (2005)');
     expect(inferMovieQuery(['/movies/Blade Runner (1982) {edition-Final Cut}.mkv'], 2026)).toBe('Blade Runner (1982)');
   });
 

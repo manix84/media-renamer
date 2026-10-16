@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchFile, normalizeTitle } from './matcher';
-import { applyReleaseOverrides, parseReleaseTags } from './releaseTags';
+import { applyReleaseOverrides, formatEditionNames, parseExplicitEdition, parseMovieEdition, parseReleaseTags } from './releaseTags';
 
 const episodes = [
   { id: '1', season: 2, number: 7, title: 'The Security Guard' },
@@ -33,17 +33,67 @@ describe('release tag parser', () => {
   });
 
   it.each([
-    ["Blade.Runner.1982.Directors.Cut.1080p.BluRay.mkv", "Director's Cut"],
-    ['Blade.Runner.1982.Final.Cut.2160p.mkv', 'Final Cut'],
-    ['Movie.2020.Extended.Edition.1080p.mkv', 'Extended Edition'],
-    ['Movie.2020.Open.Matte.1080p.mkv', 'Open Matte'],
-    ['Movie (2020) {edition-Fan Restoration v2}.mkv', 'Fan Restoration v2'],
-  ])('detects Plex movie editions: %s', (filename, edition) => {
-    expect(parseReleaseTags(filename).edition).toBe(edition);
+    ["Blade.Runner.1982.Directors.Cut.1080p.BluRay.mkv", 'Blade Runner', 1982, "Director's Cut"],
+    ['Movie.2020.Extended.Edition.1080p.mkv', 'Movie', 2020, 'Extended'],
+    ['Movie.2020.25th.Anniversary.Edition.1080p.mkv', 'Movie', 2020, 'Anniversary Edition'],
+    ['Movie.2020.4K.Remaster.1080p.mkv', 'Movie', 2020, 'Remastered'],
+    ['Movie.2020.HDCAMRip.mkv', 'Movie', 2020, 'HD CAM'],
+    ['Movie.2020.HD-TS.DTS.mkv', 'Movie', 2020, 'HD Telesync'],
+  ])('normalises a movie edition after the matched title: %s', (filename, title, year, edition) => {
+    expect(parseMovieEdition(filename, title, year).edition).toBe(edition);
   });
 
-  it('prefers an explicit Plex edition over vocabulary detection', () => {
-    expect(parseReleaseTags("Movie.Directors.Cut.{edition-35mm Restoration}.mkv").edition).toBe('35mm Restoration');
+  it.each([
+    '3D', 'Anniversary Edition', 'Assembly Cut', 'Black and White', 'CAM', "Collector's Edition",
+    'Criterion Collection', 'Deluxe Edition', "Director's Cut", "Director's Edition", 'Extended',
+    'Fan Edit', 'Final Cut', 'HD CAM', 'HD Telecine', 'HD Telesync', 'IMAX', 'IMAX Enhanced',
+    'International Cut', 'Limited Edition', 'Open Matte', 'Remastered', 'Restored', 'Redux',
+    'Roadshow Version', 'SBS', 'Special Edition', 'Telecine', 'Telesync', 'Theatrical Cut',
+    'Ultimate Edition', 'Uncut', 'Unrated', 'Workprint',
+  ])('supports the canonical FlexGet movie edition %s', (edition) => {
+    const source = edition.replace(/ /g, '.');
+    expect(parseMovieEdition(`Movie.2020.${source}.1080p.mkv`, 'Movie', 2020).edition).toBe(edition);
+  });
+
+  it.each([
+    ['Movie.2020.HDTS.mkv', 'HD Telesync'],
+    ['Movie.2020.HD-TC.mkv', 'HD Telecine'],
+    ['Movie.2020.HQCAM.mkv', 'HD CAM'],
+    ['Movie.2020.CAMRip.mkv', 'CAM'],
+    ['Movie.2020.Restoration.mkv', 'Restored'],
+  ])('normalises compact edition alias %s', (filename, edition) => {
+    expect(parseMovieEdition(filename, 'Movie', 2020).edition).toBe(edition);
+  });
+
+  it('preserves source order, removes duplicates, and prefers overlapping specific names', () => {
+    expect(parseMovieEdition('Movie.2020.IMAX.Enhanced.Directors.Cut.Extended.IMAX.1080p.mkv', 'Movie', 2020).edition)
+      .toBe("IMAX Enhanced, Director's Cut, Extended, and IMAX");
+    expect(formatEditionNames(['Unrated', 'Uncut'])).toBe('Unrated and Uncut');
+  });
+
+  it('normalises multiple names inside one explicit movie edition marker', () => {
+    expect(parseMovieEdition("Movie (2020) {edition-Unrated and Uncut} [1080P].mkv", 'Movie', 2020).edition).toBe('Unrated and Uncut');
+    expect(parseMovieEdition("Movie (2020) {edition-Director's Cut, Extended, and IMAX} [1080P].mkv", 'Movie', 2020).edition)
+      .toBe("Director's Cut, Extended, and IMAX");
+    expect(parseMovieEdition('Movie (2020) {edition-Unknown Cut}.mkv', 'Movie', 2020).error).toMatch(/Unsupported/);
+  });
+
+  it('does not infer edition words from the matched movie title or partial technical tokens', () => {
+    expect(parseMovieEdition('Uncut.Gems.2019.1080p.DTS.mkv', 'Uncut Gems', 2019).edition).toBeUndefined();
+    expect(parseMovieEdition('Piranha.3D.2010.1080p.mkv', 'Piranha 3D', 2010).edition).toBeUndefined();
+  });
+
+  it('falls back to the matched year but does not infer without title or year evidence', () => {
+    expect(parseMovieEdition('Unknown.Movie.2020.Final.Cut.mkv', 'Different Title', 2020).edition).toBe('Final Cut');
+    expect(parseMovieEdition('Unknown.Movie.Final.Cut.mkv', 'Different Title', undefined).edition).toBeUndefined();
+  });
+
+  it('preserves explicit TV editions and rejects malformed or conflicting markers', () => {
+    expect(parseReleaseTags('/TV/Show {edition-Color}/Show.S01E01.{edition-Color}.mkv').edition).toBe('Color');
+    expect(parseExplicitEdition('/TV/Show {edition-Color}/Show.S01E01.{edition-Black & White}.mkv').error).toMatch(/Conflicting/);
+    expect(parseReleaseTags('/TV/Show {edition-Color}/Show.S01E01.{edition-Black & White}.mkv').editionError).toMatch(/Conflicting/);
+    expect(parseExplicitEdition('Show.S01E01.{edition- }.mkv').error).toMatch(/malformed/);
+    expect(parseExplicitEdition('Show.S01E01.{edition-Color.mkv').error).toMatch(/malformed/);
   });
 
   it.each([
