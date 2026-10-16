@@ -213,10 +213,31 @@ export function formatMovieFolder(template: string, movie: string, year: number 
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
 }
 
+function insertMissingMovieEdition(rendered: string, movie: string, year: number | undefined, edition: string | undefined): string {
+  if (!edition) return rendered;
+  const marker = ` {edition-${edition}}`;
+  const titleIndex = rendered.indexOf(movie);
+  let insertion = titleIndex >= 0 ? titleIndex + movie.length : -1;
+  if (insertion >= 0 && year !== undefined) {
+    const yearIndex = rendered.indexOf(String(year), insertion);
+    if (yearIndex >= 0) {
+      insertion = yearIndex + String(year).length;
+      if (rendered[insertion] === ')') insertion += 1;
+    }
+  }
+  if (insertion < 0) {
+    const qualityIndex = rendered.search(/\s(?:\[|\{tmdb-)/i);
+    insertion = qualityIndex >= 0 ? qualityIndex : rendered.length;
+  }
+  return `${rendered.slice(0, insertion).trimEnd()}${marker}${rendered.slice(insertion)}`.trim();
+}
+
 export function formatMovie(template: string, movie: string, year: number | undefined, tags: ReleaseTags, tmdbId?: string): string {
-  return renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId }, ...releaseContext(tags) }])
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId }, ...releaseContext(tags) }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
+  const templatePlacesEdition = /\{\{\s*[#^/]?\s*release\.edition\s*\}\}/i.test(template);
+  return templatePlacesEdition ? rendered : insertMissingMovieEdition(rendered, movie, year, tags.edition);
 }
 
 export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = 255): string {

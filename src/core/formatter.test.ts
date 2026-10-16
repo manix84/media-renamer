@@ -113,6 +113,20 @@ describe('episode filename templates', () => {
       .toBe('The Movie (2020) {edition-Extended} [1080p WEB-DL H.264 AAC 2.0] {tmdb-123}');
   });
 
+  it('protects the Plex edition marker when an older custom template omits the edition field', () => {
+    const previousCustomTemplate = '{{movie.name}}\n{{#movie.year}} ({{movie.year}}){{/movie.year}}\n{{#technical}} [{{technical}}]{{/technical}}\n{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}';
+    const editionTags: ReleaseTags = { ...tags, edition: "Director's Cut" };
+    expect(formatMovie(previousCustomTemplate, 'Elektra', 2005, editionTags, '9947'))
+      .toBe("Elektra (2005) {edition-Director's Cut} [1080p WEB-DL H.264 AAC 2.0] {tmdb-9947}");
+  });
+
+  it('respects explicit custom placement of the movie edition', () => {
+    const customTemplate = '{{movie.name}}\n{{#movie.year}} ({{movie.year}}){{/movie.year}}\n{{#technical}} [{{technical}}]{{/technical}}\n{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}\n{{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}';
+    const editionTags: ReleaseTags = { ...tags, edition: "Director's Cut" };
+    expect(formatMovie(customTemplate, 'Elektra', 2005, editionTags, '9947'))
+      .toBe("Elektra (2005) [1080p WEB-DL H.264 AAC 2.0] {tmdb-9947} {edition-Director's Cut}");
+  });
+
   it('creates portable byte-bounded movie filenames without dropping technical data or the TMDB ID', () => {
     const filename = formatMovieFilename(DEFAULT_MOVIE_TEMPLATE, `A Movie: ${'Very '.repeat(80)}Long`, 2026, tags, '.mkv', '123456', 180);
     expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(180);
