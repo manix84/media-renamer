@@ -107,6 +107,13 @@ describe('episode filename templates', () => {
     expect(movieTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
   });
 
+  it('exposes full and shorthand web origins plus the release group to templates', () => {
+    const releaseTags: ReleaseTags = { ...tags, webOrigin: 'Netflix', webOriginShort: 'NF', group: 'QxR' };
+    expect(formatMovie('{{movie.name}} [{{release.webOrigin}} {{release.webOriginShort}} {{release.group}}]', 'Movie', 2026, releaseTags))
+      .toBe('Movie [Netflix NF QxR]');
+    expect(movieTemplateError('{{release.webOrigin}} {{release.webOriginShort}}')).toBeUndefined();
+  });
+
   it('writes a detected Plex edition without duplicating its extended flag', () => {
     const editionTags: ReleaseTags = { ...tags, edition: 'Extended', flags: ['EXTENDED'] };
     expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'The Movie', 2020, editionTags, '123'))

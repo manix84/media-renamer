@@ -28,12 +28,12 @@ const VALID_NAMES = new Set([
   'show.name', 'show.year', 'show.tvdbId', 'episode.range', 'episodes', 'technical',
   'season', 'number', 'seasonPadded', 'numberPadded', 'code', 'title', 'first', 'last',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
-  'release.channels', 'release.group', 'release.flags',
+  'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags',
 ]);
 const MOVIE_VALID_NAMES = new Set([
   'movie.name', 'movie.year', 'movie.tmdbId', 'movie.edition', 'technical',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
-  'release.channels', 'release.group', 'release.flags', 'release.edition',
+  'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags', 'release.edition',
 ]);
 
 function parseTemplate(template: string): TemplateNode[] {
@@ -122,6 +122,8 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
       audioCodec: tags.audioCodec,
       channels: tags.channels,
       group: tags.group,
+      webOrigin: tags.webOrigin,
+      webOriginShort: tags.webOriginShort,
       flags: tags.flags.join(' '),
     },
   };
@@ -139,6 +141,8 @@ function releaseContext(tags: ReleaseTags): Pick<TemplateContext, 'technical' | 
       audioCodec: tags.audioCodec,
       channels: tags.channels,
       group: tags.group,
+      webOrigin: tags.webOrigin,
+      webOriginShort: tags.webOriginShort,
       flags: tags.flags.join(' '),
     },
   };

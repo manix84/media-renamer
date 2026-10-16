@@ -11,6 +11,18 @@ const sources: Array<[RegExp, Source]> = [
 
 const knownFlags = ['UNCENSORED', 'REPACK', 'REPACKED', 'PROPER', 'EXTENDED', 'REMASTERED', 'INTERNAL', 'LIMITED'];
 
+const webOrigins: Array<{ name: string; short: string; aliases: string[] }> = [
+  { name: 'Amazon', short: 'AMZN', aliases: ['AMZN', 'Amazon'] },
+  { name: 'Apple TV+', short: 'ATVP', aliases: ['ATVP', 'Apple[ ._-]*TV(?:[ ._-]*Plus|\\+)?'] },
+  { name: 'Crunchyroll', short: 'CR', aliases: ['CR', 'Crunchy[ ._-]*roll'] },
+  { name: 'Disney+', short: 'DSNP', aliases: ['DSNP', 'Disney(?:[ ._-]*Plus|\\+)'] },
+  { name: 'Hulu', short: 'HULU', aliases: ['HULU'] },
+  { name: 'Max', short: 'HMAX', aliases: ['HMAX', 'HBO[ ._-]*Max'] },
+  { name: 'Netflix', short: 'NF', aliases: ['NF', 'Netflix'] },
+  { name: 'Paramount+', short: 'PMTP', aliases: ['PMTP', 'Paramount(?:[ ._-]*Plus|\\+)'] },
+  { name: 'Peacock', short: 'PCOK', aliases: ['PCOK', 'Peacock'] },
+];
+
 const SEP = '[ ._-]+';
 const movieEditionDefinitions: Array<{ canonical: string; source: string }> = [
   { canonical: 'IMAX Enhanced', source: `IMAX${SEP}Enhanced` },
@@ -127,6 +139,19 @@ export function stripEditionTokens(value: string): string {
   return value.replace(/\{edition-[^}]+\}/ig, ' ');
 }
 
+function detectWebOrigin(evidence: string, source: Source): { webOrigin?: string; webOriginShort?: string } {
+  if (source !== 'WEB-DL' && source !== 'WEBRip') return {};
+  const origin = webOrigins.find((candidate) => candidate.aliases.some((alias) => new RegExp(`(?<![A-Za-z0-9])(?:${alias})(?![A-Za-z0-9])`, 'i').test(evidence)));
+  return origin ? { webOrigin: origin.name, webOriginShort: origin.short } : {};
+}
+
+function detectReleaseGroup(stem: string, source: Source, resolution?: string, videoCodec?: string): string | undefined {
+  const trailing = stem.match(/-([A-Za-z0-9][A-Za-z0-9._]{1,31})$/)?.[1];
+  if (trailing && (source !== 'Unknown' || resolution || videoCodec) && !/^(?:DL|Rip|WEB|BluRay|BRRip|BDRip|HDTV|x26[45]|h26[45]|HEVC|AV1)$/i.test(trailing)) return trailing;
+  const leading = stem.match(/^\[([^\]]{1,32})\][ ._-]*/)?.[1]?.trim();
+  return leading && !/^(?:2160p|1080p|720p|576p|480p|WEB-DL|WEBRip|BluRay|AAC|DTS)$/i.test(leading) ? leading : undefined;
+}
+
 export function parseReleaseTags(filename: string): ReleaseTags {
   const leaf = filename.split(/[\\/]/).at(-1) ?? filename;
   const stem = leaf.replace(/\.[a-z0-9]{2,5}$/i, '');
@@ -139,7 +164,8 @@ export function parseReleaseTags(filename: string): ReleaseTags {
   const animeVersion = evidence.match(/(?:\bS\d{1,3}E\d{1,4}|\b\d{1,3}x\d{1,4})v(\d+)\b/i)?.[1];
   if (animeVersion && Number(animeVersion) >= 2) flags.push('REPACK');
   if (/\bai[ ._-]*upscal(?:e|ed)\b/i.test(evidence)) flags.push('AI Upscale');
-  const group = stem.match(/-([A-Za-z0-9]+)$/)?.[1];
+  const group = detectReleaseGroup(stem, source, resolution, videoCodec);
+  const webOrigin = detectWebOrigin(evidence, source);
   const explicitEdition = parseExplicitEdition(evidence);
 
   return {
@@ -152,6 +178,7 @@ export function parseReleaseTags(filename: string): ReleaseTags {
     channels: audio?.[2]?.replace(' ', '.'),
     flags: [...new Set(flags.map((flag) => flag === 'REPACKED' ? 'REPACK' : flag))],
     group,
+    ...webOrigin,
   };
 }
 

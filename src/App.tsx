@@ -50,6 +50,8 @@ const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
     { name: 'release.audioCodec', description: 'Audio codec', example: 'AAC' },
     { name: 'release.channels', description: 'Audio channel layout', example: '2.0' },
     { name: 'release.group', description: 'Release group', example: 'GROUP' },
+    { name: 'release.webOrigin', description: 'Full web service name', example: 'Netflix' },
+    { name: 'release.webOriginShort', description: 'Web service shorthand', example: 'NF' },
     { name: 'release.flags', description: 'Detected flags', example: 'AI Upscale' },
   ] },
 ];
@@ -1501,7 +1503,7 @@ export default function App() {
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
-                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
+                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const fullProposedName = plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);

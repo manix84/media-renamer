@@ -58,6 +58,8 @@ export interface ReleaseTags {
   channels?: string;
   flags: string[];
   group?: string;
+  webOrigin?: string;
+  webOriginShort?: string;
 }
 
 export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>> & { durationSeconds?: number };

@@ -15,6 +15,22 @@ describe('release tag parser', () => {
     });
   });
 
+  it.each([
+    ['Show.S01E01.1080p.NF.WEB-DL.x265-QxR.mkv', 'Netflix', 'NF', 'QxR'],
+    ['Show.S01E01.1080p.Netflix.WEB-DL.x265-VARYG.mkv', 'Netflix', 'NF', 'VARYG'],
+    ['[VARYG] Show - 01 [1080p CR WEB-DL].mkv', 'Crunchyroll', 'CR', 'VARYG'],
+    ['[QxR] Show - 01 [1080p CrunchyRoll WEBRip].mkv', 'Crunchyroll', 'CR', 'QxR'],
+  ])('normalises web origin and detects release group: %s', (filename, webOrigin, webOriginShort, group) => {
+    expect(parseReleaseTags(filename)).toMatchObject({ webOrigin, webOriginShort, group });
+  });
+
+  it('does not infer a short web origin outside a web release', () => {
+    const tags = parseReleaseTags('CR.Documentary.2026.1080p.BluRay-QxR.mkv');
+    expect(tags.group).toBe('QxR');
+    expect(tags.webOrigin).toBeUndefined();
+    expect(tags.webOriginShort).toBeUndefined();
+  });
+
   it('detects AI upscaling and release details from ancestor folders', () => {
     expect(parseReleaseTags('/TV/Star Trek Voyager S03 AI Upscale 720p x265/Star Trek - S03E01 - Basics.mkv')).toMatchObject({
       resolution: '720p', videoCodec: 'x265', flags: ['AI Upscale'], group: undefined,
