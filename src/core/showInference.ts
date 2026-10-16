@@ -1,4 +1,4 @@
-import { parseEpisodeCode } from './episodeCode';
+import { parseEpisodeCode, parseStandaloneEpisode } from './episodeCode';
 
 const standaloneEpisodePattern = /(?:^|[\s._-])ep(?:isode)?\.?[\s._-]*\d{1,4}(?=$|[\s._-])/i;
 
@@ -9,7 +9,7 @@ function filenameFromPath(filePath: string): string {
 export function inferShowQuery(paths: string[]): string | undefined {
   const candidates = paths.map((filePath) => {
     const filename = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-    const marker = parseEpisodeCode(filename)?.index ?? standaloneEpisodePattern.exec(filename)?.index ?? -1;
+    const marker = parseEpisodeCode(filename)?.index ?? standaloneEpisodePattern.exec(filename)?.index ?? parseStandaloneEpisode(filename)?.index ?? -1;
     if (marker < 1) return undefined;
     return filename
       .slice(0, marker)

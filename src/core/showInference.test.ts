@@ -22,6 +22,11 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/media/Mummies Alive - Episode 03 - Pack to the Future.mp4'])).toBe('Mummies Alive');
   });
 
+  it('extracts an anime title before a dash-delimited bare episode number', () => {
+    expect(inferShowQuery(["/anime/[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [Dub] [1080p OV WEB-DL].mkv"]))
+      .toBe("Marika's Love Meter Malfunction");
+  });
+
   it('uses the most common title across a mixed import', () => {
     expect(inferShowQuery([
       '/tv/Main.Show.S01E01.mkv',

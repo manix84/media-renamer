@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEpisodeCode } from './episodeCode';
+import { parseEpisodeCode, parseStandaloneEpisode } from './episodeCode';
 
 describe('episode code parser', () => {
   it.each([
@@ -17,4 +17,14 @@ describe('episode code parser', () => {
   ])('does not treat unrelated separated numbers as an episode code: %s', (filename) => {
     expect(parseEpisodeCode(filename)).toBeUndefined();
   });
+
+  it('recognises a dash-delimited standalone anime episode number', () => {
+    expect(parseStandaloneEpisode("[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [1080p].mkv"))
+      .toMatchObject({ episode: 7 });
+  });
+
+  it.each(['Show 07.mkv', 'Show - 2026 [1080p].mkv', 'Show_07.mkv'])
+    ('rejects an ambiguous bare number: %s', (filename) => {
+      expect(parseStandaloneEpisode(filename)).toBeUndefined();
+    });
 });

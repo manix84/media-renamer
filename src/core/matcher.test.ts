@@ -149,6 +149,25 @@ describe('episode matcher', () => {
     expect(matchFile(titleOnly, episodes, true, 0.8).status).toBe('review');
   });
 
+  it('matches a dash-delimited bare episode number when it identifies one season', () => {
+    const result = matchFile("[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [Dub] [1080p OV WEB-DL].mkv", [
+      { id: 'episode-7', season: 1, number: 7, title: 'The Original-Exceeding Lovemeter' },
+      { id: 'episode-8', season: 1, number: 8, title: 'The Completely Kaput Lovemeter' },
+    ], true, .8, "Marika's Love Meter Malfunction");
+
+    expect(result.match?.episode.id).toBe('episode-7');
+    expect(result.match?.reasons).toContain('episode number in the only matching season');
+  });
+
+  it('does not guess a season when a bare episode number is ambiguous', () => {
+    const result = matchFile('Show - 07 [1080p].mkv', [
+      { id: 's1e7', season: 1, number: 7, title: 'First Seven' },
+      { id: 's2e7', season: 2, number: 7, title: 'Second Seven' },
+    ], false);
+
+    expect(result.match).toBeUndefined();
+  });
+
   it('does not use the show title as episode-title evidence', () => {
     const result = matchFile('His.Dark.Materials.S01E04.1080p.BluRay.x265-RARBG.mp4', [
       { id: 'special', season: 0, number: 1, title: 'Making His Dark Materials' },

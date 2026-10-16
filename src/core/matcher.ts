@@ -1,6 +1,6 @@
 import type { Episode, FileMatch, MatchCandidate } from './types';
 import { parseReleaseTags } from './releaseTags';
-import { parseEpisodeCode } from './episodeCode';
+import { parseEpisodeCode, parseStandaloneEpisode } from './episodeCode';
 
 const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
 
@@ -30,9 +30,13 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
   return recall * 0.85 + precision * 0.15;
 }
 
-function numberedEpisode(filename: string): { season: number; episode: number } | undefined {
+function numberedEpisode(filename: string, episodes: Episode[]): { season: number; episode: number; explicitSeason: boolean } | undefined {
   const match = parseEpisodeCode(filename);
-  return match ? { season: match.season, episode: match.episode } : undefined;
+  if (match) return { season: match.season, episode: match.episode, explicitSeason: true };
+  const standalone = parseStandaloneEpisode(filename);
+  if (!standalone) return undefined;
+  const matchingSeasons = [...new Set(episodes.filter((episode) => episode.number === standalone.episode).map((episode) => episode.season))];
+  return matchingSeasons.length === 1 ? { season: matchingSeasons[0], episode: standalone.episode, explicitSeason: false } : undefined;
 }
 
 function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: number | undefined): { score: number; reason?: string } {
@@ -45,14 +49,14 @@ function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: n
 }
 
 export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string, durationSeconds?: number): MatchCandidate[] {
-  const numbered = numberedEpisode(filename);
+  const numbered = numberedEpisode(filename, episodes);
   return episodes
     .map((episode) => {
       const reasons: string[] = [];
       let score = 0;
       if (numbered?.season === episode.season && numbered.episode === episode.number) {
         score += 0.45;
-        reasons.push('season and episode number');
+        reasons.push(numbered.explicitSeason ? 'season and episode number' : 'episode number in the only matching season');
       }
       if (useTitle) {
         const similarity = titleSimilarity(filename, episode.title, showTitle);
