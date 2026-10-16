@@ -120,6 +120,14 @@ describe('episode filename templates', () => {
       .toBe('The Movie (2020) [1080p WEB-DL H.264 AAC 2.0] {edition-Extended} {tmdb-123}');
   });
 
+  it('canonicalizes movie editions again when formatting filenames and folders', () => {
+    const editionTags: ReleaseTags = { ...tags, edition: 'Directors Cut' };
+    expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'Movie', 2020, editionTags, '123'))
+      .toContain("{edition-Director's Cut}");
+    expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Movie', 2020, '123', 'Directors Cut'))
+      .toBe("Movie (2020) {edition-Director's Cut}");
+  });
+
   it('protects the Plex edition marker when an older custom template omits the edition field', () => {
     const previousCustomTemplate = '{{movie.name}}\n{{#movie.year}} ({{movie.year}}){{/movie.year}}\n{{#technical}} [{{technical}}]{{/technical}}\n{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}';
     const editionTags: ReleaseTags = { ...tags, edition: "Director's Cut" };

@@ -73,6 +73,14 @@ function canonicalMovieEdition(value: string): string | undefined {
   return movieEditionDefinitions.find((definition) => new RegExp(`^(?:${definition.source})$`, 'i').test(value.trim()))?.canonical;
 }
 
+export function normalizeMovieEditionName(value: string | undefined): string | undefined {
+  if (!value?.trim()) return undefined;
+  const parts = value.replace(/,\s*and\s+/ig, ',').split(/\s*,\s*|\s+and\s+/i).map((part) => part.trim()).filter(Boolean);
+  const canonical = parts.map(canonicalMovieEdition);
+  if (canonical.some((name) => !name)) return undefined;
+  return formatEditionNames(canonical as string[]);
+}
+
 function movieSuffix(filename: string, title: string | undefined, year: number | undefined): string | undefined {
   const leaf = filename.split(/[\\/]/).at(-1)?.replace(/\.[a-z0-9]{2,5}$/i, '') ?? filename;
   if (title) {
@@ -99,7 +107,7 @@ function explicitMovieEditions(suffix: string): { names?: string[]; error?: stri
   for (const marker of markers) {
     const parts = marker[1].replace(/,\s*and\s+/ig, ',').split(/\s*,\s*|\s+and\s+/i).map((part) => part.trim()).filter(Boolean);
     for (const part of parts) {
-      const canonical = canonicalMovieEdition(part);
+      const canonical = normalizeMovieEditionName(part);
       if (!canonical) return { error: `Unsupported movie edition “${part}”.` };
       names.push(canonical);
     }

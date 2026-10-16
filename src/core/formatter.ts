@@ -1,4 +1,5 @@
 import type { Episode, ReleaseTags } from './types';
+import { normalizeMovieEditionName } from './releaseTags';
 
 export const PREVIOUS_DEFAULT_EPISODE_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}';
 export const PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE = `${PREVIOUS_DEFAULT_EPISODE_TEMPLATE}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
@@ -216,7 +217,7 @@ export function formatShowFolder(template: string, show: string, year: number | 
 }
 
 export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string, edition?: string): string {
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, edition } }])
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, edition: normalizeMovieEditionName(edition) ?? edition } }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').trim();
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
@@ -242,11 +243,12 @@ function insertMissingMovieEdition(rendered: string, movie: string, year: number
 }
 
 export function formatMovie(template: string, movie: string, year: number | undefined, tags: ReleaseTags, tmdbId?: string): string {
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId }, ...releaseContext(tags) }])
+  const normalizedTags = { ...tags, edition: normalizeMovieEditionName(tags.edition) ?? tags.edition };
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId }, ...releaseContext(normalizedTags) }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
   const templatePlacesEdition = /\{\{\s*[#^/]?\s*release\.edition\s*\}\}/i.test(template);
-  return templatePlacesEdition ? rendered : insertMissingMovieEdition(rendered, movie, year, tags.edition);
+  return templatePlacesEdition ? rendered : insertMissingMovieEdition(rendered, movie, year, normalizedTags.edition);
 }
 
 export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = 255): string {

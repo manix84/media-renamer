@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchFile, normalizeTitle } from './matcher';
-import { applyReleaseOverrides, formatEditionNames, parseExplicitEdition, parseMovieEdition, parseReleaseTags } from './releaseTags';
+import { applyReleaseOverrides, formatEditionNames, normalizeMovieEditionName, parseExplicitEdition, parseMovieEdition, parseReleaseTags } from './releaseTags';
 
 const episodes = [
   { id: '1', season: 2, number: 7, title: 'The Security Guard' },
@@ -85,6 +85,12 @@ describe('release tag parser', () => {
     expect(parseMovieEdition('Movie.2020.IMAX.Enhanced.Directors.Cut.Extended.IMAX.1080p.mkv', 'Movie', 2020).edition)
       .toBe("IMAX Enhanced, Director's Cut, Extended, and IMAX");
     expect(formatEditionNames(['Unrated', 'Uncut'])).toBe('Unrated and Uncut');
+  });
+
+  it('canonicalizes and deduplicates alternate movie-edition spellings', () => {
+    expect(normalizeMovieEditionName("Directors Cut and Director's Cut")).toBe("Director's Cut");
+    expect(normalizeMovieEditionName('Collectors Edition, Extended Edition, and 25th Anniversary Edition'))
+      .toBe("Collector's Edition, Extended, and Anniversary Edition");
   });
 
   it('normalises multiple names inside one explicit movie edition marker', () => {
