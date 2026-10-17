@@ -39,6 +39,7 @@ const movieEditionDefinitions: Array<{ canonical: string; source: string }> = [
   { canonical: 'Black and White', source: `Black${SEP}and${SEP}White` },
   { canonical: 'Special Edition', source: `Special${SEP}Edition` },
   { canonical: 'Limited Edition', source: `Limited${SEP}Edition` },
+  { canonical: 'Mind Bending', source: `Mind${SEP}Bending(?:${SEP}Edition)?` },
   { canonical: 'Deluxe Edition', source: `Deluxe${SEP}Edition` },
   { canonical: 'Ultimate Edition', source: `Ultimate${SEP}Edition` },
   { canonical: 'Assembly Cut', source: `Assembly${SEP}Cut` },
@@ -79,6 +80,17 @@ export function normalizeMovieEditionName(value: string | undefined): string | u
   const canonical = parts.map(canonicalMovieEdition);
   if (canonical.some((name) => !name)) return undefined;
   return formatEditionNames(canonical as string[]);
+}
+
+const ambiguousMovieTitleEditions = new Set(['3D', 'IMAX', 'Redux', 'SBS', 'Uncut']);
+
+export function stripTrailingMovieEdition(value: string): string | undefined {
+  for (const definition of movieEditionDefinitions) {
+    if (ambiguousMovieTitleEditions.has(definition.canonical)) continue;
+    const match = new RegExp(`(?:[ ._-]+)(?:${definition.source})$`, 'i').exec(value.trim());
+    if (match?.index) return value.slice(0, match.index).trim();
+  }
+  return undefined;
 }
 
 function movieSuffix(filename: string, title: string | undefined, year: number | undefined): string | undefined {

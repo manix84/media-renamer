@@ -55,6 +55,7 @@ describe('release tag parser', () => {
     ['Movie.2020.4K.Remaster.1080p.mkv', 'Movie', 2020, 'Remastered'],
     ['Movie.2020.HDCAMRip.mkv', 'Movie', 2020, 'HD CAM'],
     ['Movie.2020.HD-TS.DTS.mkv', 'Movie', 2020, 'HD Telesync'],
+    ['Total.Recall.Mind.Bending.Edition.1990.1080p.BluRay.mkv', 'Total Recall', 1990, 'Mind Bending'],
   ])('normalises a movie edition after the matched title: %s', (filename, title, year, edition) => {
     expect(parseMovieEdition(filename, title, year).edition).toBe(edition);
   });
@@ -63,7 +64,7 @@ describe('release tag parser', () => {
     '3D', 'Anniversary Edition', 'Assembly Cut', 'Black and White', 'CAM', "Collector's Edition",
     'Criterion Collection', 'Deluxe Edition', "Director's Cut", "Director's Edition", 'Extended',
     'Fan Edit', 'Final Cut', 'HD CAM', 'HD Telecine', 'HD Telesync', 'IMAX', 'IMAX Enhanced',
-    'International Cut', 'Limited Edition', 'Open Matte', 'Remastered', 'Restored', 'Redux',
+    'International Cut', 'Limited Edition', 'Mind Bending', 'Open Matte', 'Remastered', 'Restored', 'Redux',
     'Roadshow Version', 'SBS', 'Special Edition', 'Telecine', 'Telesync', 'Theatrical Cut',
     'Ultimate Edition', 'Uncut', 'Unrated', 'Workprint',
   ])('supports the canonical FlexGet movie edition %s', (edition) => {

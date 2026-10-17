@@ -1,4 +1,4 @@
-import { stripEditionTokens } from './releaseTags';
+import { stripEditionTokens, stripTrailingMovieEdition } from './releaseTags';
 
 const releaseTokenPattern = /\b(?:2160p|1080p|720p|576p|480p|uhd|hdr10?|dv|dolby[ ._-]?vision|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos|proper|repack|yify|rarbg)\b/i;
 
@@ -41,4 +41,14 @@ export function inferMovieQuery(paths: string[], currentYear = new Date().getFul
     counts.set(key, { value: current?.value ?? candidate, count: (current?.count ?? 0) + 1 });
   }
   return [...counts.values()].sort((left, right) => right.count - left.count || right.value.length - left.value.length)[0]?.value;
+}
+
+export function inferMovieQueryCandidates(paths: string[], currentYear = new Date().getFullYear()): string[] {
+  const primary = inferMovieQuery(paths, currentYear);
+  if (!primary) return [];
+  const year = primary.match(/ \((\d{4})\)$/);
+  const title = year ? primary.slice(0, year.index) : primary;
+  const strippedTitle = stripTrailingMovieEdition(title);
+  if (!strippedTitle) return [primary];
+  return [primary, `${strippedTitle}${year ? ` (${year[1]})` : ''}`];
 }

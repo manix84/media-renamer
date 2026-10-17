@@ -6,7 +6,7 @@ import { createRenamePlan, destinationDirectoryForSource } from './core/renamePl
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import { inferMovieQuery } from './core/movieInference';
+import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { classifyMediaBatch } from './core/mediaClassification';
 import { chooseMovieMatch, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
@@ -814,14 +814,21 @@ export default function App() {
       while (!cancelled) {
         const path = pending[cursor++];
         if (!path) return;
-        const inferred = inferMovieQuery([path]);
+        const inferredQueries = inferMovieQueryCandidates([path]);
+        const inferred = inferredQueries[0];
         let match: MovieFileMatch;
         if (!inferred) {
           match = { path, query: '', candidates: [], status: 'unmatched', confidence: 0, reasons: ['could not infer a title'] };
         } else {
           try {
-            const found = await window.mediaRenamer?.searchMovies(inferred) ?? [];
-            match = chooseMovieMatch(path, inferred, found);
+            let matchedQuery = inferred;
+            let found: MovieSearchResult[] = [];
+            for (const candidateQuery of inferredQueries) {
+              matchedQuery = candidateQuery;
+              found = await window.mediaRenamer?.searchMovies(candidateQuery) ?? [];
+              if (found.length) break;
+            }
+            match = chooseMovieMatch(path, matchedQuery, found);
             if (match.movie && window.mediaRenamer?.getMovie) {
               const matchedMovie = match.movie;
               try {
