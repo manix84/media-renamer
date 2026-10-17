@@ -142,7 +142,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
 | 3 — Resilient matching and metadata | In progress | 7 of 11 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
-| 5 — Editing and confirmation | Started | 2 of 6 steps |
+| 5 — Editing and confirmation | In progress | 3 of 6 steps |
 | 6 — Media detection and subtitle organisation | In progress | 3 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
 | 8 — Release readiness | Planned | 0 of 6 steps |
@@ -211,7 +211,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [ ] episode-level metadata editing for TV shows
 - [x] one-click confirmation for an individual movie suggestion
 - [x] reliable movie Confirm All with an explained list of files that still require manual review
-- [ ] result-driven movie Match modal with immediate search, posters, titles, years, selectable results, and query refinement
+- [x] result-driven movie Match modal with immediate search, posters, titles, years, selectable results, and query refinement
 - [ ] extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate
 
 ### Milestone 6 — media detection and subtitle organisation (started)

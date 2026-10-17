@@ -57,6 +57,8 @@ h1 { margin-bottom: 6px; font-size: 30px; letter-spacing: -.04em; } h1 span { co
 .search-results button:hover, .search-results button.active { background: #202634; }
 .search-results img, .poster-placeholder { width: 30px; height: 42px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; background: #282e3b; display: grid; place-items: center; color: #697388; }
 .search-results strong, .search-results small { display: block; } .search-results strong { font-size: 12px; } .search-results small { margin-top: 3px; color: #747e91; font-size: 10px; }
+.movie-search-hint { width: min(370px, 36vw); min-height: 44px; padding: 8px 12px; display: flex; align-items: center; gap: 9px; border: 1px solid #293142; border-radius: 9px; background: #101620; color: #748096; }
+.movie-search-hint strong, .movie-search-hint small { display: block; } .movie-search-hint strong { color: #c5cddd; font-size: 10px; } .movie-search-hint small { margin-top: 3px; font-size: 8px; }
 .notice { min-height: 44px; margin: -10px 0 18px; padding: 10px 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #594d27; border-radius: 9px; background: #2c2618; color: #d8c375; font-size: 12px; }
 .notice.error { border-color: #61343a; background: #301d22; color: #ef929b; } .notice code { color: inherit; }
 kbd { padding: 3px 6px; border: 1px solid #343b4b; border-radius: 5px; background: #1b202b; color: #717a8c; font-size: 10px; white-space: nowrap; }
@@ -335,6 +337,16 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .candidate-code { color: #8f83e8; font: 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; } .review-candidates button strong, .review-candidates button small { display: block; } .review-candidates button strong { color: #d1d7e4; font-size: 10px; } .review-candidates button small { margin-top: 4px; color: #687387; font-size: 8px; } .candidate-score { color: #8d97a9; font-size: 9px; text-align: right; } .review-candidates button svg { color: #a997ff; }
 .review-empty { padding: 32px 16px; color: #687287; font-size: 10px; text-align: center; }
 .review-footer { min-height: 72px; flex: 0 0 auto; margin-top: 16px; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #282f3d; } .review-footer span { display: flex; align-items: center; gap: 7px; color: #6f7a8e; font-size: 8px; } .review-footer button { flex: 0 0 auto; }
+.movie-review-panel { width: min(640px, calc(100vw - 28px)); }
+.movie-review-candidates { flex: 1; min-height: 0; margin: 0 20px; overflow-y: auto; border: 1px solid #293141; border-radius: 9px; }
+.movie-review-candidates button { width: 100%; min-height: 92px; padding: 9px 11px; display: grid; grid-template-columns: 50px minmax(0, 1fr) 18px; align-items: center; gap: 11px; border: 0; border-top: 1px solid #252c39; background: #111620; color: #8792a6; text-align: left; cursor: pointer; }
+.movie-review-candidates button:first-child { border-top: 0; } .movie-review-candidates button:hover { background: #181e29; } .movie-review-candidates button.selected { background: #25203e; box-shadow: inset 3px 0 #7565e9; }
+.movie-review-candidates img, .movie-review-poster-placeholder { width: 46px; height: 69px; border-radius: 5px; object-fit: cover; background: #252c39; display: grid; place-items: center; color: #727e93; }
+.movie-review-candidates strong, .movie-review-candidates small, .movie-review-candidates em { display: block; }
+.movie-review-candidates strong { color: #d2d9e6; font-size: 11px; } .movie-review-candidates small { margin-top: 4px; color: #7d889b; font-size: 9px; }
+.movie-review-candidates em { margin-top: 7px; overflow: hidden; color: #687387; font-size: 8px; font-style: normal; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.movie-review-candidates button > svg { color: #a997ff; }
+.movie-review-error { margin: 10px 20px 0; padding: 9px 10px; display: flex; align-items: center; gap: 7px; border: 1px solid #63343a; border-radius: 7px; background: #351d22; color: #ed8d96; font-size: 9px; }
 .empty-state { min-height: 100px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #687287; font-size: 11px; text-align: center; }
 .dropzone { width: calc(100% - 24px); margin: 12px; min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed #343c4c; border-radius: 9px; background: transparent; color: #59647a; cursor: pointer; } .dropzone span { color: #929caf; margin-top: 8px; font-size: 12px; } .dropzone small { margin-top: 4px; font-size: 9px; }
 .dropzone-empty { flex: 1; min-height: 0; }
@@ -384,6 +396,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .search-results button:hover, [data-theme="light"] .search-results button.active { background: #f0f2f7; }
 [data-theme="light"] .search-results img, [data-theme="light"] .poster-placeholder { background: #e8ebf1; color: #6d788c; }
 [data-theme="light"] .search-results small { color: #68738a; }
+[data-theme="light"] .movie-search-hint { border-color: #d4d9e3; background: #fff; color: #68758a; } [data-theme="light"] .movie-search-hint strong { color: #303b50; }
 [data-theme="light"] .notice { border-color: #dfc978; background: #fff7d8; color: #755f12; }
 [data-theme="light"] .notice.error { border-color: #e6afb5; background: #fff0f1; color: #a53c48; }
 [data-theme="light"] kbd { border-color: #d5dae4; background: #f3f5f8; color: #68738a; }
@@ -508,6 +521,9 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .review-file { border-color: #d9dee7; background: #f8f9fb; color: #68758a; } [data-theme="light"] .review-file strong { color: #303b50; } [data-theme="light"] .review-file small { color: #68758a; }
 [data-theme="light"] .review-search { border-color: #ccd3df; background: #fff; } [data-theme="light"] .review-search input { color: #172033; }
 [data-theme="light"] .review-candidates { border-color: #d9dee7; } [data-theme="light"] .review-candidates button { border-color: #dfe3ea; background: #fff; color: #5f6b80; } [data-theme="light"] .review-candidates button:hover { background: #f1f3f7; } [data-theme="light"] .review-candidates button.selected { background: #f0edff; } [data-theme="light"] .review-candidates button strong { color: #303b50; } [data-theme="light"] .review-candidates button small { color: #68758a; }
+[data-theme="light"] .movie-review-candidates { border-color: #d9dee7; } [data-theme="light"] .movie-review-candidates button { border-color: #dfe3ea; background: #fff; color: #5f6b80; } [data-theme="light"] .movie-review-candidates button:hover { background: #f1f3f7; } [data-theme="light"] .movie-review-candidates button.selected { background: #f0edff; } [data-theme="light"] .movie-review-candidates strong { color: #303b50; } [data-theme="light"] .movie-review-candidates small, [data-theme="light"] .movie-review-candidates em { color: #68758a; }
+[data-theme="light"] .movie-review-candidates img, [data-theme="light"] .movie-review-poster-placeholder { background: #e8ebf1; color: #6d788c; }
+[data-theme="light"] .movie-review-error { border-color: #edc7cb; background: #fff0f1; color: #a83b47; }
 [data-theme="light"] .dropzone { border-color: #cbd2df; color: #707c91; }
 [data-theme="light"] .dropzone:hover { border-color: #8b7add; background: #f7f5ff; }
 [data-theme="light"] .dropzone span { color: #4f5b70; }

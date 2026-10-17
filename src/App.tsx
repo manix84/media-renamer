@@ -260,6 +260,12 @@ export default function App() {
   const [show, setShow] = useState<ShowDetails>();
   const [movieMatches, setMovieMatches] = useState<Record<string, MovieFileMatch>>({});
   const [movieReviewPath, setMovieReviewPath] = useState<string>();
+  const [movieReviewQuery, setMovieReviewQuery] = useState('');
+  const [movieReviewResults, setMovieReviewResults] = useState<MovieSearchResult[]>([]);
+  const [movieReviewSelection, setMovieReviewSelection] = useState<string>();
+  const [movieReviewSearching, setMovieReviewSearching] = useState(false);
+  const [movieReviewLoading, setMovieReviewLoading] = useState(false);
+  const [movieReviewError, setMovieReviewError] = useState<string>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
   const [matchOverrides, setMatchOverrides] = useState<Record<string, MatchCandidate>>({});
@@ -307,6 +313,7 @@ export default function App() {
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const movieBatchSequence = useRef(0);
+  const movieReviewSequence = useRef(0);
   const autoSelectResult = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchResultButtons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -425,8 +432,6 @@ export default function App() {
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const movieFormatError = movieTemplateError(movieTemplate);
-  const focusedMovieMatch = movieReviewPath ? movieMatches[movieReviewPath] : undefined;
-  const focusedMovie = focusedMovieMatch?.movie;
   const movieMatchCounts = useMemo(() => ({
     ready: paths.filter((path) => movieMatches[path]?.status === 'confident').length,
     review: paths.filter((path) => movieMatches[path]?.status === 'review').length,
@@ -776,11 +781,11 @@ export default function App() {
   }, [inspectMedia, paths]);
 
   useEffect(() => {
-    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !renameReport && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !pinnedPreviewPath) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming && !undoing) { setPreferencesOpen(false); setTemplateReferenceOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setUndoConfirmationOpen(false); setRenameReport(undefined); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setPinnedPreviewPath(undefined); } };
+    if (!preferencesOpen && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !renameReport && !batchMetadataOpen && !posterPreviewOpen && !reviewingPath && !movieReviewPath && !pinnedPreviewPath) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !renaming && !undoing) { setPreferencesOpen(false); setTemplateReferenceOpen(false); setRefreshConfirmation(false); setClearConfirmation(false); setConfirmAllOpen(false); setRenameConfirmationOpen(false); setUndoConfirmationOpen(false); setRenameReport(undefined); setBatchMetadataOpen(false); setPosterPreviewOpen(false); setPosterZoomed(false); setReviewingPath(undefined); setMovieReviewPath(undefined); setPinnedPreviewPath(undefined); } };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renameReport, renaming, undoing, batchMetadataOpen, posterPreviewOpen, reviewingPath, pinnedPreviewPath]);
+  }, [preferencesOpen, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renameReport, renaming, undoing, batchMetadataOpen, posterPreviewOpen, reviewingPath, movieReviewPath, pinnedPreviewPath]);
 
   useEffect(() => {
     window.mediaRenamer?.providerStatus().then((status) => {
@@ -950,8 +955,7 @@ export default function App() {
 
   useEffect(() => {
     const trimmed = query.trim();
-    const selectedName = activeMediaTab === 'movies' ? focusedMovie?.name : show?.name;
-    if (!provider?.configured || trimmed.length < 2 || (activeMediaTab === 'movies' && !movieReviewPath) || (activeMediaTab === 'shows' && selectedName && trimmed === selectedName)) {
+    if (activeMediaTab !== 'shows' || !provider?.configured || trimmed.length < 2 || (show?.name && trimmed === show.name)) {
       searchSequence.current += 1;
       setResults([]);
       setSearching(false);
@@ -963,12 +967,12 @@ export default function App() {
       setError(undefined);
       addDebug('info', `Searching for “${trimmed}”`);
       try {
-        const found = activeMediaTab === 'movies' ? await window.mediaRenamer?.searchMovies(trimmed) ?? [] : await window.mediaRenamer?.searchShows(trimmed) ?? [];
+        const found = await window.mediaRenamer?.searchShows(trimmed) ?? [];
         if (searchSequence.current === sequence) {
           addDebug(found.length ? 'success' : 'warning', `Search returned ${found.length} result${found.length === 1 ? '' : 's'}`, found.length ? found.slice(0, 5).map((item) => `${item.name}${item.year ? ` (${item.year})` : ''}`).join(', ') : `No provider result matched “${trimmed}”.`);
           if (autoSelectResult.current && found[0]) {
             autoSelectResult.current = false;
-            addDebug('info', `Automatically selecting ${found[0].name}`, `Using the first result for the ${activeMediaTab === 'movies' ? 'movie' : 'show'} name inferred from the imported files.`);
+            addDebug('info', `Automatically selecting ${found[0].name}`, 'Using the first result for the show name inferred from the imported files.');
             void selectShow(found[0]);
           } else {
             setActiveSearchResult(-1);
@@ -986,31 +990,38 @@ export default function App() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [activeMediaTab, addDebug, focusedMovie?.name, movieReviewPath, provider?.configured, query, show?.name]);
+  }, [activeMediaTab, addDebug, provider?.configured, query, show?.name]);
+
+  useEffect(() => {
+    if (!movieReviewPath || !provider?.configured) return;
+    const trimmed = movieReviewQuery.trim();
+    if (trimmed.length < 2) {
+      movieReviewSequence.current += 1;
+      setMovieReviewResults([]);
+      setMovieReviewSearching(false);
+      return;
+    }
+    const sequence = ++movieReviewSequence.current;
+    const timer = window.setTimeout(async () => {
+      setMovieReviewSearching(true);
+      setMovieReviewError(undefined);
+      try {
+        const found = await window.mediaRenamer?.searchMovies(trimmed) ?? [];
+        if (movieReviewSequence.current !== sequence) return;
+        setMovieReviewResults(found);
+        setMovieReviewSelection((current) => found.some((movie) => movie.id === current) ? current : found[0]?.id);
+        addDebug(found.length ? 'success' : 'warning', `Movie review search returned ${found.length} result${found.length === 1 ? '' : 's'}`, `Query: “${trimmed}”.`);
+      } catch (reason) {
+        if (movieReviewSequence.current === sequence) setMovieReviewError(errorMessage(reason));
+      } finally {
+        if (movieReviewSequence.current === sequence) setMovieReviewSearching(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [addDebug, movieReviewPath, movieReviewQuery, provider?.configured]);
 
   async function selectShow(result: ShowSearchResult, episodeAgent: ShowMetadataAgent = showMetadataAgent) {
     setActiveSearchResult(-1);
-    if (activeMediaTab === 'movies') {
-      if (!movieReviewPath) return;
-      setQuery(result.name);
-      setResults([]);
-      setError(undefined);
-      addDebug('info', `Loading ${result.name}`, `TMDB movie ID ${result.id}.`);
-      try {
-        const details = await window.mediaRenamer?.getMovie(result.id);
-        if (details) {
-          setMovieMatches((current) => ({ ...current, [movieReviewPath]: manuallySelectMovie(current[movieReviewPath] ?? { path: movieReviewPath, query, candidates: [], status: 'review', confidence: 0, reasons: [] }, details) }));
-          setMovieReviewPath(undefined);
-          setQuery('');
-          addDebug('success', `Matched ${filenameFromPath(movieReviewPath)} → ${details.name}`, `${details.year ?? 'Release year unknown'} · manually selected TMDB movie.`);
-        }
-      } catch (reason) {
-        const message = errorMessage(reason);
-        setError(message);
-        addDebug('error', `Could not load ${result.name}`, message);
-      }
-      return;
-    }
     const sequence = ++seasonSequence.current;
     setQuery(result.name);
     autoSelectResult.current = false;
@@ -1056,6 +1067,37 @@ export default function App() {
     }
   }
 
+  function openMovieMatchReview(path: string) {
+    const match = movieMatches[path];
+    if (!match || match.status === 'detecting') return;
+    setMovieReviewPath(path);
+    setMovieReviewQuery(match.query);
+    setMovieReviewResults(match.candidates);
+    setMovieReviewSelection(match.movie?.id ?? match.candidates[0]?.id);
+    setMovieReviewError(undefined);
+  }
+
+  async function confirmMovieReview(selection = movieReviewSelection) {
+    if (!movieReviewPath || !selection) return;
+    const result = movieReviewResults.find((movie) => movie.id === selection);
+    if (!result) return;
+    setMovieReviewLoading(true);
+    setMovieReviewError(undefined);
+    try {
+      const details = await window.mediaRenamer?.getMovie(result.id);
+      if (!details) throw new Error('The metadata provider returned no movie details.');
+      setMovieMatches((current) => ({ ...current, [movieReviewPath]: manuallySelectMovie(current[movieReviewPath] ?? { path: movieReviewPath, query: movieReviewQuery, candidates: [], status: 'review', confidence: 0, reasons: [] }, details) }));
+      addDebug('success', `Matched ${filenameFromPath(movieReviewPath)} → ${details.name}`, `${details.year ?? 'Release year unknown'} · manually selected TMDB movie.`);
+      setMovieReviewPath(undefined);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setMovieReviewError(message);
+      addDebug('error', `Could not load ${result.name}`, message);
+    } finally {
+      setMovieReviewLoading(false);
+    }
+  }
+
   function clearShowSearch() {
     searchSequence.current += 1;
     seasonSequence.current += 1;
@@ -1068,7 +1110,7 @@ export default function App() {
       setShow(undefined);
       setEpisodes([]);
       setLoadingEpisodes(false);
-    } else setMovieReviewPath(undefined);
+    }
     searchInput.current?.focus();
   }
 
@@ -1291,6 +1333,9 @@ export default function App() {
     setShow(undefined);
     setMovieMatches({});
     setMovieReviewPath(undefined);
+    setMovieReviewQuery('');
+    setMovieReviewResults([]);
+    setMovieReviewSelection(undefined);
     setEpisodes([]);
     setLoadingEpisodes(false);
     setMatches([]);
@@ -1327,7 +1372,7 @@ export default function App() {
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     if (reviewingPath === path) setReviewingPath(undefined);
-    if (movieReviewPath === path) { setMovieReviewPath(undefined); setQuery(''); setResults([]); }
+    if (movieReviewPath === path) { setMovieReviewPath(undefined); setMovieReviewResults([]); setMovieReviewSelection(undefined); }
     if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
     setRemovingPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     delete removalTimers.current[path];
@@ -1421,6 +1466,7 @@ export default function App() {
     setError(undefined);
     setReviewingPath(undefined);
     setMovieReviewPath(undefined);
+    setMovieReviewResults([]);
     setPinnedPreviewPath(undefined);
   }
 
@@ -1456,23 +1502,23 @@ export default function App() {
               <p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE BATCH' : t('hero.activeShow')}</p>
               {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
               {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
-              <p>{activeMediaTab === 'movies' ? movieReviewPath ? `Reviewing ${filenameFromPath(movieReviewPath)}` : paths.length ? `${movieMatchCounts.ready} ready · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
+              <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} ready · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
             </div>
           </div>
-          <div className="show-search">
-            <div className="search"><Search size={17}/><input ref={searchInput} role="combobox" aria-autocomplete="list" aria-controls="media-search-results" aria-expanded={results.length > 0} aria-activedescendant={activeSearchResult >= 0 ? `media-search-result-${activeSearchResult}` : undefined} aria-label={activeMediaTab === 'movies' ? 'Search movies for selected file' : 'Search TV shows'} disabled={activeMediaTab === 'movies' && !movieReviewPath} value={query} onChange={(event) => { autoSelectResult.current = false; setActiveSearchResult(-1); setQuery(event.target.value); if (activeMediaTab === 'shows' && event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} onKeyDown={(event) => {
+          {activeMediaTab === 'shows' ? <div className="show-search">
+            <div className="search"><Search size={17}/><input ref={searchInput} role="combobox" aria-autocomplete="list" aria-controls="media-search-results" aria-expanded={results.length > 0} aria-activedescendant={activeSearchResult >= 0 ? `media-search-result-${activeSearchResult}` : undefined} aria-label="Search TV shows" value={query} onChange={(event) => { autoSelectResult.current = false; setActiveSearchResult(-1); setQuery(event.target.value); if (event.target.value !== show?.name) { seasonSequence.current += 1; setShow(undefined); setEpisodes([]); setLoadingEpisodes(false); } }} onKeyDown={(event) => {
               if (!results.length) return;
               if (event.key === 'ArrowDown') { event.preventDefault(); setActiveSearchResult((current) => current < results.length - 1 ? current + 1 : 0); }
               else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSearchResult((current) => current > 0 ? current - 1 : results.length - 1); }
               else if (event.key === 'Enter' && activeSearchResult >= 0) { event.preventDefault(); void selectShow(results[activeSearchResult]); }
-            }} placeholder={activeMediaTab === 'movies' ? movieReviewPath ? 'Search a replacement movie…' : 'Select a movie row to review' : 'Show name, tvdb-482771, or tmdb-…'} autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label={`Clear ${activeMediaTab === 'movies' ? 'movie' : 'show'} search`} title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : activeMediaTab === 'shows' && !searching && <kbd>⌘ K</kbd>}</div>
-            {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label={`${activeMediaTab === 'movies' ? 'Movie' : 'TV show'} search results`}>
+            }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label="Clear show search" title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
+            {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label="TV show search results">
               {results.map((result, index) => <button ref={(element) => { searchResultButtons.current[index] = element; }} id={`media-search-result-${index}`} role="option" aria-selected={activeSearchResult === index} className={activeSearchResult === index ? 'active' : ''} key={result.id} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => void selectShow(result)}>
-                {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder">{activeMediaTab === 'movies' ? <Film size={18}/> : <Tv size={18}/>}</span>}
+                {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder"><Tv size={18}/></span>}
                 <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}</small></span>
               </button>)}
             </div>}
-          </div>
+          </div> : <div className="movie-search-hint"><ListChecks size={16}/><span><strong>Per-file movie matching</strong><small>Use the Match button on a row to search and replace its result.</small></span></div>}
         </section>
 
         {!provider?.configured && provider && <div className="notice"><AlertCircle size={17}/><span><strong>TMDB access token needed.</strong> Add <code>TMDB_ACCESS_TOKEN=…</code> to <code>.env</code>, then restart the app.</span></div>}
@@ -1487,7 +1533,7 @@ export default function App() {
               {activeMediaTab === 'movies' && <span className="count">{paths.length}</span>}
             </div>
             <div className="episode-list">
-              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} ready</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched</span>{focusedMovie ? <><p>{focusedMovie.name}{focusedMovie.year ? ` (${focusedMovie.year})` : ''}</p>{focusedMovie.overview && <p>{focusedMovie.overview}</p>}<small>TMDB {focusedMovie.id}</small></> : <p>Select the review button on any row to inspect or replace its match.</p>}</div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
+              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} ready</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched</span><p>Use the Match button on any row to inspect or replace its result.</p></div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
                 <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</div>
@@ -1583,7 +1629,7 @@ export default function App() {
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
                       {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
-                      {activeMediaTab === 'movies' && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Review movie match for ${filename}`} title="Review movie match" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => { setMovieReviewPath(path); setQuery(movieFileMatch?.query ?? ''); setResults(movieFileMatch?.candidates ?? []); setActiveSearchResult(-1); window.setTimeout(() => searchInput.current?.focus(), 0); }}><ListChecks size={14}/></button>}
+                      {activeMediaTab === 'movies' && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Match movie for ${filename}`} title="Match movie" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => openMovieMatchReview(path)}><ListChecks size={14}/></button>}
                     </div>
                     {(matchingRequired && item?.match) || movieConfirmationRequired ? <button className="row-confirm" aria-label={`Confirm suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
                     {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
@@ -1686,6 +1732,26 @@ export default function App() {
           <p id="undo-description">This will safely move {lastRename.operation.items.length} file{lastRename.operation.items.length === 1 ? '' : 's'} back to their original locations. Undo stops if an original path is now occupied.</p>
           <div><button className="secondary" disabled={undoing} onClick={() => setUndoConfirmationOpen(false)}>Cancel</button><button className="primary" disabled={undoing} onClick={() => void undoLastRename()}>{undoing && <LoaderCircle className="spin" size={15}/>} Undo rename</button></div>
         </section>
+      </div>}
+
+      {movieReviewPath && <div className="review-layer">
+        <button className="review-backdrop" aria-label="Close movie match" onClick={() => setMovieReviewPath(undefined)}/>
+        <aside className="review-panel movie-review-panel" aria-label="Match movie">
+          <div className="review-heading"><div><p className="eyebrow">MOVIE MATCH</p><h2>Choose a movie</h2></div><button className="icon-button" aria-label="Close movie match" onClick={() => setMovieReviewPath(undefined)}><X size={18}/></button></div>
+          <div className="review-file"><FileVideo size={17}/><span><strong>{filenameFromPath(movieReviewPath)}</strong><small>Search TMDB and choose the exact title and release year.</small></span></div>
+          <label className="review-search"><Search size={15}/><input value={movieReviewQuery} onChange={(event) => { setMovieReviewQuery(event.target.value); setMovieReviewSelection(undefined); }} placeholder="Movie title, year, or tmdb-…" autoFocus/>{movieReviewSearching && <LoaderCircle className="spin" size={14}/>}</label>
+          <div className="review-results-heading"><strong>Search results</strong><small>{movieReviewResults.length} movie{movieReviewResults.length === 1 ? '' : 's'}</small></div>
+          <div className="movie-review-candidates" role="listbox" aria-label="Movie search results">
+            {movieReviewResults.map((movie) => <button key={movie.id} role="option" aria-selected={movieReviewSelection === movie.id} className={movieReviewSelection === movie.id ? 'selected' : ''} onClick={() => setMovieReviewSelection(movie.id)} onDoubleClick={() => void confirmMovieReview(movie.id)}>
+              {movie.posterUrl ? <img src={movie.posterUrl} alt=""/> : <span className="movie-review-poster-placeholder"><Film size={19}/></span>}
+              <span><strong>{movie.name}</strong><small>{movie.year ?? 'Release year unknown'} · TMDB {movie.id}</small>{movie.overview && <em>{movie.overview}</em>}</span>
+              {movieReviewSelection === movie.id && <Check size={16}/>}
+            </button>)}
+            {!movieReviewSearching && !movieReviewResults.length && <div className="review-empty">No movies found. Refine the title or add a release year.</div>}
+          </div>
+          {movieReviewError && <div className="movie-review-error"><AlertCircle size={14}/>{movieReviewError}</div>}
+          <div className="review-footer"><span><FileCheck2 size={15}/> Double-click a result to confirm it immediately.</span><button className="primary" disabled={!movieReviewSelection || movieReviewSearching || movieReviewLoading} onClick={() => void confirmMovieReview()}>{movieReviewLoading && <LoaderCircle className="spin" size={14}/>} Confirm movie</button></div>
+        </aside>
       </div>}
 
       {reviewingPath && reviewingItem && <div className="review-layer">
