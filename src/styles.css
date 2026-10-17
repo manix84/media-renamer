@@ -216,6 +216,17 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .metadata-live-preview.invalid code { color: #ff9ca5; }
 .metadata-editor-actions { padding: 14px 20px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #2b3240; }
 .metadata-editor-actions > span { flex: 1; }
+.release-alias-settings > label { display: grid; gap: 8px; }
+.release-alias-settings > label > span { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.release-alias-settings > label strong { color: #cbd3e1; font-size: 11px; }
+.release-alias-settings > label small, .release-alias-fields { color: #747f93; font-size: 9px; }
+.release-alias-settings textarea { width: 100%; min-height: 116px; resize: vertical; padding: 10px 11px; border: 1px solid #343d4e; border-radius: 8px; background: #0d121b; color: #dce3ee; font: 10px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; outline: none; }
+.release-alias-settings textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.release-alias-settings.invalid textarea { border-color: #743f48; }
+.release-alias-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.release-alias-fields code { color: #aab4c5; }
+.release-alias-errors { margin: 0; padding: 9px 10px 9px 26px; border: 1px solid #6b3943; border-radius: 7px; background: #241419; color: #ff9da6; font-size: 9px; line-height: 1.6; }
+.release-alias-status { display: flex; align-items: center; gap: 6px; color: #65d3a0; font-size: 9px; }
 .confirmation-results { max-height: 210px; margin: -7px 0 18px; padding: 0; overflow-y: auto; border: 1px solid #293141; border-radius: 8px; list-style: none; text-align: left; }
 .confirmation-results li { padding: 9px 10px; border-top: 1px solid #252c39; }
 .confirmation-results li:first-child { border-top: 0; }
@@ -510,6 +521,12 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .metadata-live-preview code { color: #34445c; }
 [data-theme="light"] .metadata-live-preview.invalid { border-color: #e6afb6; background: #fff0f2; }
 [data-theme="light"] .metadata-live-preview.invalid code { color: #a82f3c; }
+[data-theme="light"] .release-alias-settings > label strong { color: #303b50; }
+[data-theme="light"] .release-alias-settings > label small, [data-theme="light"] .release-alias-fields { color: #68758a; }
+[data-theme="light"] .release-alias-settings textarea { border-color: #d5dce7; background: #fff; color: #263247; }
+[data-theme="light"] .release-alias-fields code { color: #536075; }
+[data-theme="light"] .release-alias-errors { border-color: #e4b2b8; background: #fff0f2; color: #a82f3c; }
+[data-theme="light"] .release-alias-status { color: #168255; }
 [data-theme="light"] .confirmation-icon { background: #eeeaff; color: #6552bd; }
 [data-theme="light"] .confirmation-icon.destructive { background: #fff0f1; color: #b43f4b; }
 [data-theme="light"] .confirmation-dialog p { color: #68758a; }

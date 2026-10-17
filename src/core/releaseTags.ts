@@ -1,4 +1,5 @@
 import type { ReleaseTags, Source } from './types';
+import { applyReleaseAliases, type ReleaseTagAlias } from './releaseAliases';
 
 const sources: Array<[RegExp, Source]> = [
   [/\b(?:blu[ ._-]?ray|b[dr]rip|bd)\b/i, 'BluRay'],
@@ -172,7 +173,7 @@ function detectReleaseGroup(stem: string, source: Source, resolution?: string, v
   return leading && !/^(?:2160p|1080p|720p|576p|480p|WEB-DL|WEBRip|BluRay|AAC|DTS)$/i.test(leading) ? leading : undefined;
 }
 
-export function parseReleaseTags(filename: string): ReleaseTags {
+export function parseReleaseTags(filename: string, aliases: ReleaseTagAlias[] = []): ReleaseTags {
   const leaf = filename.split(/[\\/]/).at(-1) ?? filename;
   const stem = leaf.replace(/\.[a-z0-9]{2,5}$/i, '');
   const evidence = filename.replace(/\.[a-z0-9]{2,5}$/i, '');
@@ -188,7 +189,7 @@ export function parseReleaseTags(filename: string): ReleaseTags {
   const webOrigin = detectWebOrigin(evidence, source);
   const explicitEdition = parseExplicitEdition(evidence);
 
-  return {
+  return applyReleaseAliases(evidence, {
     source,
     edition: explicitEdition.edition,
     editionError: explicitEdition.error,
@@ -199,7 +200,7 @@ export function parseReleaseTags(filename: string): ReleaseTags {
     flags: [...new Set(flags.map((flag) => flag === 'REPACKED' ? 'REPACK' : flag))],
     group,
     ...webOrigin,
-  };
+  }, aliases);
 }
 
 export function applyReleaseOverrides(tags: ReleaseTags, overrides: { source?: Source; aiUpscale?: boolean }): ReleaseTags {

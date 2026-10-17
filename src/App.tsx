@@ -4,6 +4,7 @@ import { prepareCompletionChime } from './completionChime';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
+import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
@@ -206,6 +207,7 @@ export default function App() {
     return Number.isFinite(saved) && saved >= 50 && saved <= 100 ? Math.round(saved) : 80;
   });
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
+  const [releaseAliasText, setReleaseAliasText] = useState('');
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
@@ -440,6 +442,8 @@ export default function App() {
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const movieFormatError = movieTemplateError(movieTemplate);
+  const parsedReleaseAliases = useMemo(() => parseReleaseAliasText(releaseAliasText), [releaseAliasText]);
+  const releaseAliases = useMemo(() => parsedReleaseAliases.errors.length ? [] : parsedReleaseAliases.aliases, [parsedReleaseAliases]);
   const deferredMoviePaths = useMemo(() => new Set(paths.filter((path) => classifyMediaFile(path) === 'shows')), [paths]);
   const movieMatchCounts = useMemo(() => ({
     ready: paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === 'confident').length,
@@ -482,7 +486,7 @@ export default function App() {
       number: Number(episode.number),
       title: episode.title.trim(),
     } satisfies Episode)) : matchedEpisodes;
-    const detectedTags = item?.tags ?? (activeMediaTab === 'movies' ? parseReleaseTags(path) : undefined);
+    const detectedTags = parseReleaseTags(path, releaseAliases);
     const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year) : undefined;
     const baseTags = detectedTags ? {
       ...detectedTags,
@@ -531,7 +535,7 @@ export default function App() {
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, folderFormatError, formatError, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, paths, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, folderFormatError, formatError, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -587,6 +591,7 @@ export default function App() {
       if (saved.movieFolderTemplate !== undefined) setMovieFolderTemplate(saved.movieFolderTemplate === PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE ? DEFAULT_MOVIE_FOLDER_TEMPLATE : saved.movieFolderTemplate);
       if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate === PREVIOUS_DEFAULT_MOVIE_TEMPLATE || saved.movieTemplate === PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE ? DEFAULT_MOVIE_TEMPLATE : saved.movieTemplate);
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
+      if (saved.releaseAliasText !== undefined) setReleaseAliasText(saved.releaseAliasText);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
@@ -667,12 +672,13 @@ export default function App() {
       movieFolderTemplate,
       movieTemplate,
       removeEmptySourceParents,
+      releaseAliasText,
       renameLogFolder,
       showFolderTemplate,
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -807,7 +813,7 @@ export default function App() {
     }
 
     setPaths((current) => [...new Set(current.flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)]))]);
-    setMatches((current) => current.flatMap((item) => deleted.has(item.path) ? [] : [{ ...item, path: nextPath(item.path), filename: filenameFromPath(nextPath(item.path)), tags: moved.has(item.path) ? parseReleaseTags(nextPath(item.path)) : item.tags }]));
+    setMatches((current) => current.flatMap((item) => deleted.has(item.path) ? [] : [{ ...item, path: nextPath(item.path), filename: filenameFromPath(nextPath(item.path)), tags: moved.has(item.path) ? parseReleaseTags(nextPath(item.path), releaseAliases) : item.tags }]));
     setTechnicalTags(remapRecord);
     setProbeStates(remapRecord);
     setMatchOverrides(remapRecord);
@@ -816,7 +822,7 @@ export default function App() {
     setReviewingPath((current) => current && !deleted.has(current) ? nextPath(current) : undefined);
     setPinnedPreviewPath((current) => current && !deleted.has(current) ? nextPath(current) : undefined);
     setBatchRenameCompleted(false);
-  }), [addDebug]);
+  }), [addDebug, releaseAliases]);
 
   useEffect(() => {
     if (!window.mediaRenamer?.probeMedia) return;
@@ -946,7 +952,7 @@ export default function App() {
         return match ? [{
         path,
         filename: filenameFromPath(path),
-        tags: parseReleaseTags(path),
+        tags: parseReleaseTags(path, releaseAliases),
         match: match.movie ? { episode: { id: match.movie.id, season: 0, number: 0, title: match.movie.name }, score: match.confidence, reasons: match.reasons } : undefined,
         alternatives: [],
         status: match.status === 'confident' ? 'confident' : match.status === 'review' ? 'review' : 'unmatched',
@@ -997,7 +1003,7 @@ export default function App() {
       worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100, showTitle: show?.name, durationsByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.durationSeconds])) });
     }, 120);
     return () => { window.clearTimeout(start); worker?.terminate(); };
-  }, [activeMediaTab, addDebug, movieMatches, paths, episodes, show?.name, technicalTags, titleMatching, matchConfidenceThreshold]);
+  }, [activeMediaTab, addDebug, movieMatches, paths, releaseAliases, episodes, show?.name, technicalTags, titleMatching, matchConfidenceThreshold]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -1449,7 +1455,7 @@ export default function App() {
     const movie = movieMatches[path]?.movie;
     const matchedEpisodes = item?.match ? candidateEpisodes(item.match) : [];
     if (activeMediaTab === 'movies' ? !movie : !show || !matchedEpisodes.length) return;
-    const tags = applyReleaseOverrides({ ...(item?.tags ?? parseReleaseTags(path)), ...technicalTags[path] }, {
+    const tags = applyReleaseOverrides({ ...parseReleaseTags(path, releaseAliases), ...technicalTags[path] }, {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     });
@@ -1694,11 +1700,11 @@ export default function App() {
                 const movieFileMatch = movieMatches[path];
                 const deferredToTv = activeMediaTab === 'movies' && deferredMoviePaths.has(path);
                 const filename = item?.filename ?? filenameFromPath(path);
-                const baseTags = item?.tags ?? (activeMediaTab === 'movies' ? parseReleaseTags(path) : undefined);
-                const tags = baseTags ? applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
+                const baseTags = parseReleaseTags(path, releaseAliases);
+                const tags = applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
                   source: sourceOverride === 'auto' ? undefined : sourceOverride,
                   aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
-                }) : undefined;
+                });
                 const probeState = probeStates[path];
                 const inspecting = probeState === 'loading';
                 const extension = filename.match(/(\.[^.]+)$/)?.[1] ?? '';
@@ -1959,6 +1965,7 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
+          <section className={`preference-section release-alias-settings ${parsedReleaseAliases.errors.length ? 'invalid' : ''}`}><h3>Release-tag aliases</h3><p>Add personal filename vocabulary without replacing the built-in detector. Matches are case-insensitive, separator-tolerant, and require complete tokens.</p><label><span><strong>Aliases</strong><small><code>field = filename alias =&gt; output</code>; web origins may add <code>| shorthand</code>.</small></span><textarea value={releaseAliasText} onChange={(event) => setReleaseAliasText(event.target.value)} spellCheck={false} placeholder={'source = web download => WEB-DL\nvideoCodec = AVC => H.264\nflag = dual audio => Dual Audio\nwebOrigin = crunchy premium => Crunchyroll | CR'}/></label><small className="release-alias-fields">Fields: <code>source</code> <code>resolution</code> <code>videoCodec</code> <code>audioCodec</code> <code>channels</code> <code>flag</code> <code>webOrigin</code></small>{parsedReleaseAliases.errors.length ? <ul className="release-alias-errors">{parsedReleaseAliases.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <div className="release-alias-status"><Check size={13}/>{parsedReleaseAliases.aliases.length ? `${parsedReleaseAliases.aliases.length} custom alias${parsedReleaseAliases.aliases.length === 1 ? '' : 'es'} active` : 'Built-in vocabulary only'}</div>}{releaseAliasText && <button className="clear-overrides" onClick={() => setReleaseAliasText('')}>Clear custom aliases</button>}</section>
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>

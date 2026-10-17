@@ -35,6 +35,7 @@ declare global {
         movieFolderTemplate?: string;
         movieTemplate?: string;
         removeEmptySourceParents?: boolean;
+        releaseAliasText?: string;
         renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -56,6 +57,7 @@ declare global {
         movieFolderTemplate?: string;
         movieTemplate?: string;
         removeEmptySourceParents?: boolean;
+        releaseAliasText?: string;
         renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';

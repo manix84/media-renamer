@@ -15,6 +15,7 @@ export type PersistedPreferences = {
   movieFolderTemplate?: string;
   movieTemplate?: string;
   removeEmptySourceParents?: boolean;
+  releaseAliasText?: string;
   renameLogFolder?: string;
   showFolderTemplate?: string;
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -23,7 +24,7 @@ export type PersistedPreferences = {
   tvBaseFolder?: string;
 };
 
-const stringKeys = new Set(['episodeTemplate', 'movieBaseFolder', 'movieFolderTemplate', 'movieTemplate', 'renameLogFolder', 'showFolderTemplate', 'tvBaseFolder']);
+const stringKeys = new Set(['episodeTemplate', 'movieBaseFolder', 'movieFolderTemplate', 'movieTemplate', 'releaseAliasText', 'renameLogFolder', 'showFolderTemplate', 'tvBaseFolder']);
 
 export function normalizePreferences(value: unknown): PersistedPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};

@@ -28,6 +28,7 @@ This first scaffold includes:
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
 - parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, leading or trailing release groups, normalized web-service origins, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels and contributing duration evidence to episode matching;
+- persisted custom release-tag aliases for sources, resolutions, codecs, channels, flags, and WEB origins without replacing the built-in vocabulary;
 - FlexGet-aligned Plex edition handling: movie editions use a fixed canonical vocabulary with ordered multi-edition normalisation, while TV/anime preserve explicit arbitrary `{edition-…}` names and block malformed or conflicting markers;
 - guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
 - parent-folder detection for AI-upscaled releases plus current-batch source and AI-upscale overrides when the filesystem provides incomplete evidence;
@@ -140,7 +141,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | --- | --- | --- |
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
-| 3 — Resilient matching and metadata | In progress | 7 of 11 steps |
+| 3 — Resilient matching and metadata | In progress | 8 of 11 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
@@ -187,7 +188,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] duration evidence through `ffprobe`
 - [x] contiguous multi-episode filename detection, grouped matching, combined runtime evidence, and range formatting
 - [x] season-zero specials, TVDB absolute ordering, and explicit `SP`/`Special`/`OVA`/`OAD` anime filename patterns
-- [ ] editable release-tag vocabulary and aliases
+- [x] editable release-tag vocabulary and aliases
 - [ ] folder parsing, per-show rules, and saved matching decisions
 - [ ] NFO export
 - [ ] embedded-title and adjacent-file ordering evidence
@@ -257,6 +258,6 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Continue resilient matching work: editable aliases, folder parsing, saved decisions, NFO export, and additional evidence.
+1. Continue resilient matching work: folder parsing, saved decisions, NFO export, and additional evidence.
 2. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
 3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
