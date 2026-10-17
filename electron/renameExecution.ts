@@ -12,6 +12,7 @@ export type RenameOperation = {
   undoneAt?: string;
   status: 'completed' | 'stopped' | 'undone';
   items: RenamePreflightItem[];
+  removedSourceJunkFiles?: string[];
   removedSourceDirectories?: string[];
   sourceDirectoryCleanupWarnings?: string[];
   externalLogPath?: string;
@@ -19,7 +20,14 @@ export type RenameOperation = {
 };
 
 export type RenameControl = 'stop' | 'undo';
-export type RenameExecutionOptions = { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
+export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
+
+const videoExtensionPattern = /\.(?:mkv|mp4|m4v|avi|mov|webm|wmv|mpg|mpeg|ts|m2ts)$/i;
+const sourceJunkPatterns = [
+  /^www\.(?:yts\.(?:mx|am|ag)|yify-torrents\.com)\.jpe?g$/i,
+  /^yts\.(?:gg|mx|am|ag)\s*-\s*official[ ._-]+site\.jpe?g$/i,
+  /^(?:yifystatus|ytsproxies)\.com\.txt$/i,
+];
 
 async function exists(filePath: string): Promise<boolean> {
   try { await fs.promises.lstat(filePath); return true; }
@@ -174,6 +182,40 @@ async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{
   return { removed, warnings };
 }
 
+async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: string[]; directories: string[]; warnings: string[] }> {
+  const roots = [...new Set(items
+    .filter((item) => videoExtensionPattern.test(item.sourcePath) && path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
+    .map((item) => path.dirname(item.sourcePath)))]
+    .filter((directory) => directory !== path.parse(directory).root);
+  const files: string[] = [];
+  const directories: string[] = [];
+  const warnings: string[] = [];
+  const visit = async (directory: string, removeDirectory: boolean): Promise<void> => {
+    let entries: fs.Dirent[];
+    try { entries = await fs.promises.readdir(directory, { withFileTypes: true }); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') warnings.push(`Could not inspect source folder ${directory}: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) await visit(entryPath, true);
+      else if (entry.isFile() && sourceJunkPatterns.some((pattern) => pattern.test(entry.name))) {
+        try { await fs.promises.unlink(entryPath); files.push(entryPath); }
+        catch (error) { warnings.push(`Could not remove source junk file ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }
+      }
+    }
+    if (!removeDirectory) return;
+    try { await fs.promises.rmdir(directory); directories.push(directory); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'ENOTEMPTY' && code !== 'EEXIST') warnings.push(`Could not remove empty source folder ${directory}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  for (const root of roots) await visit(root, false);
+  return { files, directories, warnings };
+}
+
 export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number, operation?: 'rename' | 'undo') => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
   const items = renamePreflightItems(value).filter((item) => item.sourcePath !== item.targetPath);
   if (!items.length) throw new Error('The rename plan has no file operations.');
@@ -215,7 +257,9 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     if (rollbackErrors.length) throw new Error(`Undo was requested, but some completed renames could not be restored: ${rollbackErrors.join('; ')}`);
   }
   const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : 'completed';
-  const cleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
+  const junkCleanup = status === 'completed' && options.clearSourceJunk ? await clearSourceJunk(items) : { files: [], directories: [], warnings: [] };
+  const emptyCleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
+  const cleanup = { removed: [...junkCleanup.directories, ...emptyCleanup.removed], warnings: [...junkCleanup.warnings, ...emptyCleanup.warnings] };
   const now = new Date().toISOString();
   const operation: RenameOperation = {
     version: 1,
@@ -225,6 +269,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     status,
     items: completed,
     ...(status === 'undone' ? { undoneAt: now } : {}),
+    ...(junkCleanup.files.length ? { removedSourceJunkFiles: junkCleanup.files } : {}),
     ...(cleanup.removed.length ? { removedSourceDirectories: cleanup.removed } : {}),
     ...(cleanup.warnings.length ? { sourceDirectoryCleanupWarnings: cleanup.warnings } : {}),
   };

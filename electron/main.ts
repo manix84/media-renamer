@@ -233,7 +233,8 @@ ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolve
 ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown) => {
   if (renameRunning) throw new Error('A rename operation is already running.');
   if (options !== undefined && (!options || typeof options !== 'object')) throw new Error('Invalid rename options.');
-  const renameOptions = options as { removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown } | undefined;
+  const renameOptions = options as { clearSourceJunk?: unknown; removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown } | undefined;
+  if (renameOptions?.clearSourceJunk !== undefined && typeof renameOptions.clearSourceJunk !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.removeEmptySourceParents !== undefined && typeof renameOptions.removeEmptySourceParents !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.createExternalLog !== undefined && typeof renameOptions.createExternalLog !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
@@ -245,6 +246,7 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
     const resolved = await resolveRenameCollisions(groups);
     const items = resolved.flatMap((group) => group.items);
     executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', { operation, completed, total }), {
+      clearSourceJunk: renameOptions?.clearSourceJunk ?? false,
       removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
       createExternalLog: renameOptions?.createExternalLog ?? false,
       externalLogDirectory: renameOptions?.externalLogDirectory as string | undefined,

@@ -8,6 +8,7 @@ type RenameOperationRecord = {
     id: string;
     status: 'completed' | 'stopped' | 'undone';
     items: Array<{ sourcePath: string; targetPath: string }>;
+    removedSourceJunkFiles?: string[];
     removedSourceDirectories?: string[];
     sourceDirectoryCleanupWarnings?: string[];
     externalLogPath?: string;
@@ -24,6 +25,7 @@ declare global {
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
         completionReport?: boolean;
+        clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
@@ -44,6 +46,7 @@ declare global {
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
         completionReport?: boolean;
+        clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
@@ -71,7 +74,7 @@ declare global {
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;
-      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }): Promise<RenameOperationRecord>;
+      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }): Promise<RenameOperationRecord>;
       controlRename(control: 'stop' | 'undo'): Promise<boolean>;
       getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
       undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;

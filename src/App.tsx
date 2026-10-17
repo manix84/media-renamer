@@ -17,7 +17,7 @@ import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
-type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
+type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceJunkFiles?: string[]; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
@@ -210,6 +210,7 @@ export default function App() {
   const [autoClearCompletedBatch, setAutoClearCompletedBatch] = useState(false);
   const [completionChime, setCompletionChime] = useState(false);
   const [completionReport, setCompletionReport] = useState(true);
+  const [clearSourceJunk, setClearSourceJunk] = useState(false);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
@@ -524,6 +525,7 @@ export default function App() {
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
+      if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
@@ -591,6 +593,7 @@ export default function App() {
       autoClearCompletedBatch,
       completionChime,
       completionReport,
+      clearSourceJunk,
       createExternalRenameLog,
       episodeTemplate,
       fileViewMode,
@@ -604,7 +607,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -1169,13 +1172,15 @@ export default function App() {
     try {
       const preferredLogDirectory = renameLogFolder || (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) || undefined;
       const result = await window.mediaRenamer.executeRenamePlan(executableGroups, {
+        clearSourceJunk: moveFiles && clearSourceJunk,
         removeEmptySourceParents: moveFiles && removeEmptySourceParents,
         createExternalLog: createExternalRenameLog,
         externalLogDirectory: createExternalRenameLog ? preferredLogDirectory : undefined,
       });
       const removedDirectoryCount = result.operation.removedSourceDirectories?.length ?? 0;
+      const removedJunkCount = result.operation.removedSourceJunkFiles?.length ?? 0;
       const resultLabel = result.operation.status === 'undone' ? 'Rename cancelled and undone' : result.operation.status === 'stopped' ? 'Rename stopped' : `Renamed ${result.operation.items.length} file${result.operation.items.length === 1 ? '' : 's'}`;
-      addDebug(result.operation.status === 'completed' ? 'success' : 'warning', resultLabel, `Undo log: ${result.logPath}${result.operation.externalLogPath ? ` · Saved log: ${result.operation.externalLogPath}` : ''}${removedDirectoryCount ? ` · Removed ${removedDirectoryCount} empty source folder${removedDirectoryCount === 1 ? '' : 's'}` : ''}`);
+      addDebug(result.operation.status === 'completed' ? 'success' : 'warning', resultLabel, `Undo log: ${result.logPath}${result.operation.externalLogPath ? ` · Saved log: ${result.operation.externalLogPath}` : ''}${removedJunkCount ? ` · Cleared ${removedJunkCount} junk file${removedJunkCount === 1 ? '' : 's'}` : ''}${removedDirectoryCount ? ` · Removed ${removedDirectoryCount} empty source folder${removedDirectoryCount === 1 ? '' : 's'}` : ''}`);
       for (const warning of result.operation.sourceDirectoryCleanupWarnings ?? []) addDebug('warning', 'Source folder was kept', warning);
       if (result.operation.externalLogWarning) addDebug('warning', 'Could not save operation log', result.operation.externalLogWarning);
       const renamedVideos = new Set(result.operation.status === 'undone' ? [] : result.operation.items.filter((item) => isVideoPath(item.sourcePath)).map((item) => item.sourcePath));
@@ -1632,6 +1637,7 @@ export default function App() {
           <p id="rename-report-description">{reportOperation.status === 'completed' ? `${reportOperation.items.length} file${reportOperation.items.length === 1 ? '' : 's'} ${renameReport.moved ? 'moved and renamed' : 'renamed'} successfully.` : reportOperation.status === 'undone' ? `${reportOperation.items.length} completed file operation${reportOperation.items.length === 1 ? ' was' : 's were'} restored.` : `${reportOperation.items.length} file${reportOperation.items.length === 1 ? '' : 's'} completed before the operation stopped.`}</p>
           <div className="rename-report-grid">
             <span><strong>{reportOperation.items.length}</strong><small>Files processed</small></span>
+            <span><strong>{reportOperation.removedSourceJunkFiles?.length ?? 0}</strong><small>Junk files cleared</small></span>
             <span><strong>{reportOperation.removedSourceDirectories?.length ?? 0}</strong><small>Folders removed</small></span>
             <span className={reportWarnings ? 'has-warnings' : ''}><strong>{reportWarnings}</strong><small>Warnings</small></span>
           </div>
@@ -1698,7 +1704,7 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
-          <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
+          <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>

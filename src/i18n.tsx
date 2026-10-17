@@ -31,6 +31,7 @@ const en = {
   'prefs.fileMoves': 'File moves', 'prefs.fileMovesHelp': 'Choose what happens to source folders after files are moved.', 'prefs.afterRename': 'After renaming',
   'prefs.afterRenameHelp': 'Choose what happens after every file in a batch is renamed successfully.', 'prefs.shows': 'Shows', 'prefs.movies': 'Movies',
   'prefs.close': 'Close preferences', 'prefs.removeEmpty': 'Remove empty source folders', 'prefs.removeEmptyHelp': "Delete a moved file's immediate parent folder only when it is empty",
+  'prefs.clearJunk': 'Clear source junk after moving', 'prefs.clearJunkHelp': 'Delete recognized YTS/YIFY promotional files so source folders can be removed; this cannot be undone',
   'prefs.autoClear': 'Clear completed batches automatically', 'prefs.autoClearHelp': 'Remove the finished batch from the workspace while keeping Undo available',
   'prefs.completionChime': 'Play a chime when complete', 'prefs.completionChimeHelp': 'Plays once when enabled, with matching Halloween and Christmas sounds',
   'prefs.completionReport': 'Show a completion report', 'prefs.completionReportHelp': 'Summarise processed files, removed folders, warnings, and logs',

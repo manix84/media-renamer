@@ -114,6 +114,36 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
   });
 
+  it('optionally clears only recognized source junk and removes emptied nested folders', async () => {
+    const root = await temporaryDirectory();
+    const sourceDirectory = path.join(root, 'incoming', 'Movie');
+    const nestedDirectory = path.join(sourceDirectory, 'Other');
+    const source = path.join(sourceDirectory, 'Movie.mp4');
+    const target = path.join(root, 'library', 'Movie', 'Movie.mp4');
+    await fs.promises.mkdir(nestedDirectory, { recursive: true });
+    await Promise.all([
+      fs.promises.writeFile(source, 'video'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.MX.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'YIFYStatus.com.txt'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'YTSProxies.com.txt'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'YTS.GG - Official site.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'WWW.YIFY-TORRENTS.COM.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'keep'),
+    ]);
+
+    const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, {
+      clearSourceJunk: true,
+      removeEmptySourceParents: true,
+    });
+
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(5);
+    expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
+    await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
+  });
+
   it('optionally writes a timestamped log to the common destination folder', async () => {
     const root = await temporaryDirectory();
     const source = path.join(root, 'incoming', 'Episode.mkv');

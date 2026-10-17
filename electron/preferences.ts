@@ -5,6 +5,7 @@ export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
   completionChime?: boolean;
   completionReport?: boolean;
+  clearSourceJunk?: boolean;
   createExternalRenameLog?: boolean;
   episodeTemplate?: string;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
@@ -39,6 +40,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;
   if (typeof source.completionChime === 'boolean') result.completionChime = source.completionChime;
   if (typeof source.completionReport === 'boolean') result.completionReport = source.completionReport;
+  if (typeof source.clearSourceJunk === 'boolean') result.clearSourceJunk = source.clearSourceJunk;
   if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;

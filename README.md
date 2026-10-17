@@ -38,7 +38,7 @@ This first scaffold includes:
 - separate persisted TV and Movie library destinations and folder patterns, so each workflow can target its own base folder;
 - durable Electron-level preference storage with automatic migration from renderer-local settings, so destinations and templates survive development origins, upgrades, and restarts;
 - an optional TV base folder with a templated, Windows-safe show-folder path that rename execution can create before moving files;
-- an opt-in move preference that removes each source file's immediate parent folder after a successful move, but only when that folder is empty and never recursively;
+- opt-in move preferences that clear a conservative allowlist of YTS/YIFY promotional junk after a successful move and remove empty source folders, while leaving unrecognized files untouched;
 - post-rename preferences for automatically clearing fully completed batches, showing an optional completion report (on by default), playing an optional completion chime that sounds once when enabled (with distinct Halloween and Christmas sounds), and writing timestamped JSON operation logs to a chosen folder or the active media destination, while retaining the internal undo record;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
 - a persisted 50–100% automatic-confirmation threshold, defaulting to 80%;

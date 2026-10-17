@@ -205,7 +205,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .rename-dialog-actions { display: flex !important; }
 .rename-report { width: min(460px, 100%); }
 .rename-report.warning .confirmation-icon { background: #352d1d; color: #efbd52; }
-.rename-report-grid { margin: 0 0 14px; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 7px !important; }
+.rename-report-grid { margin: 0 0 14px; display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 7px !important; }
 .rename-report-grid > span { padding: 10px 8px; border: 1px solid #293141; border-radius: 8px; background: #0c1119; }
 .rename-report-grid strong, .rename-report-grid small { display: block; }
 .rename-report-grid strong { color: #d8deea; font: 750 17px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
