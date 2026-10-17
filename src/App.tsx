@@ -593,6 +593,7 @@ export default function App() {
   }), [preflightPlan]);
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
   const unchangedPaths = useMemo(() => unchangedRenameItemPaths(preflightPlan), [preflightPlan]);
+  const unchangedPathSet = useMemo(() => new Set(unchangedPaths), [unchangedPaths]);
 
   function showFirstBlockedFile() {
     const blocked = preflightPlan.items.find((item) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)].some((issue) => issue.severity === 'error'));
@@ -1793,6 +1794,7 @@ export default function App() {
                 const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
+                const unchanged = unchangedPathSet.has(path);
                 const fullProposedName = deferredToTv ? 'Deferred to TV mode' : plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);
                 const previewPinned = pinnedPreviewPath === path;
                 const removing = removingPaths.has(path);
@@ -1801,11 +1803,11 @@ export default function App() {
                 const movieReviewRequired = activeMediaTab === 'movies' && !deferredToTv && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
-                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : unchanged ? 'plan-unchanged' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
                 }}>
-                  <div className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
+                  <div className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : unchanged ? 'unchanged' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
                   {activeMediaTab === 'movies' && <div className="movie-row-poster">{movieFileMatch?.movie?.posterUrl ? <img src={movieFileMatch.movie.posterUrl} alt=""/> : <Film size={18}/>}</div>}
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
@@ -1827,7 +1829,7 @@ export default function App() {
                     </div>}
                   </div>
                   <div className="row-trailing">
-                    <div className="score"><strong>{blockingIssue ? '!' : deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : blockingIssue ? 'blocked' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
+                    <div className="score"><strong>{blockingIssue ? '!' : unchanged ? '—' : deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : blockingIssue ? 'blocked' : unchanged ? 'unchanged' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
                     <div className={`row-extras with-edit ${(activeMediaTab === 'movies' || !keepReviewActionsFixed) ? 'with-review' : ''}`}>
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
