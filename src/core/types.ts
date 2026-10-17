@@ -85,6 +85,13 @@ export interface FileMatch {
   status: 'confident' | 'review' | 'unmatched';
 }
 
+export interface SavedMatchDecision {
+  showId: string;
+  filenameKey: string;
+  episodeIds: string[];
+  updatedAt: number;
+}
+
 export type RenameIssueSeverity = 'error' | 'warning';
 
 export interface RenamePlanIssue {

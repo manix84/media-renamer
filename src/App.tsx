@@ -12,7 +12,8 @@ import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassificatio
 import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverride } from './core/metadataEditing';
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
+import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
 import { availablePalettes } from './seasonalThemes';
@@ -208,6 +209,7 @@ export default function App() {
   });
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [releaseAliasText, setReleaseAliasText] = useState('');
+  const [savedMatchDecisions, setSavedMatchDecisions] = useState<SavedMatchDecision[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
@@ -328,6 +330,7 @@ export default function App() {
   const posterPreviewImage = useRef<HTMLImageElement>(null);
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
+  const reportedSavedDecisionConflicts = useRef(new Set<string>());
   const removalTimers = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
 
@@ -396,7 +399,20 @@ export default function App() {
   }, [addDebug]);
 
   const automaticMatchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, item])), [matches]);
-  const matchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, matchOverrides[item.path] ? { ...item, match: matchOverrides[item.path] } : item])), [matchOverrides, matches]);
+  const showMatchDecisionId = show ? showDecisionId(show) : undefined;
+  const savedDecisionResults = useMemo<Array<{ match: FileMatch; conflict?: string }>>(() => showMatchDecisionId
+    ? matches.map((item) => applySavedMatchDecision(item, episodes, savedMatchDecisions, showMatchDecisionId))
+    : matches.map((match) => ({ match })), [episodes, matches, savedMatchDecisions, showMatchDecisionId]);
+  const matchesByPath = useMemo(() => new Map(savedDecisionResults.map(({ match: item }) => [item.path, matchOverrides[item.path] ? { ...item, match: matchOverrides[item.path], status: 'confident' as const } : item])), [matchOverrides, savedDecisionResults]);
+  useEffect(() => {
+    for (const result of savedDecisionResults) {
+      if (!result.conflict) continue;
+      const key = `${showMatchDecisionId}:${result.match.path}:${result.conflict}`;
+      if (reportedSavedDecisionConflicts.current.has(key)) continue;
+      reportedSavedDecisionConflicts.current.add(key);
+      addDebug('warning', `Saved match needs review for ${result.match.filename}`, result.conflict);
+    }
+  }, [addDebug, savedDecisionResults, showMatchDecisionId]);
   const attachedFileCountByEpisode = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of matchesByPath.values()) {
@@ -592,6 +608,7 @@ export default function App() {
       if (saved.movieTemplate !== undefined) setMovieTemplate(saved.movieTemplate === PREVIOUS_DEFAULT_MOVIE_TEMPLATE || saved.movieTemplate === PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE ? DEFAULT_MOVIE_TEMPLATE : saved.movieTemplate);
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.releaseAliasText !== undefined) setReleaseAliasText(saved.releaseAliasText);
+      if (saved.savedMatchDecisions !== undefined) setSavedMatchDecisions(saved.savedMatchDecisions);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
@@ -673,12 +690,13 @@ export default function App() {
       movieTemplate,
       removeEmptySourceParents,
       releaseAliasText,
+      savedMatchDecisions,
       renameLogFolder,
       showFolderTemplate,
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, titleMatching, tvBaseFolder]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -1497,6 +1515,7 @@ export default function App() {
     }
     const item = matchesByPath.get(path);
     if (!item?.match) return;
+    rememberMatchDecision(path, item.match);
     setConfirmedPaths((current) => new Set(current).add(path));
     setHeldConfirmationPaths((current) => new Set(current).add(path));
     addDebug('success', `Confirmed ${item.filename} → ${candidateLabel(item.match)} ${candidateTitle(item.match)}`, item.match.reasons.join('; ') || 'Accepted the suggested match.');
@@ -1507,6 +1526,10 @@ export default function App() {
     if (activeMediaTab === 'movies') {
       setMovieMatches((current) => Object.fromEntries(Object.entries(current).map(([path, match]) => [path, confirmablePaths.includes(path) ? confirmSuggestedMovie(match) : match])));
     } else {
+      setSavedMatchDecisions((current) => confirmablePaths.reduce((next, path) => {
+        const candidate = matchesByPath.get(path)?.match;
+        return candidate && showMatchDecisionId ? saveMatchDecision(next, showMatchDecisionId, path, candidate) : next;
+      }, current));
       setConfirmedPaths((current) => new Set([...current, ...confirmablePaths]));
       setHeldConfirmationPaths(new Set());
     }
@@ -1530,10 +1553,16 @@ export default function App() {
 
   function confirmMatchReview(candidate = reviewCandidate) {
     if (!reviewingPath || !candidate) return;
+    rememberMatchDecision(reviewingPath, candidate);
     setMatchOverrides((current) => ({ ...current, [reviewingPath]: candidate }));
     setConfirmedPaths((current) => new Set(current).add(reviewingPath));
     addDebug('success', `Confirmed ${filenameFromPath(reviewingPath)} → ${candidateLabel(candidate)} ${candidateTitle(candidate)}`, candidate.reasons.join('; ') || 'Manually confirmed.');
     setReviewingPath(undefined);
+  }
+
+  function rememberMatchDecision(path: string, candidate: MatchCandidate) {
+    if (!showMatchDecisionId) return;
+    setSavedMatchDecisions((current) => saveMatchDecision(current, showMatchDecisionId, path, candidate));
   }
 
   function seasonHeading(number: number): string {

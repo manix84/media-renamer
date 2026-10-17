@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export type SavedMatchDecision = { showId: string; filenameKey: string; episodeIds: string[]; updatedAt: number };
+
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
   completionChime?: boolean;
@@ -16,6 +18,7 @@ export type PersistedPreferences = {
   movieTemplate?: string;
   removeEmptySourceParents?: boolean;
   releaseAliasText?: string;
+  savedMatchDecisions?: SavedMatchDecision[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -46,6 +49,18 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
+  if (Array.isArray(source.savedMatchDecisions)) {
+    result.savedMatchDecisions = source.savedMatchDecisions.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.showId !== 'string' || !item.showId || item.showId.length > 200
+        || typeof item.filenameKey !== 'string' || !item.filenameKey || item.filenameKey.length > 1000
+        || !Array.isArray(item.episodeIds) || !item.episodeIds.length || item.episodeIds.length > 20
+        || !item.episodeIds.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 200)
+        || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
+      return [{ showId: item.showId, filenameKey: item.filenameKey, episodeIds: item.episodeIds as string[], updatedAt: item.updatedAt }];
+    }).slice(0, 1000);
+  }
   return result;
 }
 

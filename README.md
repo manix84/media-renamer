@@ -190,7 +190,8 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] season-zero specials, TVDB absolute ordering, and explicit `SP`/`Special`/`OVA`/`OAD` anime filename patterns
 - [x] editable release-tag vocabulary and aliases
 - [x] conservative show/season folder evidence for sparsely named episode files
-- [ ] per-show rules and saved matching decisions
+- [ ] per-show rules
+- [x] saved per-show filename-to-episode decisions with stale-decision conflict handling
 - [ ] NFO export
 - [ ] embedded-title and adjacent-file ordering evidence
 
@@ -259,6 +260,6 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Continue resilient matching work: per-show rules, saved decisions, NFO export, and additional evidence.
+1. Continue resilient matching work: per-show rules, NFO export, and additional evidence.
 2. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
 3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
