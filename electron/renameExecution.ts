@@ -23,6 +23,7 @@ export type RenameControl = 'stop' | 'undo';
 export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
 
 const videoExtensionPattern = /\.(?:mkv|mp4|m4v|avi|mov|webm|wmv|mpg|mpeg|ts|m2ts)$/i;
+const subtitleExtensionPattern = /\.(?:srt|ass|ssa|sub|vtt)$/i;
 const sourceJunkPatterns = [
   /^www\.(?:yts\.[a-z0-9-]{2,12}|yify-torrents\.com)\.jpe?g$/i,
   /^yts\.[a-z0-9-]{2,12}\s*-\s*official[ ._-]+site\.jpe?g$/i,
@@ -201,9 +202,16 @@ async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: s
     for (const entry of entries) {
       const entryPath = path.join(directory, entry.name);
       if (entry.isDirectory()) await visit(entryPath, true);
-      else if (entry.isFile() && sourceJunkPatterns.some((pattern) => pattern.test(entry.name))) {
-        try { await fs.promises.unlink(entryPath); files.push(entryPath); }
-        catch (error) { warnings.push(`Could not remove source junk file ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }
+      else if (entry.isFile()) {
+        let isJunk = sourceJunkPatterns.some((pattern) => pattern.test(entry.name));
+        if (!isJunk && subtitleExtensionPattern.test(entry.name)) {
+          try { isJunk = (await fs.promises.stat(entryPath)).size === 0; }
+          catch (error) { warnings.push(`Could not inspect possible source junk file ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }
+        }
+        if (isJunk) {
+          try { await fs.promises.unlink(entryPath); files.push(entryPath); }
+          catch (error) { warnings.push(`Could not remove source junk file ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }
+        }
       }
     }
     if (!removeDirectory) return;
