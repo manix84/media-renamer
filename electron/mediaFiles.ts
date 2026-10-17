@@ -2,12 +2,21 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const VIDEO_EXTENSIONS = new Set(['.mkv', '.mp4', '.avi', '.m4v', '.mov', '.webm']);
+const SYSTEM_METADATA_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini', 'icon\r']);
+
+export function isSystemMetadataPath(filePath: string): boolean {
+  return filePath.split(/[\\/]/).some((part) => {
+    const normalized = part.toLowerCase();
+    return normalized === '__macosx' || normalized.startsWith('._') || SYSTEM_METADATA_NAMES.has(normalized);
+  });
+}
 
 export function isVideoFile(filePath: string): boolean {
-  return VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  return !isSystemMetadataPath(filePath) && VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
 async function collectMediaFiles(inputPath: string, results: string[]): Promise<void> {
+  if (isSystemMetadataPath(inputPath)) return;
   const stat = await fs.stat(inputPath);
   if (stat.isFile()) {
     if (isVideoFile(inputPath)) results.push(inputPath);

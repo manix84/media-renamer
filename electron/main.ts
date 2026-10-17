@@ -158,7 +158,7 @@ ipcMain.handle('files:pick', async () => {
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'Video files', extensions: ['mkv', 'mp4', 'avi', 'm4v', 'mov', 'webm'] }],
   });
-  return result.canceled ? [] : result.filePaths;
+  return result.canceled ? [] : result.filePaths.filter(isVideoFile);
 });
 
 ipcMain.handle('folders:pick', async () => {
