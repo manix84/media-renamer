@@ -94,7 +94,7 @@ describe('rename execution', () => {
     await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  it('optionally removes only empty immediate source folders after moving', async () => {
+  it('optionally removes empty source folders after moving', async () => {
     const root = await temporaryDirectory();
     const emptyAfterMove = path.join(root, 'incoming', 'Some Show');
     const stillOccupied = path.join(root, 'incoming', 'Another Show');
@@ -112,6 +112,30 @@ describe('rename execution', () => {
     expect(executed.operation.removedSourceDirectories).toEqual([emptyAfterMove]);
     await undoRenameOperation(executed.operation, executed.logPath);
     await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
+  });
+
+  it('removes an emptied subtitle folder without removing its occupied release folder', async () => {
+    const root = await temporaryDirectory();
+    const sourceDirectory = path.join(root, 'incoming', 'Movie');
+    const subtitlesDirectory = path.join(sourceDirectory, 'Subs');
+    const videoSource = path.join(sourceDirectory, 'Movie.mkv');
+    const subtitleSource = path.join(subtitlesDirectory, 'English.srt');
+    await fs.promises.mkdir(subtitlesDirectory, { recursive: true });
+    await Promise.all([
+      fs.promises.writeFile(videoSource, 'video'),
+      fs.promises.writeFile(subtitleSource, 'subtitle'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
+    ]);
+
+    const executed = await executeRenamePlan([
+      { sourcePath: videoSource, targetPath: path.join(root, 'library', 'Movie', 'Movie.mkv') },
+      { sourcePath: subtitleSource, targetPath: path.join(root, 'library', 'Movie', 'Movie.srt') },
+    ], path.join(root, 'history'), undefined, { removeEmptySourceParents: true });
+
+    await expect(fs.promises.stat(subtitlesDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
+    expect(executed.operation.removedSourceDirectories).toContain(subtitlesDirectory);
+    expect(executed.operation.removedSourceDirectories).not.toContain(sourceDirectory);
   });
 
   it('optionally clears only recognized source junk and removes emptied nested folders', async () => {

@@ -172,7 +172,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] cooperative Stop and in-progress Undo controls
 - [x] per-batch Move/In place mode with separate TV and Movie destinations
 - [x] companion-file planning for subtitles, NFO metadata, and episode artwork
-- [x] optional removal of empty immediate source folders
+- [x] optional pruning of empty source and companion folders after moving
 - [x] opt-in cleanup of recognized release-site junk and zero-byte subtitle sidecars
 - [x] filesystem monitoring for external deletes, renames, and moves
 - [x] animated progress, elapsed/estimated timing, and optional completion reports

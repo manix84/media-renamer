@@ -166,9 +166,31 @@ async function writeExternalOperation(directory: string, operation: RenameOperat
 }
 
 async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{ removed: string[]; warnings: string[] }> {
-  const directories = [...new Set(items
-    .filter((item) => path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
-    .map((item) => path.dirname(item.sourcePath)))]
+  const movedItems = items.filter((item) => path.dirname(item.sourcePath) !== path.dirname(item.targetPath));
+  const sourceRoots = [...new Set(movedItems
+    .filter((item) => videoExtensionPattern.test(item.sourcePath))
+    .map((item) => path.dirname(item.sourcePath)))];
+  const isWithin = (directory: string, root: string): boolean => {
+    const relative = path.relative(root, directory);
+    return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+  };
+  const directories = [...new Set(movedItems.flatMap((item) => {
+    const immediateParent = path.dirname(item.sourcePath);
+    const matchingRoot = sourceRoots
+      .filter((root) => isWithin(immediateParent, root))
+      .sort((left, right) => right.length - left.length)[0];
+    if (!matchingRoot) return [immediateParent];
+    const candidates: string[] = [];
+    let directory = immediateParent;
+    while (isWithin(directory, matchingRoot)) {
+      candidates.push(directory);
+      if (directory === matchingRoot) break;
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+    return candidates;
+  }))]
     .filter((directory) => directory !== path.parse(directory).root)
     .sort((left, right) => right.length - left.length);
   const removed: string[] = [];
@@ -269,7 +291,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
   const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : 'completed';
   const junkCleanup = status === 'completed' && options.clearSourceJunk ? await clearSourceJunk(items) : { files: [], directories: [], warnings: [] };
   const emptyCleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
-  const cleanup = { removed: [...junkCleanup.directories, ...emptyCleanup.removed], warnings: [...junkCleanup.warnings, ...emptyCleanup.warnings] };
+  const cleanup = { removed: [...new Set([...junkCleanup.directories, ...emptyCleanup.removed])], warnings: [...junkCleanup.warnings, ...emptyCleanup.warnings] };
   const now = new Date().toISOString();
   const operation: RenameOperation = {
     version: 1,
