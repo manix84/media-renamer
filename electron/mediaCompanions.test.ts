@@ -10,7 +10,7 @@ afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory)
 async function fixture(names: string[]) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'media-renamer-companions-'));
   temporaryDirectories.push(directory);
-  await Promise.all(names.map((name) => fs.writeFile(path.join(directory, name), '')));
+  await Promise.all(names.map((name) => fs.writeFile(path.join(directory, name), 'content')));
   return directory;
 }
 
@@ -32,5 +32,36 @@ describe('media companion discovery', () => {
     const videos = [path.join(directory, 'Episode.mkv'), path.join(directory, 'Episode.en.mkv')];
     const scan = await discoverMediaCompanions(videos);
     expect(scan.ambiguous).toEqual([{ path: path.join(directory, 'Episode.en.srt'), candidateVideoPaths: videos }]);
+  });
+
+  it('discovers nested movie subtitles and normalizes Plex language and role suffixes', async () => {
+    const directory = await fixture(['Movie.2020.mkv']);
+    const subs = path.join(directory, 'Subs');
+    const alternate = path.join(directory, 'Subtitles', 'Alternate');
+    await Promise.all([fs.mkdir(subs, { recursive: true }), fs.mkdir(alternate, { recursive: true })]);
+    await Promise.all([
+      fs.writeFile(path.join(subs, 'English [SDH].srt'), 'subtitle'),
+      fs.writeFile(path.join(subs, 'English.srt'), 'subtitle'),
+      fs.writeFile(path.join(subs, 'eng.srt'), 'subtitle'),
+      fs.writeFile(path.join(subs, 'Commentary.srt'), 'subtitle'),
+      fs.writeFile(path.join(subs, 'Empty.srt'), ''),
+      fs.writeFile(path.join(alternate, 'French.forced.ass'), 'subtitle'),
+    ]);
+    const videoPath = path.join(directory, 'Movie.2020.mkv');
+    const scan = await discoverMediaCompanions([videoPath]);
+
+    expect(scan.byVideo[videoPath].map((companion) => companion.suffix)).toEqual(['.srt', '.en.srt', '.en.sdh.srt', '.en.2.srt', '.fr.forced.ass']);
+    expect(scan.byVideo[videoPath].some((companion) => companion.path.endsWith('Empty.srt'))).toBe(false);
+    expect(scan.ambiguous).toEqual([]);
+  });
+
+  it('keeps nested subtitles ambiguous when a shared folder contains multiple movies', async () => {
+    const directory = await fixture(['First.Movie.2020.mkv', 'Second.Movie.2021.mkv']);
+    const subs = path.join(directory, 'Subs');
+    await fs.mkdir(subs);
+    await fs.writeFile(path.join(subs, 'English.srt'), 'subtitle');
+    const videos = [path.join(directory, 'First.Movie.2020.mkv'), path.join(directory, 'Second.Movie.2021.mkv')];
+    const scan = await discoverMediaCompanions(videos);
+    expect(scan.ambiguous).toEqual([{ path: path.join(subs, 'English.srt'), candidateVideoPaths: videos }]);
   });
 });

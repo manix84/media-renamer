@@ -143,7 +143,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 3 — Resilient matching and metadata | In progress | 7 of 11 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
 | 5 — Editing and confirmation | Planned | 0 of 6 steps |
-| 6 — Media detection and subtitle organisation | Started | 2 of 4 steps |
+| 6 — Media detection and subtitle organisation | In progress | 3 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
 | 8 — Release readiness | Planned | 0 of 6 steps |
 
@@ -219,7 +219,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] same-directory subtitle discovery with language/role suffix preservation and collision-safe planning
 - [x] conservative junk cleanup that preserves non-empty subtitles and unknown sidecars
 - [ ] asymmetric media filtering: defer obvious episodes in Movies, accept episode and movie-like specials in TV, and never silently discard ambiguous imports
-- [ ] discover `Subs`, `Subtitles`, and similar movie subfolders; associate subtitles with their movie; detect language, Forced, and SDH variants; preview Plex-compatible names; move them alongside the movie without overwriting or deleting originals before success
+- [x] discover `Subs`, `Subtitles`, and similar movie subfolders; associate subtitles with their movie; detect filename language, Forced, and SDH variants; preview Plex-compatible names; move them alongside the movie without overwriting or deleting originals before success
 
 ### Milestone 7 — versioning, developer tools, and personality (planned)
 
