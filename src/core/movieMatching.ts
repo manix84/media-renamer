@@ -53,3 +53,8 @@ export function chooseMovieMatch(path: string, query: string, candidates: MovieS
 export function manuallySelectMovie(match: MovieFileMatch, movie: MovieSearchResult): MovieFileMatch {
   return { ...match, movie, candidates: [movie, ...match.candidates.filter((candidate) => candidate.id !== movie.id)], status: 'confident', confidence: 1, reasons: ['manually selected'], error: undefined };
 }
+
+export function confirmSuggestedMovie(match: MovieFileMatch): MovieFileMatch {
+  if (!match.movie || match.status !== 'review') return match;
+  return { ...match, status: 'confident', reasons: [...match.reasons, 'manually confirmed'], error: undefined };
+}

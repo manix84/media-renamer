@@ -8,7 +8,7 @@ import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { classifyMediaBatch } from './core/mediaClassification';
-import { chooseMovieMatch, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
+import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -225,6 +225,7 @@ export default function App() {
   const [refreshConfirmation, setRefreshConfirmation] = useState(false);
   const [clearConfirmation, setClearConfirmation] = useState(false);
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [confirmAllResult, setConfirmAllResult] = useState<{ confirmed: number; remaining: Array<{ path: string; reason: string }> }>();
   const [renameConfirmationOpen, setRenameConfirmationOpen] = useState(false);
   const [undoConfirmationOpen, setUndoConfirmationOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -391,9 +392,23 @@ export default function App() {
     return counts;
   }, [matchesByPath]);
   const confirmablePaths = useMemo(() => paths.filter((path) => {
+    if (activeMediaTab === 'movies') {
+      const match = movieMatches[path];
+      return Boolean(match?.movie && match.status === 'review');
+    }
     const item = matchesByPath.get(path);
     return Boolean(item?.match && item.status !== 'confident' && !confirmedPaths.has(path));
-  }), [confirmedPaths, matchesByPath, paths]);
+  }), [activeMediaTab, confirmedPaths, matchesByPath, movieMatches, paths]);
+  const confirmationBlockers = useMemo(() => paths.flatMap((path) => {
+    if (activeMediaTab === 'movies') {
+      const match = movieMatches[path];
+      if (match?.status === 'confident' || (match?.status === 'review' && match.movie)) return [];
+      return [{ path, reason: match?.error ?? match?.reasons.join(' + ') ?? (match?.status === 'detecting' ? 'Detection is still running.' : 'No movie suggestion is available.') }];
+    }
+    const item = matchesByPath.get(path);
+    if (confirmedPaths.has(path) || item?.status === 'confident' || item?.match) return [];
+    return [{ path, reason: item?.match?.reasons.join(' + ') || 'No episode suggestion is available.' }];
+  }), [activeMediaTab, confirmedPaths, matchesByPath, movieMatches, paths]);
   const reviewingItem = reviewingPath ? matchesByPath.get(reviewingPath) : undefined;
   const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
   const suggestedCandidates = useMemo(() => {
@@ -1327,6 +1342,13 @@ export default function App() {
   }
 
   function confirmSuggestedMatch(path: string) {
+    if (activeMediaTab === 'movies') {
+      const match = movieMatches[path];
+      if (!match?.movie || match.status !== 'review') return;
+      setMovieMatches((current) => ({ ...current, [path]: confirmSuggestedMovie(current[path]) }));
+      addDebug('success', `Confirmed ${filenameFromPath(path)} → ${match.movie.name}${match.movie.year ? ` (${match.movie.year})` : ''}`, match.reasons.join('; ') || 'Accepted the suggested movie.');
+      return;
+    }
     const item = matchesByPath.get(path);
     if (!item?.match) return;
     setConfirmedPaths((current) => new Set(current).add(path));
@@ -1336,10 +1358,14 @@ export default function App() {
 
   function confirmAllSuggestedMatches() {
     if (!confirmablePaths.length) return;
-    setConfirmedPaths((current) => new Set([...current, ...confirmablePaths]));
-    setHeldConfirmationPaths(new Set());
-    addDebug('success', `Confirmed ${confirmablePaths.length} suggested episode match${confirmablePaths.length === 1 ? '' : 'es'}`, 'Accepted the currently displayed suggestion for each file.');
-    setConfirmAllOpen(false);
+    if (activeMediaTab === 'movies') {
+      setMovieMatches((current) => Object.fromEntries(Object.entries(current).map(([path, match]) => [path, confirmablePaths.includes(path) ? confirmSuggestedMovie(match) : match])));
+    } else {
+      setConfirmedPaths((current) => new Set([...current, ...confirmablePaths]));
+      setHeldConfirmationPaths(new Set());
+    }
+    addDebug('success', `Confirmed ${confirmablePaths.length} suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match${confirmablePaths.length === 1 ? '' : 'es'}`, confirmationBlockers.length ? `${confirmationBlockers.length} file${confirmationBlockers.length === 1 ? '' : 's'} still require manual matching.` : 'All currently suggested matches were accepted.');
+    setConfirmAllResult({ confirmed: confirmablePaths.length, remaining: confirmationBlockers });
   }
 
   function openMatchReview(path: string) {
@@ -1493,7 +1519,7 @@ export default function App() {
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
               <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
               {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
-              {confirmablePaths.length > 0 && <button className="secondary confirm-suggestions" onClick={() => setConfirmAllOpen(true)}><FileCheck2 size={15}/> Confirm {confirmablePaths.length} suggestion{confirmablePaths.length === 1 ? '' : 's'}</button>}
+              {confirmablePaths.length > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> Confirm {confirmablePaths.length} suggestion{confirmablePaths.length === 1 ? '' : 's'}</button>}
             </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {paths.map((path) => {
@@ -1513,7 +1539,7 @@ export default function App() {
                 const activeFormatError = activeMediaTab === 'movies' ? movieFormatError : formatError;
                 const activeFolderError = activeMediaTab === 'movies' ? movieFolderFormatError : folderFormatError;
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
-                const status = item?.status ?? 'pending';
+                const status = activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
                 const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
@@ -1522,6 +1548,7 @@ export default function App() {
                 const previewPinned = pinnedPreviewPath === path;
                 const removing = removingPaths.has(path);
                 const matchingRequired = activeMediaTab === 'shows' && !confirmed && (status === 'review' || status === 'unmatched');
+                const movieConfirmationRequired = activeMediaTab === 'movies' && movieFileMatch?.status === 'review' && Boolean(movieFileMatch.movie);
                 const movieReviewRequired = activeMediaTab === 'movies' && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
@@ -1558,7 +1585,7 @@ export default function App() {
                       {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
                       {activeMediaTab === 'movies' && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Review movie match for ${filename}`} title="Review movie match" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => { setMovieReviewPath(path); setQuery(movieFileMatch?.query ?? ''); setResults(movieFileMatch?.candidates ?? []); setActiveSearchResult(-1); window.setTimeout(() => searchInput.current?.focus(), 0); }}><ListChecks size={14}/></button>}
                     </div>
-                    {matchingRequired && item?.match ? <button className="row-confirm" aria-label={`Confirm suggested episode match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
+                    {(matchingRequired && item?.match) || movieConfirmationRequired ? <button className="row-confirm" aria-label={`Confirm suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
                     {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
                   </div>
                 </article></div></div>;
@@ -1604,9 +1631,10 @@ export default function App() {
         <button className="confirmation-backdrop" aria-label="Cancel confirming suggested matches" onClick={() => setConfirmAllOpen(false)}/>
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-all-title" aria-describedby="confirm-all-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
-          <h2 id="confirm-all-title">Confirm {confirmablePaths.length} suggested match{confirmablePaths.length === 1 ? '' : 'es'}?</h2>
-          <p id="confirm-all-description">This accepts the episode currently shown beside each review file. You can still open an individual review first if any suggestion looks wrong.</p>
-          <div><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>Cancel</button><button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Confirm all</button></div>
+          <h2 id="confirm-all-title">{confirmAllResult ? `${confirmAllResult.confirmed} match${confirmAllResult.confirmed === 1 ? '' : 'es'} confirmed` : `Confirm ${confirmablePaths.length} suggested match${confirmablePaths.length === 1 ? '' : 'es'}?`}</h2>
+          <p id="confirm-all-description">{confirmAllResult ? confirmAllResult.remaining.length ? `${confirmAllResult.remaining.length} file${confirmAllResult.remaining.length === 1 ? '' : 's'} still need manual attention.` : 'Every eligible suggestion is now confirmed.' : `This accepts the ${activeMediaTab === 'movies' ? 'movie' : 'episode'} currently shown beside each review file.`}</p>
+          {confirmAllResult?.remaining.length ? <ul className="confirmation-results">{confirmAllResult.remaining.map((item) => <li key={item.path}><strong>{filenameFromPath(item.path)}</strong><span>{item.reason}</span></li>)}</ul> : null}
+          <div>{confirmAllResult ? <button className="primary" autoFocus onClick={() => setConfirmAllOpen(false)}>Done</button> : <><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>Cancel</button><button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Confirm all</button></>}</div>
         </section>
       </div>}
 
