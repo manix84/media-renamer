@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyMediaBatch } from './mediaClassification';
+import { classifyMediaBatch, classifyMediaFile } from './mediaClassification';
 
 describe('media batch classification', () => {
   it('recognises a movie from its title, year, and release suffix', () => {
@@ -21,5 +21,19 @@ describe('media batch classification', () => {
 
   it('leaves an unstructured batch unchanged', () => {
     expect(classifyMediaBatch(['Family Holiday.mkv', 'Camera Export.mp4'], 2026)).toBeUndefined();
+  });
+
+  it('classifies individual episode files for movie-view deferral', () => {
+    expect(classifyMediaFile('Doctor.Who.2005.S01E01.1080p.mkv', 2026)).toBe('shows');
+    expect(classifyMediaFile('Jackie Chan Adventures_S03_03.mp4', 2026)).toBe('shows');
+  });
+
+  it('keeps movie-like and ambiguous files out of the TV-only bucket', () => {
+    expect(classifyMediaFile('Total.Recall.1990.1080p.BluRay.mkv', 2026)).toBe('movies');
+    expect(classifyMediaFile('Family Holiday.mkv', 2026)).toBe('ambiguous');
+  });
+
+  it('prefers explicit episode evidence over a movie-like year suffix', () => {
+    expect(classifyMediaFile('Doctor.Who.2005.S01E01.2026.1080p.mkv', 2026)).toBe('shows');
   });
 });

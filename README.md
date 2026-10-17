@@ -143,7 +143,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 3 — Resilient matching and metadata | In progress | 7 of 11 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
 | 5 — Editing and confirmation | In progress | 3 of 6 steps |
-| 6 — Media detection and subtitle organisation | In progress | 3 of 4 steps |
+| 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
 | 8 — Release readiness | Planned | 0 of 6 steps |
 
@@ -214,11 +214,11 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] result-driven movie Match modal with immediate search, posters, titles, years, selectable results, and query refinement
 - [ ] extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate
 
-### Milestone 6 — media detection and subtitle organisation (started)
+### Milestone 6 — media detection and subtitle organisation (complete)
 
 - [x] same-directory subtitle discovery with language/role suffix preservation and collision-safe planning
 - [x] conservative junk cleanup that preserves non-empty subtitles and unknown sidecars
-- [ ] asymmetric media filtering: defer obvious episodes in Movies, accept episode and movie-like specials in TV, and never silently discard ambiguous imports
+- [x] asymmetric media filtering: defer obvious episodes in Movies, accept episode and movie-like specials in TV, and never silently discard ambiguous imports
 - [x] discover `Subs`, `Subtitles`, and similar movie subfolders; associate subtitles with their movie; detect filename language, Forced, and SDH variants; preview Plex-compatible names; move them alongside the movie without overwriting or deleting originals before success
 
 ### Milestone 7 — versioning, developer tools, and personality (planned)
@@ -257,10 +257,8 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Complete nested movie-subtitle discovery, language/variant handling, preview, and safe movement.
-2. Improve individual and bulk movie confirmation, then replace the current Match action with a searchable result-selection modal.
-3. Add conservative asymmetric TV/Movie filtering without hiding or dropping ambiguous imports.
-4. Add the media metadata editor, including episode-level TV editing and live filename validation.
-5. Continue resilient matching work: editable aliases, folder parsing, saved decisions, NFO export, and additional evidence.
-6. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
-7. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
+1. Add the media metadata editor, including episode-level TV editing and live filename validation.
+2. Extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate.
+3. Continue resilient matching work: editable aliases, folder parsing, saved decisions, NFO export, and additional evidence.
+4. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
+5. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
