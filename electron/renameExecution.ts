@@ -24,8 +24,9 @@ export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySou
 
 const videoExtensionPattern = /\.(?:mkv|mp4|m4v|avi|mov|webm|wmv|mpg|mpeg|ts|m2ts)$/i;
 const sourceJunkPatterns = [
-  /^www\.(?:yts\.(?:mx|am|ag)|yify-torrents\.com)\.jpe?g$/i,
-  /^yts\.(?:gg|mx|am|ag)\s*-\s*official[ ._-]+site\.jpe?g$/i,
+  /^www\.(?:yts\.[a-z0-9-]{2,12}|yify-torrents\.com)\.jpe?g$/i,
+  /^yts\.[a-z0-9-]{2,12}\s*-\s*official[ ._-]+site\.jpe?g$/i,
+  /^ytsyifyup.*\(\s*tor\s*\)\.txt$/i,
   /^(?:yifystatus|ytsproxies)\.com\.txt$/i,
 ];
 

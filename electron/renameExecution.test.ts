@@ -118,16 +118,22 @@ describe('rename execution', () => {
     const root = await temporaryDirectory();
     const sourceDirectory = path.join(root, 'incoming', 'Movie');
     const nestedDirectory = path.join(sourceDirectory, 'Other');
+    const subtitlesDirectory = path.join(sourceDirectory, 'Subs');
     const source = path.join(sourceDirectory, 'Movie.mp4');
     const target = path.join(root, 'library', 'Movie', 'Movie.mp4');
-    await fs.promises.mkdir(nestedDirectory, { recursive: true });
+    await Promise.all([fs.promises.mkdir(nestedDirectory, { recursive: true }), fs.promises.mkdir(subtitlesDirectory, { recursive: true })]);
     await Promise.all([
       fs.promises.writeFile(source, 'video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.MX.jpg'), 'advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'YIFYStatus.com.txt'), 'advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'YTSProxies.com.txt'), 'advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'YTS.GG - Official site.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.LT.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'WWW.YTS.RE.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.TO.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'YTSYifyUP.com (TOR).txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'WWW.YIFY-TORRENTS.COM.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(subtitlesDirectory, 'English.srt'), 'subtitle'),
       fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'keep'),
     ]);
@@ -137,11 +143,12 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(5);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(9);
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
   });
 
   it('optionally writes a timestamped log to the common destination folder', async () => {
