@@ -331,6 +331,7 @@ export default function App() {
   const probedPaths = useRef(new Set<string>());
   const probeRuns = useRef<Record<string, number>>({});
   const reportedSavedDecisionConflicts = useRef(new Set<string>());
+  const matchRowElements = useRef(new Map<string, HTMLElement>());
   const removalTimers = useRef<Record<string, number>>({});
   const fileDropDepth = useRef(0);
 
@@ -591,6 +592,14 @@ export default function App() {
     return [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }];
   }), [preflightPlan]);
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
+
+  function showFirstBlockedFile() {
+    const blocked = preflightPlan.items.find((item) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)].some((issue) => issue.severity === 'error'));
+    if (!blocked) return;
+    const row = matchRowElements.current.get(blocked.sourcePath);
+    row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => row?.focus({ preventScroll: true }), 350);
+  }
 
   useEffect(() => {
     let active = true;
@@ -1658,7 +1667,7 @@ export default function App() {
               <p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE BATCH' : t('hero.activeShow')}</p>
               {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
               {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
-              <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} ready · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} deferred to TV` : ''}${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
+              <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} matched · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} deferred to TV` : ''}${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
             </div>
           </div>
           {activeMediaTab === 'shows' ? <div className="show-search">
@@ -1689,7 +1698,7 @@ export default function App() {
               {activeMediaTab === 'movies' && <span className="count">{paths.length}</span>}
             </div>
             <div className="episode-list">
-              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} ready</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
+              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
                 <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</div>
@@ -1721,6 +1730,7 @@ export default function App() {
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
               <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
               {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
+              {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
               {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
             </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
@@ -1755,11 +1765,11 @@ export default function App() {
                 const movieReviewRequired = activeMediaTab === 'movies' && !deferredToTv && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
-                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
                 }}>
-                  <div className={`status-dot ${inspecting ? 'inspecting' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
+                  <div className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
                   {activeMediaTab === 'movies' && <div className="movie-row-poster">{movieFileMatch?.movie?.posterUrl ? <img src={movieFileMatch.movie.posterUrl} alt=""/> : <Film size={18}/>}</div>}
                   <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
@@ -1781,7 +1791,7 @@ export default function App() {
                     </div>}
                   </div>
                   <div className="row-trailing">
-                    <div className="score"><strong>{deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
+                    <div className="score"><strong>{blockingIssue ? '!' : deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : blockingIssue ? 'blocked' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
                     <div className={`row-extras with-edit ${(activeMediaTab === 'movies' || !keepReviewActionsFixed) ? 'with-review' : ''}`}>
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
