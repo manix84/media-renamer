@@ -60,9 +60,12 @@ export interface ReleaseTags {
   group?: string;
   webOrigin?: string;
   webOriginShort?: string;
+  audioLanguages?: AudioLanguage[];
 }
 
-export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels'>> & { durationSeconds?: number };
+export interface AudioLanguage { name: string; code3: string; code2?: string }
+
+export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'audioLanguages'>> & { durationSeconds?: number };
 
 export type CompanionKind = 'subtitle' | 'metadata' | 'artwork';
 export interface MediaCompanion { path: string; suffix: string; kind: CompanionKind }

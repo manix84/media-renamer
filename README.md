@@ -27,7 +27,7 @@ This first scaffold includes:
 - compact and separated episode-number matching, including `S01E02`, `S01 E02`, `S01-E02`, `S01.E02`, `1x02`, and `1 x 02`;
 - optional best-effort episode-title matching, including number/title conflicts;
 - confidence states (`confident`, `review`, and `unmatched`);
-- parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, leading or trailing release groups, normalized web-service origins, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels and contributing duration evidence to episode matching;
+- parsing for BluRay (including standalone `BD` folder tags), WEB-DL, WEBRip, HDTV, DVDRip, TVRip, leading or trailing release groups, normalized web-service origins, and common flags, with `ffprobe` detection overriding filename guesses for resolution, video/audio codecs, and channels, collecting every tagged audio language, and contributing duration evidence to episode matching;
 - persisted custom release-tag aliases for sources, resolutions, codecs, channels, flags, and WEB origins without replacing the built-in vocabulary;
 - FlexGet-aligned Plex edition handling: movie editions use a fixed canonical vocabulary with ordered multi-edition normalisation, while TV/anime preserve explicit arbitrary `{edition-…}` names and block malformed or conflicting markers;
 - guarded refresh-all and hover-only per-file refresh actions for re-reading embedded media information;
@@ -117,7 +117,7 @@ Episode names use a Mustache-style template that can be laid out and indented li
   {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}
 ```
 
-The syntax-highlighted editor lives in the right-side Preferences drawer, shows a two-episode output immediately, and reports incomplete, mismatched, or unknown tags without breaking rename previews. A collapsible reference alongside it documents every available variable and the variable, section, and inverted-section syntax. Templates are retained locally between launches. The default appends the show's canonical TVDB ID as `{tvdb-74550}` when TMDB supplies that cross-reference. Release templates can use `{{release.group}}`, the normalized full web origin through `{{release.webOrigin}}`, or its canonical shorthand through `{{release.webOriginShort}}`.
+The syntax-highlighted editor lives in the right-side Preferences drawer, shows a two-episode output immediately, and reports incomplete, mismatched, or unknown tags without breaking rename previews. A collapsible reference alongside it documents every available variable and the variable, section, and inverted-section syntax. Templates are retained locally between launches. The default appends the show's canonical TVDB ID as `{tvdb-74550}` when TMDB supplies that cross-reference. Release templates can use `{{release.group}}`, the normalized full web origin through `{{release.webOrigin}}`, or its canonical shorthand through `{{release.webOriginShort}}`. Tagged audio streams are available as the joined fields `{{audio.languageNames}}`, `{{audio.languageCodes3}}`, and `{{audio.languageCodes2}}`, or as a repeating `{{#audio.languages}}` section containing `name`, `code3`, and `code2`.
 
 The main batch toolbar includes a `Move files` / `In place` control. Moving uses the configured TV destination and show-folder template; in-place mode renames each video and its companion files inside their current directories. This is intentionally a current-batch flag and resets when the batch is cleared.
 
@@ -141,7 +141,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | --- | --- | --- |
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
-| 3 — Resilient matching and metadata | In progress | 8 of 11 steps |
+| 3 — Resilient matching and metadata | In progress | 11 of 14 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
@@ -189,6 +189,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] contiguous multi-episode filename detection, grouped matching, combined runtime evidence, and range formatting
 - [x] season-zero specials, TVDB absolute ordering, and explicit `SP`/`Special`/`OVA`/`OAD` anime filename patterns
 - [x] editable release-tag vocabulary and aliases
+- [x] ordered, deduplicated audio-language detection with full-name, ISO 639-2, and ISO 639-1 template fields
 - [x] conservative show/season folder evidence for sparsely named episode files
 - [ ] per-show rules
 - [x] saved per-show filename-to-episode decisions with stale-decision conflict handling

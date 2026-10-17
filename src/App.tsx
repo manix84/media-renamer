@@ -53,6 +53,10 @@ const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
     { name: 'release.videoCodec', description: 'Video codec', example: 'H.264' },
     { name: 'release.audioCodec', description: 'Audio codec', example: 'AAC' },
     { name: 'release.channels', description: 'Audio channel layout', example: '2.0' },
+    { name: 'audio.languageNames', description: 'Comma-separated audio language names', example: 'English, Japanese' },
+    { name: 'audio.languageCodes3', description: 'Comma-separated ISO 639 three-letter codes', example: 'eng, jpn' },
+    { name: 'audio.languageCodes2', description: 'Comma-separated ISO 639 two-letter codes', example: 'en, ja' },
+    { name: 'audio.languages', description: 'Repeating audio-language section with name, code3, and code2', example: '2 items' },
     { name: 'release.group', description: 'Release group', example: 'GROUP' },
     { name: 'release.webOrigin', description: 'Full web service name', example: 'Netflix' },
     { name: 'release.webOriginShort', description: 'Web service shorthand', example: 'NF' },
@@ -385,7 +389,7 @@ export default function App() {
           if (probeRuns.current[job.path] !== job.run) continue;
           setTechnicalTags((current) => ({ ...current, [job.path]: detected }));
           setProbeStates((current) => ({ ...current, [job.path]: 'complete' }));
-          const summary = [detected.resolution, detected.videoCodec, detected.audioCodec, detected.channels, detected.durationSeconds ? formatDuration(detected.durationSeconds * 1000) : undefined].filter(Boolean).join(' · ');
+          const summary = [detected.resolution, detected.videoCodec, detected.audioCodec, detected.channels, detected.audioLanguages?.map((language) => language.name).join(', '), detected.durationSeconds ? formatDuration(detected.durationSeconds * 1000) : undefined].filter(Boolean).join(' · ');
           addDebug('success', `Inspected ${filename}`, summary || 'No video or audio streams were detected.');
         } catch (reason) {
           if (probeRuns.current[job.path] !== job.run) continue;
@@ -1791,7 +1795,7 @@ export default function App() {
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = activeMediaTab === 'movies' ? deferredToTv ? 'deferred' : movieFileMatch?.status ?? 'detecting' : item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
-                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, ...tags.flags, tags.group].filter(Boolean) : [];
+                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const unchanged = unchangedPathSet.has(path);
@@ -2067,7 +2071,7 @@ export default function App() {
             <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
               <div className="format-heading"><span><h3>Episode filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>
               <TemplateEditor value={episodeTemplate} onChange={setEpisodeTemplate}/>
-              {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {singleEpisodeFormatExample && <div className="format-preview"><span>Single</span><strong>{singleEpisodeFormatExample}.mkv</strong></div>}
               {multiEpisodeFormatExample && <div className="format-preview"><span>Merged</span><strong>{multiEpisodeFormatExample}.mkv</strong></div>}
             </section>
@@ -2082,7 +2086,7 @@ export default function App() {
             <section className={`preference-section format-editor ${movieFormatError ? 'invalid' : ''}`}>
               <div className="format-heading"><span><h3>Movie filename template</h3><p>Controls the filename produced by the movie workflow.</p></span><button onClick={() => setMovieTemplate(DEFAULT_MOVIE_TEMPLATE)} disabled={movieTemplate === DEFAULT_MOVIE_TEMPLATE}>Reset</button></div>
               <TemplateEditor value={movieTemplate} onChange={setMovieTemplate}/>
-              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFormatExample && <div className="format-preview"><span>Output</span><strong>{movieFormatExample}.mkv</strong></div>}
             </section>
           </div>}

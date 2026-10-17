@@ -11,13 +11,17 @@ type ProbeStream = {
   channels?: number;
   channel_layout?: string;
   disposition?: { default?: number };
+  tags?: { language?: string };
 };
+
+export interface AudioLanguage { name: string; code3: string; code2?: string }
 
 export interface MediaTechnicalTags {
   resolution?: string;
   videoCodec?: string;
   audioCodec?: string;
   channels?: string;
+  audioLanguages?: AudioLanguage[];
   durationSeconds?: number;
 }
 
@@ -39,6 +43,35 @@ function channelLayout(stream?: ProbeStream): string | undefined {
 function preferredStream(streams: ProbeStream[], type: string): ProbeStream | undefined {
   const matching = streams.filter((stream) => stream.codec_type === type);
   return matching.find((stream) => stream.disposition?.default === 1) ?? matching[0];
+}
+
+const language3By2: Record<string, string> = {
+  ar: 'ara', bg: 'bul', ca: 'cat', cs: 'ces', da: 'dan', de: 'deu', el: 'ell', en: 'eng', es: 'spa', et: 'est',
+  eu: 'eus', fa: 'fas', fi: 'fin', fr: 'fra', he: 'heb', hi: 'hin', hr: 'hrv', hu: 'hun', id: 'ind', is: 'isl',
+  it: 'ita', ja: 'jpn', ko: 'kor', lt: 'lit', lv: 'lav', ms: 'msa', nl: 'nld', no: 'nor', pl: 'pol', pt: 'por',
+  ro: 'ron', ru: 'rus', sk: 'slk', sl: 'slv', sr: 'srp', sv: 'swe', th: 'tha', tr: 'tur', uk: 'ukr', vi: 'vie',
+  zh: 'zho',
+};
+const terminologyAliases: Record<string, string> = { alb: 'sqi', arm: 'hye', baq: 'eus', bur: 'mya', chi: 'zho', cze: 'ces', dut: 'nld', fre: 'fra', geo: 'kat', ger: 'deu', gre: 'ell', ice: 'isl', mac: 'mkd', mao: 'mri', may: 'msa', per: 'fas', rum: 'ron', slo: 'slk', tib: 'bod', wel: 'cym' };
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+
+function audioLanguages(streams: ProbeStream[]): AudioLanguage[] | undefined {
+  const found = streams.flatMap((stream) => {
+    if (stream.codec_type !== 'audio') return [];
+    const raw = stream.tags?.language?.trim().toLocaleLowerCase();
+    if (!raw || raw === 'und' || !/^[a-z]{2,3}$/.test(raw)) return [];
+    let code2: string | undefined;
+    try {
+      const canonical = new Intl.Locale(raw).language;
+      if (/^[a-z]{2}$/.test(canonical)) code2 = canonical;
+    } catch { return []; }
+    const code3 = raw.length === 3 ? terminologyAliases[raw] ?? raw : language3By2[raw];
+    if (!code3) return [];
+    const display = languageNames.of(code2 ?? code3);
+    return [{ name: display && display !== code2 && display !== code3 ? display : code3.toUpperCase(), code3, ...(code2 ? { code2 } : {}) }];
+  });
+  const unique = [...new Map(found.map((language) => [`${language.code2 ?? ''}:${language.code3}`, language])).values()];
+  return unique.length ? unique : undefined;
 }
 
 function standardResolution(width?: number, height?: number): string | undefined {
@@ -63,11 +96,13 @@ export function parseProbeOutput(output: string): MediaTechnicalTags {
   const video = preferredStream(streams, 'video');
   const audio = preferredStream(streams, 'audio');
   const duration = Number(data.format?.duration);
+  const languages = audioLanguages(streams);
   return {
     resolution: standardResolution(video?.width, video?.height),
     videoCodec: videoCodec(video?.codec_name),
     audioCodec: audioCodec(audio?.codec_name),
     channels: channelLayout(audio),
+    ...(languages ? { audioLanguages: languages } : {}),
     durationSeconds: Number.isFinite(duration) && duration > 0 ? duration : undefined,
   };
 }
@@ -76,7 +111,7 @@ export async function probeMedia(filePath: string, ffprobePath = process.env.FFP
   try {
     const { stdout } = await execFileAsync(ffprobePath, [
       '-v', 'error',
-      '-show_entries', 'format=duration:stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default',
+      '-show_entries', 'format=duration:stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default:stream_tags=language',
       '-of', 'json',
       filePath,
     ], { encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 30_000 });

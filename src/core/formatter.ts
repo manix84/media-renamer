@@ -30,12 +30,24 @@ const VALID_NAMES = new Set([
   'season', 'number', 'seasonPadded', 'numberPadded', 'code', 'title', 'first', 'last',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
   'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags',
+  'audio.languages', 'audio.languageNames', 'audio.languageCodes3', 'audio.languageCodes2', 'name', 'code3', 'code2',
 ]);
 const MOVIE_VALID_NAMES = new Set([
   'movie.name', 'movie.year', 'movie.tmdbId', 'movie.edition', 'technical',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
   'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags', 'release.edition',
+  'audio.languages', 'audio.languageNames', 'audio.languageCodes3', 'audio.languageCodes2', 'name', 'code3', 'code2', 'first', 'last',
 ]);
+
+function audioContext(tags: ReleaseTags): TemplateContext {
+  const languages = tags.audioLanguages ?? [];
+  return {
+    languages: languages.map((language, index) => ({ ...language, first: index === 0, last: index === languages.length - 1 })),
+    languageNames: languages.map((language) => language.name).join(', '),
+    languageCodes3: languages.map((language) => language.code3).join(', '),
+    languageCodes2: languages.flatMap((language) => language.code2 ?? []).join(', '),
+  };
+}
 
 function parseTemplate(template: string): TemplateNode[] {
   if (template.replace(TOKEN, '').includes('{{') || template.replace(TOKEN, '').includes('}}')) throw new Error('A template tag is not complete');
@@ -116,6 +128,7 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
       last: index === episodes.length - 1,
     })),
     technical,
+    audio: audioContext(tags),
     release: {
       resolution: tags.resolution,
       source: tags.source === 'Unknown' ? undefined : tags.source,
@@ -130,10 +143,11 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
   };
 }
 
-function releaseContext(tags: ReleaseTags): Pick<TemplateContext, 'technical' | 'release'> {
+function releaseContext(tags: ReleaseTags): TemplateContext {
   const technicalFlags = tags.edition ? tags.flags.filter((flag) => flag !== 'EXTENDED') : tags.flags;
   return {
     technical: [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...technicalFlags, tags.videoCodec, tags.audioCodec, tags.channels].filter(Boolean).join(' '),
+    audio: audioContext(tags),
     release: {
       edition: tags.edition,
       resolution: tags.resolution,

@@ -114,6 +114,16 @@ describe('episode filename templates', () => {
     expect(movieTemplateError('{{release.webOrigin}} {{release.webOriginShort}}')).toBeUndefined();
   });
 
+  it('exposes audio languages as full names, code lists, and repeating entries', () => {
+    const languageTags: ReleaseTags = { ...tags, audioLanguages: [
+      { name: 'English', code3: 'eng', code2: 'en' },
+      { name: 'Japanese', code3: 'jpn', code2: 'ja' },
+    ] };
+    const template = '{{movie.name}} [{{audio.languageNames}}] [{{audio.languageCodes3}}] [{{audio.languageCodes2}}] {{#audio.languages}}{{^first}} + {{/first}}{{name}}/{{code3}}/{{code2}}{{/audio.languages}}';
+    expect(formatMovie(template, 'Movie', 2026, languageTags)).toBe('Movie [English, Japanese] [eng, jpn] [en, ja] English/eng/en + Japanese/jpn/ja');
+    expect(movieTemplateError(template)).toBeUndefined();
+  });
+
   it('writes a detected Plex edition without duplicating its extended flag', () => {
     const editionTags: ReleaseTags = { ...tags, edition: 'Extended', flags: ['EXTENDED'] };
     expect(formatMovie(DEFAULT_MOVIE_TEMPLATE, 'The Movie', 2020, editionTags, '123'))
