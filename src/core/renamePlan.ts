@@ -117,3 +117,12 @@ export function createRenamePlan(inputs: RenamePlanInput[]): RenamePlan {
     warningCount: issues.filter((entry) => entry.severity === 'warning').length,
   };
 }
+
+export function unchangedRenameItemPaths(plan: RenamePlan): string[] {
+  return plan.items.flatMap((item) => {
+    const entries = [item, ...item.companions];
+    return entries.length > 0 && entries.every((entry) => entry.targetPath === entry.sourcePath)
+      ? [item.sourcePath]
+      : [];
+  });
+}

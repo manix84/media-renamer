@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime } from './completionChime';
 import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
-import { createRenamePlan, destinationDirectoryForSource } from './core/renamePlan';
+import { createRenamePlan, destinationDirectoryForSource, unchangedRenameItemPaths } from './core/renamePlan';
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
 import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
@@ -592,6 +592,7 @@ export default function App() {
     return [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }];
   }), [preflightPlan]);
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
+  const unchangedPaths = useMemo(() => unchangedRenameItemPaths(preflightPlan), [preflightPlan]);
 
   function showFirstBlockedFile() {
     const blocked = preflightPlan.items.find((item) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)].some((issue) => issue.severity === 'error'));
@@ -599,6 +600,40 @@ export default function App() {
     const row = matchRowElements.current.get(blocked.sourcePath);
     row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     window.setTimeout(() => row?.focus({ preventScroll: true }), 350);
+  }
+
+  function clearUnchangedFiles() {
+    if (!unchangedPaths.length || removalTimers.current.__clearUnchanged !== undefined) return;
+    const targets = new Set(unchangedPaths);
+    setBatchRenameCompleted(false);
+    setRemovingPaths((current) => new Set([...current, ...targets]));
+    removalTimers.current.__clearUnchanged = window.setTimeout(() => {
+      const withoutPaths = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([path]) => !targets.has(path)));
+      for (const path of targets) {
+        probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
+        probedPaths.current.delete(path);
+        matchRowElements.current.delete(path);
+      }
+      setPaths((current) => current.filter((path) => !targets.has(path)));
+      setTechnicalTags(withoutPaths);
+      setProbeStates(withoutPaths);
+      setMatchOverrides(withoutPaths);
+      setMovieMatches(withoutPaths);
+      setMetadataOverrides(withoutPaths);
+      setConfirmedPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
+      setHeldConfirmationPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
+      setCompanionScan((current) => ({
+        byVideo: withoutPaths(current.byVideo),
+        ambiguous: current.ambiguous.map((item) => ({ ...item, candidateVideoPaths: item.candidateVideoPaths.filter((path) => !targets.has(path)) })).filter((item) => item.candidateVideoPaths.length > 0),
+      }));
+      if (reviewingPath && targets.has(reviewingPath)) setReviewingPath(undefined);
+      if (movieReviewPath && targets.has(movieReviewPath)) { setMovieReviewPath(undefined); setMovieReviewResults([]); setMovieReviewSelection(undefined); }
+      if (editingMetadataPath && targets.has(editingMetadataPath)) { setEditingMetadataPath(undefined); setMetadataDraft(undefined); }
+      if (pinnedPreviewPath && targets.has(pinnedPreviewPath)) setPinnedPreviewPath(undefined);
+      setRemovingPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
+      delete removalTimers.current.__clearUnchanged;
+      addDebug('info', `Cleared ${targets.size} unchanged file${targets.size === 1 ? '' : 's'} from the batch`, 'Every removed video and companion already had its proposed name and location. No files were changed on disk.');
+    }, 360);
   }
 
   useEffect(() => {
@@ -1730,6 +1765,7 @@ export default function App() {
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
               <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
               {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
+              {!preflightError && unchangedPaths.length > 0 && <button className="secondary clear-unchanged" onClick={clearUnchangedFiles}><Trash2 size={14}/> Clear {unchangedPaths.length} unchanged</button>}
               {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
               {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
             </div>}

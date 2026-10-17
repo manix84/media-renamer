@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRenamePlan, destinationDirectoryForSource, filenameProblem } from './renamePlan';
+import { createRenamePlan, destinationDirectoryForSource, filenameProblem, unchangedRenameItemPaths } from './renamePlan';
 
 describe('rename plan', () => {
   it('uses a media folder beside the source when no library base is configured', () => {
@@ -81,6 +81,21 @@ describe('rename plan', () => {
     ]);
     expect(plan.warningCount).toBe(2);
     expect(plan.issues.map((entry) => entry.code)).toEqual(['no-change', 'case-only-rename']);
+  });
+
+  it('identifies only rows where the video and every companion are unchanged', () => {
+    const plan = createRenamePlan([
+      {
+        sourcePath: '/movies/Same.mkv', targetName: 'Same.mkv', matchStatus: 'confident', confidence: 1,
+        companions: [{ path: '/movies/Same.en.srt', suffix: '.en.srt', kind: 'subtitle' }],
+      },
+      {
+        sourcePath: '/movies/Video.mkv', targetName: 'Video.mkv', matchStatus: 'confident', confidence: 1,
+        companions: [{ path: '/movies/Old.en.srt', suffix: '.en.srt', kind: 'subtitle' }],
+      },
+      { sourcePath: '/movies/Old.mkv', targetName: 'New.mkv', matchStatus: 'confident', confidence: 1 },
+    ]);
+    expect(unchangedRenameItemPaths(plan)).toEqual(['/movies/Same.mkv']);
   });
 
   it('rejects portable filename hazards', () => {

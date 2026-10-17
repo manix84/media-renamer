@@ -296,6 +296,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .plan-status.blocked { border-color: #57462b; background: #292318; color: #e0ad4e; }
 .plan-status > span { min-width: 0; } .plan-status strong, .plan-status small { display: block; } .plan-status strong { color: #cbd7d1; font-size: 11px; } .plan-status small { margin-top: 2px; color: #718096; font-size: 9px; }
 .plan-status .confirm-suggestions { margin-left: auto; flex: 0 0 auto; border-color: #685728; background: #352d1d; color: #efbd52; }
+.plan-status .clear-unchanged { margin-left: auto; flex: 0 0 auto; }
+.plan-status .clear-unchanged + .show-blocked, .plan-status .clear-unchanged + .confirm-suggestions { margin-left: 0; }
 .plan-status .show-blocked { margin-left: auto; flex: 0 0 auto; border-color: #754047; background: #382126; color: #ff929b; }
 .plan-status .show-blocked + .confirm-suggestions { margin-left: 0; }
 .match-list { flex: 1; min-height: 0; height: 0; padding: 0 12px; overflow-y: auto; }
