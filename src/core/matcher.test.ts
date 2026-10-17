@@ -133,6 +133,30 @@ describe('release tag parser', () => {
 });
 
 describe('episode matcher', () => {
+  it('uses a season folder with a filename episode number', () => {
+    const result = matchFile('/tv/Fringe/Season 3/04 - Electric Sheep.mkv', [
+      { id: 's1e4', season: 1, number: 4, title: 'Arrival' },
+      { id: 's3e4', season: 3, number: 4, title: 'Do Shapeshifters Dream of Electric Sheep?' },
+    ], false);
+    expect(result.match?.episode.id).toBe('s3e4');
+    expect(result.match?.reasons).toContain('season folder and episode number');
+  });
+
+  it('keeps an explicit filename season authoritative over its folder', () => {
+    const result = matchFile('/tv/Fringe/Season 2/Fringe.S03E04.mkv', [
+      { id: 's2e4', season: 2, number: 4, title: 'Momentum Deferred' },
+      { id: 's3e4', season: 3, number: 4, title: 'Do Shapeshifters Dream of Electric Sheep?' },
+    ], false);
+    expect(result.match?.episode.id).toBe('s3e4');
+    expect(result.match?.reasons).toContain('season and episode number');
+  });
+
+  it('does not infer an episode from a non-episode filename in a season folder', () => {
+    expect(matchFile('/tv/Fringe/Season 3/featurette.mkv', [
+      { id: 's3e1', season: 3, number: 1, title: 'Olivia' },
+    ], false).status).toBe('unmatched');
+  });
+
   it('can prefer an episode title when numbering is wrong', () => {
     const result = matchFile('Dilbert.S02E07.The.Merger.DVDRip.x264.mkv', episodes, true);
     expect(result.match?.episode.title).toBe('The Merger');

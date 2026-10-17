@@ -43,4 +43,17 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/tv/random-video.mkv'])).toBeUndefined();
     expect(inferShowQuery(['/tv/The Episode Guide.mkv'])).toBeUndefined();
   });
+
+  it('uses a show and season folder when the filename only identifies the episode', () => {
+    expect(inferShowQuery(['/media/tv/Fringe (2008)/Season 3/04 - Do Shapeshifters Dream of Electric Sheep.mkv']))
+      .toBe('Fringe (2008)');
+    expect(inferShowQuery(['C:\\TV Shows\\Motto\\S02\\E03.mp4'])).toBe('Motto');
+    expect(inferShowQuery(['/media/tv/Fringe (2008)/S03E04.mkv'])).toBe('Fringe (2008)');
+    expect(inferShowQuery(['/media/tv/Fringe (2008)/Specials/01.mkv'])).toBe('Fringe (2008)');
+  });
+
+  it('does not treat generic or unnumbered folders as a show', () => {
+    expect(inferShowQuery(['/media/tv/Season 3/04.mkv'])).toBeUndefined();
+    expect(inferShowQuery(['/media/tv/Some Show/Season 3/featurette.mkv'])).toBeUndefined();
+  });
 });

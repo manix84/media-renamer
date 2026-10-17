@@ -1,12 +1,19 @@
 export type ParsedEpisodeCode = { season: number; episode: number; index: number };
 export type ParsedStandaloneEpisode = { episode: number; index: number };
 export type ParsedSpecialEpisode = { episode: number; index: number };
+export type ParsedFolderEpisode = { season: number; episode: number };
 
 const episodeCodePattern = /(?:^|[ ._-])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})[ ._-]*x[ ._-]*(\d{1,3})|s(\d{1,2})[ ._-]+(\d{1,3}))(?=$|[ ._-])/i;
 const standaloneEpisodePattern = /\s+-\s+(\d{1,3})(?=\s*(?:-|\[|\(|$))/;
 const specialEpisodePattern = /(?:^|[ ._-])(?:sp|special|ova|oad)[ ._-]*(\d{1,3})(?=$|[ ._-])/i;
 const compactMultiEpisodePattern = /(?:^|[ ._-])s(\d{1,2})[ ._-]*e(\d{1,3})((?:[ ._-]*e\d{1,3})+)(?=$|[ ._-])/i;
 const rangedMultiEpisodePattern = /(?:^|[ ._-])s(\d{1,2})[ ._-]*e(\d{1,3})[ ._-]+e?(\d{1,3})(?=$|[ ._-])/i;
+const seasonFolderPattern = /^(?:season|series)[ ._-]*(\d{1,2})$|^s(\d{1,2})$|^(specials?)$/i;
+const folderEpisodePattern = /^(?:e(?:p(?:isode)?)?[ ._-]*)?(\d{1,3})(?=$|[ ._-]+(?!p\b))/i;
+
+function pathParts(value: string): string[] {
+  return value.split(/[\\/]/).filter(Boolean);
+}
 
 export function parseEpisodeCode(value: string): ParsedEpisodeCode | undefined {
   const match = episodeCodePattern.exec(value);
@@ -44,4 +51,21 @@ export function parseEpisodeCodes(value: string): ParsedEpisodeCode[] {
   }
   const single = parseEpisodeCode(value);
   return single ? [single] : [];
+}
+
+export function parseSeasonFolder(value: string): number | undefined {
+  const match = seasonFolderPattern.exec(value.trim());
+  return match ? match[3] ? 0 : Number(match[1] ?? match[2]) : undefined;
+}
+
+export function parseFolderEpisode(filePath: string): ParsedFolderEpisode | undefined {
+  const parts = pathParts(filePath);
+  if (parts.length < 2) return undefined;
+  const filename = parts.at(-1)?.replace(/\.[^.]+$/, '') ?? '';
+  const explicit = parseEpisodeCode(filename);
+  if (explicit) return { season: explicit.season, episode: explicit.episode };
+  const season = parseSeasonFolder(parts.at(-2) ?? '');
+  if (season === undefined) return undefined;
+  const episode = folderEpisodePattern.exec(filename);
+  return episode ? { season, episode: Number(episode[1]) } : undefined;
 }

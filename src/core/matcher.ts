@@ -1,6 +1,6 @@
 import type { Episode, FileMatch, MatchCandidate } from './types';
 import { parseReleaseTags } from './releaseTags';
-import { parseEpisodeCodes, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
+import { parseEpisodeCodes, parseFolderEpisode, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
 
 const stopWords = new Set(['a', 'an', 'and', 'of', 'the', 'to', 'in', 'part', 'episode']);
 
@@ -30,11 +30,13 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
   return recall * 0.85 + precision * 0.15;
 }
 
-function numberedEpisodes(filename: string, episodes: Episode[]): { season: number; episodeNumbers: number[]; evidence: 'season' | 'special' | 'absolute' | 'sole-season' } | undefined {
+function numberedEpisodes(filename: string, episodes: Episode[], filePath = filename): { season: number; episodeNumbers: number[]; evidence: 'season' | 'folder' | 'special' | 'absolute' | 'sole-season' } | undefined {
   const matches = parseEpisodeCodes(filename);
   if (matches.length) return { season: matches[0].season, episodeNumbers: matches.map((match) => match.episode), evidence: 'season' };
   const special = parseSpecialEpisode(filename);
   if (special) return { season: 0, episodeNumbers: [special.episode], evidence: 'special' };
+  const folder = parseFolderEpisode(filePath);
+  if (folder) return { season: folder.season, episodeNumbers: [folder.episode], evidence: 'folder' };
   const standalone = parseStandaloneEpisode(filename);
   if (!standalone) return undefined;
   const absoluteMatches = episodes.filter((episode) => episode.absoluteNumber === standalone.episode);
@@ -52,8 +54,8 @@ function durationEvidence(durationSeconds: number | undefined, runtimeMinutes: n
   return { score: 0 };
 }
 
-export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string, durationSeconds?: number): MatchCandidate[] {
-  const numbered = numberedEpisodes(filename, episodes);
+export function rankEpisodes(filename: string, episodes: Episode[], useTitle = true, showTitle?: string, durationSeconds?: number, filePath = filename): MatchCandidate[] {
+  const numbered = numberedEpisodes(filename, episodes, filePath);
   const numberedMatches = numbered?.episodeNumbers.map((number) => episodes.find((episode) => episode.season === numbered.season && episode.number === number));
   const completeNumberedMatch = numberedMatches?.every((episode): episode is Episode => Boolean(episode)) ? numberedMatches as Episode[] : undefined;
   return episodes
@@ -64,6 +66,7 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
         score += 0.45;
         reasons.push(numbered.evidence === 'season'
           ? completeNumberedMatch.length > 1 ? `${completeNumberedMatch.length} episode numbers` : 'season and episode number'
+          : numbered.evidence === 'folder' ? 'season folder and episode number'
           : numbered.evidence === 'special' ? 'special episode number'
             : numbered.evidence === 'absolute' ? 'absolute episode number'
               : 'episode number in the only matching season');
@@ -87,7 +90,7 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
 
 export function matchFile(path: string, episodes: Episode[], useTitle = true, confidenceThreshold = 0.8, showTitle?: string, durationSeconds?: number): FileMatch {
   const filename = path.split(/[\\/]/).pop() ?? path;
-  const alternatives = rankEpisodes(filename, episodes, useTitle, showTitle, durationSeconds);
+  const alternatives = rankEpisodes(filename, episodes, useTitle, showTitle, durationSeconds, path);
   const match = alternatives[0];
   const threshold = Math.min(1, Math.max(0, confidenceThreshold));
   const status = !match || match.score < 0.34 ? 'unmatched' : match.score >= threshold ? 'confident' : 'review';
