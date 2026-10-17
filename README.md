@@ -142,7 +142,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
 | 3 — Resilient matching and metadata | In progress | 7 of 11 steps |
 | 4 — Movies and library workflows | Started | 4 of 10 steps |
-| 5 — Editing and confirmation | In progress | 5 of 6 steps |
+| 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
 | 8 — Release readiness | Planned | 0 of 6 steps |
@@ -205,14 +205,14 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [ ] collection-aware folder and filename fields
 - [ ] saved library roots and repeatable batch queues
 
-### Milestone 5 — editing and confirmation (in progress)
+### Milestone 5 — editing and confirmation (complete)
 
 - [x] media-item editing modal with inputs for every editable field, validation, filename previews, Save, and Cancel
 - [x] episode-level metadata editing for TV shows
 - [x] one-click confirmation for an individual movie suggestion
 - [x] reliable movie Confirm All with an explained list of files that still require manual review
 - [x] result-driven movie Match modal with immediate search, posters, titles, years, selectable results, and query refinement
-- [ ] extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate
+- [x] extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate
 
 ### Milestone 6 — media detection and subtitle organisation (complete)
 
@@ -257,7 +257,6 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Extend the unconfirmable-item dialogue to TV shows and individual episodes where appropriate.
-2. Continue resilient matching work: editable aliases, folder parsing, saved decisions, NFO export, and additional evidence.
-3. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
-4. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
+1. Continue resilient matching work: editable aliases, folder parsing, saved decisions, NFO export, and additional evidence.
+2. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
+3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.

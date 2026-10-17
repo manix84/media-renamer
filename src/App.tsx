@@ -9,6 +9,7 @@ import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassification';
 import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverride } from './core/metadataEditing';
+import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
@@ -404,24 +405,25 @@ export default function App() {
   }, [matchesByPath]);
   const confirmablePaths = useMemo(() => paths.filter((path) => {
     if (activeMediaTab === 'movies') {
-      if (classifyMediaFile(path) === 'shows') return false;
-      const match = movieMatches[path];
-      return Boolean(match?.movie && match.status === 'review');
+      return movieMatchConfirmationState(movieMatches[path], classifyMediaFile(path) === 'shows').kind === 'suggestion';
     }
-    const item = matchesByPath.get(path);
-    return Boolean(item?.match && item.status !== 'confident' && !confirmedPaths.has(path));
+    return tvMatchConfirmationState(matchesByPath.get(path), confirmedPaths.has(path)).kind === 'suggestion';
   }), [activeMediaTab, confirmedPaths, matchesByPath, movieMatches, paths]);
   const confirmationBlockers = useMemo(() => paths.flatMap((path) => {
-    if (activeMediaTab === 'movies') {
-      if (classifyMediaFile(path) === 'shows') return [{ path, reason: 'TV episode numbering was detected. Open this batch in TV mode.' }];
-      const match = movieMatches[path];
-      if (match?.status === 'confident' || (match?.status === 'review' && match.movie)) return [];
-      return [{ path, reason: match?.error ?? match?.reasons.join(' + ') ?? (match?.status === 'detecting' ? 'Detection is still running.' : 'No movie suggestion is available.') }];
-    }
-    const item = matchesByPath.get(path);
-    if (confirmedPaths.has(path) || item?.status === 'confident' || item?.match) return [];
-    return [{ path, reason: item?.match?.reasons.join(' + ') || 'No episode suggestion is available.' }];
+    const state = activeMediaTab === 'movies'
+      ? movieMatchConfirmationState(movieMatches[path], classifyMediaFile(path) === 'shows')
+      : tvMatchConfirmationState(matchesByPath.get(path), confirmedPaths.has(path));
+    return state.kind === 'blocked' ? [{ path, reason: state.reason ?? 'Manual review is required.' }] : [];
   }), [activeMediaTab, confirmedPaths, matchesByPath, movieMatches, paths]);
+  const confirmationSuggestions = useMemo(() => confirmablePaths.flatMap((path) => {
+    if (activeMediaTab === 'movies') {
+      const movie = movieMatches[path]?.movie;
+      return movie ? [{ path, label: `${movie.name}${movie.year ? ` (${movie.year})` : ''}` }] : [];
+    }
+    const candidate = matchesByPath.get(path)?.match;
+    return candidate ? [{ path, label: `${candidateLabel(candidate)} — ${candidateTitle(candidate)}` }] : [];
+  }), [activeMediaTab, confirmablePaths, matchesByPath, movieMatches]);
+  const confirmationActionCount = confirmationSuggestions.length + confirmationBlockers.length;
   const reviewingItem = reviewingPath ? matchesByPath.get(reviewingPath) : undefined;
   const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
   const suggestedCandidates = useMemo(() => {
@@ -1506,6 +1508,13 @@ export default function App() {
     setConfirmAllResult({ confirmed: confirmablePaths.length, remaining: confirmationBlockers });
   }
 
+  function reviewFromConfirmation(path: string) {
+    setConfirmAllOpen(false);
+    setConfirmAllResult(undefined);
+    if (activeMediaTab === 'movies') openMovieMatchReview(path);
+    else openMatchReview(path);
+  }
+
   function openMatchReview(path: string) {
     const item = matchesByPath.get(path);
     setReviewingPath(path);
@@ -1677,7 +1686,7 @@ export default function App() {
               {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
               <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
               {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
-              {confirmablePaths.length > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> Confirm {confirmablePaths.length} suggestion{confirmablePaths.length === 1 ? '' : 's'}</button>}
+              {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
             </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {paths.map((path) => {
@@ -1819,12 +1828,20 @@ export default function App() {
 
       {confirmAllOpen && <div className="confirmation-layer" role="presentation">
         <button className="confirmation-backdrop" aria-label="Cancel confirming suggested matches" onClick={() => setConfirmAllOpen(false)}/>
-        <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-all-title" aria-describedby="confirm-all-description">
+        <section className="confirmation-dialog match-confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-all-title" aria-describedby="confirm-all-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
-          <h2 id="confirm-all-title">{confirmAllResult ? `${confirmAllResult.confirmed} match${confirmAllResult.confirmed === 1 ? '' : 'es'} confirmed` : `Confirm ${confirmablePaths.length} suggested match${confirmablePaths.length === 1 ? '' : 'es'}?`}</h2>
-          <p id="confirm-all-description">{confirmAllResult ? confirmAllResult.remaining.length ? `${confirmAllResult.remaining.length} file${confirmAllResult.remaining.length === 1 ? '' : 's'} still need manual attention.` : 'Every eligible suggestion is now confirmed.' : `This accepts the ${activeMediaTab === 'movies' ? 'movie' : 'episode'} currently shown beside each review file.`}</p>
-          {confirmAllResult?.remaining.length ? <ul className="confirmation-results">{confirmAllResult.remaining.map((item) => <li key={item.path}><strong>{filenameFromPath(item.path)}</strong><span>{item.reason}</span></li>)}</ul> : null}
-          <div>{confirmAllResult ? <button className="primary" autoFocus onClick={() => setConfirmAllOpen(false)}>Done</button> : <><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>Cancel</button><button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Confirm all</button></>}</div>
+          <h2 id="confirm-all-title">{confirmAllResult ? `${confirmAllResult.confirmed} match${confirmAllResult.confirmed === 1 ? '' : 'es'} confirmed` : `Review ${confirmationActionCount} matching decision${confirmationActionCount === 1 ? '' : 's'}`}</h2>
+          <p id="confirm-all-description">{confirmationSuggestions.length ? `${confirmationSuggestions.length} suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match${confirmationSuggestions.length === 1 ? ' is' : 'es are'} ready to accept.` : 'There are no remaining suggestions that can be accepted automatically.'}{confirmationBlockers.length ? ` ${confirmationBlockers.length} file${confirmationBlockers.length === 1 ? '' : 's'} still require manual attention.` : ''}</p>
+          <div className="match-confirmation-groups">
+            {confirmationSuggestions.length > 0 && <section><h3>Suggested matches</h3><ul className="confirmation-results actionable">{confirmationSuggestions.map((item) => <li key={item.path}><span><strong>{filenameFromPath(item.path)}</strong><small>{item.label}</small></span><button className="secondary" onClick={() => { setConfirmAllResult(undefined); confirmSuggestedMatch(item.path); }}><Check size={13}/> Accept</button></li>)}</ul></section>}
+            {confirmationBlockers.length > 0 && <section><h3>Needs manual attention</h3><ul className="confirmation-results actionable">{confirmationBlockers.map((item) => {
+              const canReview = activeMediaTab === 'movies'
+                ? Boolean(movieMatches[item.path] && movieMatches[item.path].status !== 'detecting' && !deferredMoviePaths.has(item.path))
+                : Boolean(show && episodes.length && matchesByPath.get(item.path));
+              return <li key={item.path}><span><strong>{filenameFromPath(item.path)}</strong><small>{item.reason}</small></span><button className="secondary" disabled={!canReview} title={canReview ? `Choose a ${activeMediaTab === 'movies' ? 'movie' : 'TV episode'} match` : activeMediaTab === 'movies' && deferredMoviePaths.has(item.path) ? 'Open this file in TV mode from its row.' : 'Load show metadata before choosing an episode.'} onClick={() => reviewFromConfirmation(item.path)}><ListChecks size={13}/> Review</button></li>;
+            })}</ul></section>}
+          </div>
+          <div><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>{confirmAllResult ? 'Done' : 'Close'}</button>{confirmationSuggestions.length > 0 && <button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Accept all {confirmationSuggestions.length}</button>}</div>
         </section>
       </div>}
 
