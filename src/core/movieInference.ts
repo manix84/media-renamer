@@ -1,4 +1,5 @@
 import { stripEditionTokens, stripTrailingMovieEdition } from './releaseTags';
+import { stripMovieVideoRoleTokens, type MovieVideoRole } from './movieVideoRole';
 
 const releaseTokenPattern = /\b(?:\d{3,4}x\d{3,4}|2160p|1080p|720p|576p|480p|uhd|hdr10?|dv|dolby[ ._-]?vision|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos|proper|repack|yify|rarbg)\b/i;
 
@@ -14,9 +15,9 @@ function cleanTitle(value: string): string {
     .trim();
 }
 
-function inferCandidate(filePath: string, latestYear: number): string | undefined {
+function inferCandidate(filePath: string, latestYear: number, role: MovieVideoRole = { kind: 'main' }): string | undefined {
   const stem = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-  const normalized = cleanTitle(stripEditionTokens(stem));
+  const normalized = cleanTitle(stripMovieVideoRoleTokens(stripEditionTokens(stem), role));
   const years = [...normalized.matchAll(/\b((?:18|19|20)\d{2})\b/g)]
     .filter((match) => Number(match[1]) <= latestYear);
 
@@ -38,8 +39,8 @@ function inferCandidate(filePath: string, latestYear: number): string | undefine
   return title.length >= 2 ? title : undefined;
 }
 
-export function inferMovieQuery(paths: string[], currentYear = new Date().getFullYear()): string | undefined {
-  const candidates = paths.map((path) => inferCandidate(path, currentYear + 1)).filter((candidate): candidate is string => Boolean(candidate));
+export function inferMovieQuery(paths: string[], currentYear = new Date().getFullYear(), roles: Record<string, MovieVideoRole> = {}): string | undefined {
+  const candidates = paths.map((path) => inferCandidate(path, currentYear + 1, roles[path])).filter((candidate): candidate is string => Boolean(candidate));
   if (!candidates.length) return undefined;
   const counts = new Map<string, { value: string; count: number }>();
   for (const candidate of candidates) {
@@ -50,8 +51,8 @@ export function inferMovieQuery(paths: string[], currentYear = new Date().getFul
   return [...counts.values()].sort((left, right) => right.count - left.count || right.value.length - left.value.length)[0]?.value;
 }
 
-export function inferMovieQueryCandidates(paths: string[], currentYear = new Date().getFullYear()): string[] {
-  const primary = inferMovieQuery(paths, currentYear);
+export function inferMovieQueryCandidates(paths: string[], currentYear = new Date().getFullYear(), roles: Record<string, MovieVideoRole> = {}): string[] {
+  const primary = inferMovieQuery(paths, currentYear, roles);
   if (!primary) return [];
   const year = primary.match(/ \((\d{4})\)$/);
   const title = year ? primary.slice(0, year.index) : primary;

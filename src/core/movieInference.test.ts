@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inferMovieQuery, inferMovieQueryCandidates } from './movieInference';
+import { classifyMovieVideoRoles } from './movieVideoRole';
 
 describe('movie-name inference', () => {
   it('extracts a dotted title and release year before release metadata', () => {
@@ -51,5 +52,13 @@ describe('movie-name inference', () => {
       '/movies/Main.Movie.2020.Disc.2.1080p.mkv',
       '/movies/Other.Movie.2019.1080p.mkv',
     ], 2026)).toBe('Main Movie (2020)');
+  });
+
+  it('removes confirmed multipart and extra markers from movie searches', () => {
+    const parts = ['/movies/Movie.2020.CD1.1080p.mkv', '/movies/Movie.2020.CD2.1080p.mkv'];
+    const roles = classifyMovieVideoRoles(parts);
+    expect(inferMovieQueryCandidates([parts[0]], 2026, roles)).toEqual(['Movie (2020)']);
+    const trailer = '/movies/Movie.2020.trailer.1080p.mkv';
+    expect(inferMovieQueryCandidates([trailer], 2026, classifyMovieVideoRoles([trailer]))).toEqual(['Movie (2020)']);
   });
 });

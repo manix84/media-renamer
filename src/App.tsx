@@ -8,6 +8,7 @@ import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
+import { appendMovieVideoSuffix, classifyMovieVideoRoles } from './core/movieVideoRole';
 import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassification';
 import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverride } from './core/metadataEditing';
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
@@ -475,6 +476,7 @@ export default function App() {
   const parsedReleaseAliases = useMemo(() => parseReleaseAliasText(releaseAliasText), [releaseAliasText]);
   const releaseAliases = useMemo(() => parsedReleaseAliases.errors.length ? [] : parsedReleaseAliases.aliases, [parsedReleaseAliases]);
   const deferredMoviePaths = useMemo(() => new Set(paths.filter((path) => classifyMediaFile(path) === 'shows')), [paths]);
+  const movieVideoRoles = useMemo(() => classifyMovieVideoRoles(paths), [paths]);
   const movieMatchCounts = useMemo(() => ({
     ready: paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === 'confident').length,
     review: paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === 'review').length,
@@ -551,7 +553,7 @@ export default function App() {
     const longestCompanionSuffix = companions.reduce((longest, companion) => Math.max(longest, encoder.encode(companion.suffix).length), 0);
     const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
-      ? movieForPath && tags && !movieFormatError ? formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId) : undefined
+      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId), movieVideoRoles[path] ?? { kind: 'main' }) : undefined
       : effectiveEpisodes.length && effectiveShowName && tags && !formatError ? formatEpisodeFilename(episodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
@@ -559,13 +561,15 @@ export default function App() {
       targetDirectory: moveFiles && activeMediaTab === 'movies' && movieFolder !== undefined ? destinationDirectoryForSource(path, movieBaseFolder, movieFolder) : moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, tvBaseFolder, showFolder) : undefined,
       configurationError: activeMediaTab === 'movies' && deferredMoviePaths.has(path)
         ? 'This filename contains TV episode numbering. Open it in TV mode or remove it from the movie batch.'
+        : activeMediaTab === 'movies' && movieVideoRoles[path]?.kind === 'sample'
+          ? 'This appears to be a sample video and will not be renamed. Remove it from the batch before continuing.'
         : tags?.editionError ?? (moveFiles && activeMediaTab === 'movies' && movieFolderFormatError ? `Fix the movie folder pattern: ${movieFolderFormatError}` : moveFiles && activeMediaTab === 'shows' && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined),
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, folderFormatError, formatError, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, folderFormatError, formatError, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -973,7 +977,7 @@ export default function App() {
     let cancelled = false;
     setMovieMatches((current) => Object.fromEntries(eligiblePaths.map((path) => {
       const existing = current[path];
-      return [path, existing ?? { path, query: inferMovieQuery([path]) ?? '', candidates: [], status: 'detecting', confidence: 0, reasons: [] }];
+      return [path, existing ?? { path, query: inferMovieQuery([path], new Date().getFullYear(), movieVideoRoles) ?? '', candidates: [], status: 'detecting', confidence: 0, reasons: [] }];
     })));
     const pending = eligiblePaths.filter((path) => !movieMatches[path]);
     if (!pending.length) return;
@@ -985,10 +989,13 @@ export default function App() {
       while (!cancelled) {
         const path = pending[cursor++];
         if (!path) return;
-        const inferredQueries = inferMovieQueryCandidates([path]);
+        const role = movieVideoRoles[path] ?? { kind: 'main' };
+        const inferredQueries = inferMovieQueryCandidates([path], new Date().getFullYear(), movieVideoRoles);
         const inferred = inferredQueries[0];
         let match: MovieFileMatch;
-        if (!inferred) {
+        if (role.kind === 'sample') {
+          match = { path, query: '', candidates: [], status: 'unmatched', confidence: 0, reasons: ['sample video detected'] };
+        } else if (!inferred) {
           match = { path, query: '', candidates: [], status: 'unmatched', confidence: 0, reasons: ['could not infer a title'] };
         } else {
           try {
@@ -1039,7 +1046,7 @@ export default function App() {
     });
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
-  }, [activeMediaTab, addDebug, movieDetectionAttempt, paths, provider?.configured]);
+  }, [activeMediaTab, addDebug, movieDetectionAttempt, movieVideoRoles, paths, provider?.configured]);
 
   useEffect(() => {
     setMovieMatches((current) => {
@@ -1859,7 +1866,9 @@ export default function App() {
                 const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = activeMediaTab === 'movies' ? deferredToTv ? 'deferred' : movieFileMatch?.status ?? 'detecting' : item?.status ?? 'pending';
                 const confirmed = confirmedPaths.has(path);
-                const detailTags = tags ? [tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
+                const movieVideoRole = movieVideoRoles[path];
+                const roleTag = movieVideoRole?.kind === 'multipart' ? `Part ${movieVideoRole.part}` : movieVideoRole?.kind === 'extra' ? movieVideoRole.extraType === 'behindthescenes' ? 'Behind the scenes' : movieVideoRole.extraType[0].toUpperCase() + movieVideoRole.extraType.slice(1) : movieVideoRole?.kind === 'sample' ? 'Sample' : undefined;
+                const detailTags = tags ? [roleTag, tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const unchanged = unchangedPathSet.has(path);

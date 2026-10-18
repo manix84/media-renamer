@@ -202,7 +202,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] direct movie lookup by TMDB or IMDb ID, with both identifiers available to filename and folder templates
 - [x] separate persisted Movie destination, folder template, and filename template
 - [x] runtime-assisted movie disambiguation using `ffprobe` duration and leading TMDB candidate runtimes
-- [ ] multipart movie grouping and extras/sample detection
+- [x] conservative multipart movie grouping, Plex-style extras naming, and visible blocked sample detection
 - [x] movie batch status filters and bulk retry controls
 - [x] FlexGet-compatible movie edition vocabulary, aliases, source-order joining, and title-safe suffix detection
 - [x] explicit arbitrary TV/anime editions with malformed/conflict validation
