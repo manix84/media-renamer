@@ -56,6 +56,25 @@ describe('media companion discovery', () => {
     expect(scan.ambiguous).toEqual([]);
   });
 
+  it('associates generic root subtitles and artwork only when there is one video', async () => {
+    const directory = await fixture(['Movie.2020.mkv', 'English.srt', 'Turkish.srt', 'Poster.jpg', 'AhaShare.com.txt']);
+    const videoPath = path.join(directory, 'Movie.2020.mkv');
+    const scan = await discoverMediaCompanions([videoPath]);
+    expect(scan.byVideo[videoPath].map(({ suffix, kind }) => ({ suffix, kind }))).toEqual([
+      { suffix: '.en.srt', kind: 'subtitle' },
+      { suffix: '-poster.jpg', kind: 'artwork' },
+      { suffix: '.tr.srt', kind: 'subtitle' },
+    ]);
+  });
+
+  it('does not guess which video owns generic root companions', async () => {
+    const directory = await fixture(['First.mkv', 'Second.mkv', 'English.srt', 'Poster.jpg']);
+    const videos = [path.join(directory, 'First.mkv'), path.join(directory, 'Second.mkv')];
+    const scan = await discoverMediaCompanions(videos);
+    expect(scan.byVideo[videos[0]]).toEqual([]);
+    expect(scan.byVideo[videos[1]]).toEqual([]);
+  });
+
   it('keeps nested subtitles ambiguous when a shared folder contains multiple movies', async () => {
     const directory = await fixture(['First.Movie.2020.mkv', 'Second.Movie.2021.mkv']);
     const subs = path.join(directory, 'Subs');

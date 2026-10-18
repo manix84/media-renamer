@@ -9,6 +9,7 @@ export type CompanionScan = { byVideo: Record<string, MediaCompanion[]>; ambiguo
 const SUBTITLE_EXTENSIONS = new Set(['.srt', '.ass', '.ssa', '.sub', '.vtt']);
 const ARTWORK_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const ARTWORK_SUFFIX = /^[-.](?:poster|thumb|thumbnail|fanart|clearlogo|logo|banner)(?:[-.].*)?$/i;
+const GENERIC_ARTWORK = /^(poster|thumb|thumbnail|fanart|clearlogo|logo|banner)(?:[-.].*)?\.(jpe?g|png|webp)$/i;
 const SUBTITLE_DIRECTORY = /^(?:subs?|subtitles?|captions?)$/i;
 const LANGUAGE_ALIASES = new Map(Object.entries({
   english: 'en', eng: 'en', en: 'en', french: 'fr', fra: 'fr', fre: 'fr', fr: 'fr',
@@ -50,6 +51,15 @@ function nestedSubtitleSuffix(filename: string): string {
   if (tokens.includes('sdh') || tokens.includes('cc') || /hearing\s+impaired/i.test(stem)) roles.push('sdh');
   const qualifiers = [language, ...roles].filter(Boolean);
   return qualifiers.length ? `.${qualifiers.join('.')}${extension}` : extension;
+}
+
+function genericRootSubtitleSuffix(filename: string): string | undefined {
+  const extension = path.extname(filename).toLowerCase();
+  const stem = filename.slice(0, -extension.length);
+  const tokens = normalizedEvidence(stem).split(/\s+/).filter(Boolean);
+  const hasLanguage = tokens.some((token) => LANGUAGE_ALIASES.has(token));
+  const hasRole = tokens.includes('forced') || tokens.includes('sdh') || tokens.includes('cc') || /hearing\s+impaired/i.test(stem);
+  return hasLanguage || hasRole ? nestedSubtitleSuffix(filename) : undefined;
 }
 
 async function subtitleHasContent(filePath: string): Promise<boolean> {
@@ -125,6 +135,15 @@ export async function discoverMediaCompanions(videoPaths: string[]): Promise<Com
         byVideo[candidate.videoPath].push({ path: entryPath, suffix: candidate.suffix, kind: candidate.kind });
       } else if (candidates.length > 1) {
         ambiguous.push({ path: entryPath, candidateVideoPaths: candidates.map((candidate) => candidate.videoPath) });
+      } else if (videos.length === 1) {
+        const extension = path.extname(entry.name).toLowerCase();
+        const subtitleSuffix = SUBTITLE_EXTENSIONS.has(extension) ? genericRootSubtitleSuffix(entry.name) : undefined;
+        if (subtitleSuffix && await subtitleHasContent(entryPath)) {
+          byVideo[videos[0]].push({ path: entryPath, suffix: subtitleSuffix, kind: 'subtitle' });
+        } else {
+          const genericArtwork = entry.name.match(GENERIC_ARTWORK);
+          if (genericArtwork) byVideo[videos[0]].push({ path: entryPath, suffix: `-${genericArtwork[1].toLowerCase()}${extension}`, kind: 'artwork' });
+        }
       }
     }
   }));

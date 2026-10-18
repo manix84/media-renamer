@@ -161,6 +161,8 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(nestedDirectory, 'WWW.YIFY-TORRENTS.COM.jpg'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent downloaded from Demonoid.com - Copy.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From ExtraTorrent.com.txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From ExtraTorrent.cc.txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'AhaShare.com.txt'), 'advert'),
       fs.promises.writeFile(path.join(subtitlesDirectory, 'English.srt'), 'subtitle'),
       fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'), 'keep'),
@@ -173,7 +175,7 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(12);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(14);
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
