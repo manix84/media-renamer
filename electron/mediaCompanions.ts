@@ -32,7 +32,7 @@ export function isCompanionFile(filePath: string): boolean {
 function kindFor(filename: string, suffix: string): CompanionKind | undefined {
   const extension = path.extname(filename).toLowerCase();
   if (SUBTITLE_EXTENSIONS.has(extension) && suffix.startsWith('.')) return 'subtitle';
-  if (extension === '.nfo' && suffix.toLowerCase() === '.nfo') return 'metadata';
+  if (extension === '.nfo' && /^(?:\.(?:mkv|mp4|avi|m4v|mov|webm))?\.nfo$/i.test(suffix)) return 'metadata';
   if (ARTWORK_EXTENSIONS.has(extension) && ARTWORK_SUFFIX.test(suffix)) return 'artwork';
   return undefined;
 }
@@ -128,7 +128,7 @@ export async function discoverMediaCompanions(videoPaths: string[]): Promise<Com
         const suffix = entry.name.slice(stem.length);
         const kind = kindFor(entry.name, suffix);
         if (kind === 'subtitle' && !await subtitleHasContent(entryPath)) return undefined;
-        return kind ? { videoPath, suffix, kind } : undefined;
+        return kind ? { videoPath, suffix: kind === 'metadata' ? '.nfo' : suffix, kind } : undefined;
       }))).filter((candidate): candidate is { videoPath: string; suffix: string; kind: CompanionKind } => Boolean(candidate));
       if (candidates.length === 1) {
         const [candidate] = candidates;

@@ -16,7 +16,7 @@ async function fixture(names: string[]) {
 
 describe('media companion discovery', () => {
   it('groups language subtitles, metadata and named artwork with a video', async () => {
-    const directory = await fixture(['Show.S01E01.mkv', 'Show.S01E01.en.forced.srt', 'Show.S01E01.nfo', 'Show.S01E01-thumb.jpg', 'Show.S01E01.random.jpg', 'Show.S01E010.srt', 'notes.txt']);
+    const directory = await fixture(['Show.S01E01.mkv', 'Show.S01E01.en.forced.srt', 'Show.S01E01.mkv.nfo', 'Show.S01E01-thumb.jpg', 'Show.S01E01.random.jpg', 'Show.S01E010.srt', 'notes.txt']);
     const videoPath = path.join(directory, 'Show.S01E01.mkv');
     const scan = await discoverMediaCompanions([videoPath]);
     expect(scan.byVideo[videoPath].map(({ suffix, kind }) => ({ suffix, kind }))).toEqual([

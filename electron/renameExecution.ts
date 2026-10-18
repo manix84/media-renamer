@@ -30,7 +30,10 @@ const sourceJunkPatterns = [
   /^ytsyifyup.*\(\s*tor\s*\)\.txt$/i,
   /^(?:yifystatus|ytsproxies)\.com\.txt$/i,
   /^ahashare\.com\.txt$/i,
-  /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid|extratorrent)\.[a-z0-9-]{2,12}(?:[ ._-]+copy)?\.txt$/i,
+  /^_+cheerfultomato\.txt$/i,
+  /^bilgi\.txt$/i,
+  /^screenshots?[ ._-]*\d+(?:[ ._-]+\d+p)?\.jpe?g$/i,
+  /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid(?:\.[a-z0-9-]{2,12})?(?:[ ._-]+www\.demonoid\.[a-z0-9-]{2,12})?|extratorrent\.[a-z0-9-]{2,12}|unlock\.[a-z0-9-]{2,12})(?:[ ._-]+copy)?[ ._-]*\.txt$/i,
 ];
 
 async function exists(filePath: string): Promise<boolean> {
