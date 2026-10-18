@@ -142,7 +142,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
 | 3 — Resilient matching and metadata | In progress | 11 of 14 steps |
-| 4 — Movies and library workflows | Started | 5 of 11 steps |
+| 4 — Movies and library workflows | Started | 6 of 11 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
@@ -203,7 +203,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] separate persisted Movie destination, folder template, and filename template
 - [ ] runtime-assisted movie disambiguation
 - [ ] multipart movie grouping and extras/sample detection
-- [ ] movie batch status filters and bulk retry controls
+- [x] movie batch status filters and bulk retry controls
 - [x] FlexGet-compatible movie edition vocabulary, aliases, source-order joining, and title-safe suffix detection
 - [x] explicit arbitrary TV/anime editions with malformed/conflict validation
 - [ ] per-file edition editing and saved custom edition aliases

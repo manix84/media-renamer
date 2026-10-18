@@ -14,6 +14,7 @@ import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/ma
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
 import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
+import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
 import { availablePalettes } from './seasonalThemes';
@@ -275,6 +276,8 @@ export default function App() {
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
   const [movieMatches, setMovieMatches] = useState<Record<string, MovieFileMatch>>({});
+  const [movieBatchFilter, setMovieBatchFilter] = useState<MovieBatchFilter>('all');
+  const [movieDetectionAttempt, setMovieDetectionAttempt] = useState(0);
   const [movieReviewPath, setMovieReviewPath] = useState<string>();
   const [movieReviewQuery, setMovieReviewQuery] = useState('');
   const [movieReviewResults, setMovieReviewResults] = useState<MovieSearchResult[]>([]);
@@ -604,6 +607,26 @@ export default function App() {
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
   const unchangedPaths = useMemo(() => unchangedRenameItemPaths(preflightPlan), [preflightPlan]);
   const unchangedPathSet = useMemo(() => new Set(unchangedPaths), [unchangedPaths]);
+  const movieBatchFilterCounts = useMemo(() => {
+    const counts: Record<MovieBatchFilter, number> = { all: paths.length, ready: 0, review: 0, unmatched: 0, unchanged: 0, failed: 0, deferred: 0 };
+    for (const path of paths) {
+      const item = { status: movieMatches[path]?.status, unchanged: unchangedPathSet.has(path), deferred: deferredMoviePaths.has(path) };
+      for (const filter of ['ready', 'review', 'unmatched', 'unchanged', 'failed', 'deferred'] as MovieBatchFilter[]) if (movieBatchFilterMatches(filter, item)) counts[filter] += 1;
+    }
+    return counts;
+  }, [deferredMoviePaths, movieMatches, paths, unchangedPathSet]);
+  const visiblePaths = useMemo(() => activeMediaTab === 'movies'
+    ? paths.filter((path) => movieBatchFilterMatches(movieBatchFilter, { status: movieMatches[path]?.status, unchanged: unchangedPathSet.has(path), deferred: deferredMoviePaths.has(path) }))
+    : paths, [activeMediaTab, deferredMoviePaths, movieBatchFilter, movieMatches, paths, unchangedPathSet]);
+
+  function retryMovieMatches(status: 'unmatched' | 'error') {
+    const retryPaths = paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === status);
+    if (!retryPaths.length) return;
+    const targets = new Set(retryPaths);
+    setMovieMatches((current) => Object.fromEntries(Object.entries(current).filter(([path]) => !targets.has(path))));
+    setMovieDetectionAttempt((attempt) => attempt + 1);
+    addDebug('info', `Retrying ${retryPaths.length} movie match${retryPaths.length === 1 ? '' : 'es'}`, status === 'error' ? 'Retrying searches that previously failed.' : 'Retrying files that returned no safe match.');
+  }
 
   function showFirstBlockedFile() {
     const blocked = preflightPlan.items.find((item) => [...item.issues, ...item.companions.flatMap((companion) => companion.issues)].some((issue) => issue.severity === 'error'));
@@ -1003,7 +1026,7 @@ export default function App() {
     });
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
-  }, [activeMediaTab, addDebug, paths, provider?.configured]);
+  }, [activeMediaTab, addDebug, movieDetectionAttempt, paths, provider?.configured]);
 
   useEffect(() => {
     setMatchOverrides({});
@@ -1780,8 +1803,12 @@ export default function App() {
               {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
               {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
             </div>}
+            {activeMediaTab === 'movies' && paths.length > 0 && <div className="movie-batch-filters" aria-label="Filter movie batch">
+              <div>{(['all', 'ready', 'review', 'unmatched', 'unchanged', 'failed', 'deferred'] as MovieBatchFilter[]).map((filter) => (movieBatchFilterCounts[filter] > 0 || movieBatchFilter === filter) && <button key={filter} className={movieBatchFilter === filter ? 'active' : ''} aria-pressed={movieBatchFilter === filter} onClick={() => setMovieBatchFilter(filter)}>{filter[0].toUpperCase() + filter.slice(1)} <span>{movieBatchFilterCounts[filter]}</span></button>)}</div>
+              <span className="movie-batch-retries">{movieBatchFilterCounts.unmatched > 0 && <button className="secondary" onClick={() => retryMovieMatches('unmatched')}><RefreshCw size={13}/> Retry unmatched</button>}{movieBatchFilterCounts.failed > 0 && <button className="secondary" onClick={() => retryMovieMatches('error')}><RefreshCw size={13}/> Retry failed</button>}</span>
+            </div>}
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
-              {paths.map((path) => {
+              {visiblePaths.map((path) => {
                 const item = matchesByPath.get(path);
                 const movieFileMatch = movieMatches[path];
                 const deferredToTv = activeMediaTab === 'movies' && deferredMoviePaths.has(path);
@@ -1853,6 +1880,7 @@ export default function App() {
                   </div>
                 </article></div></div>;
               })}
+              {activeMediaTab === 'movies' && visiblePaths.length === 0 && <div className="filtered-empty"><Search size={18}/><strong>No movies in this view</strong><span>Choose another filter to see the rest of the batch.</span></div>}
             </div>}
             {paths.length === 0 && <button className="dropzone dropzone-empty" onClick={addFiles}><FolderOpen size={30}/><span>Drop files or folders anywhere in this panel</span><small>or click to choose video files</small></button>}
             {paths.length > 0 && <div className="drop-target-overlay" aria-hidden="true"><FolderPlus size={30}/><strong>Add files or folders</strong><small>Drop anywhere in this panel</small></div>}
