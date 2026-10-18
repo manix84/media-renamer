@@ -153,6 +153,21 @@ function publishDebugEntries() {
   if (debugWindow && !debugWindow.isDestroyed()) debugWindow.webContents.send('debug:entries', debugEntries);
 }
 
+function resumeMediaFileMonitoring(): void {
+  // Destination paths may live on slow or temporarily unavailable volumes. Monitoring is
+  // best-effort and must not hold the completed rename/undo IPC response open.
+  void mediaFileMonitor.setPaths(watchedMediaPaths).catch((error) => {
+    debugEntries = [...debugEntries.slice(-499), {
+      id: ++debugSequence,
+      timestamp: Date.now(),
+      level: 'warning',
+      message: 'Could not resume media file monitoring',
+      detail: error instanceof Error ? error.message : String(error),
+    }];
+    publishDebugEntries();
+  });
+}
+
 ipcMain.handle('files:pick', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
@@ -261,7 +276,7 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       const replacements = new Map(executed.operation.status === 'undone' ? [] : executed.operation.items.map((item) => [item.sourcePath, item.targetPath]));
       watchedMediaPaths = watchedMediaPaths.map((filePath) => replacements.get(filePath) ?? filePath);
     }
-    await mediaFileMonitor.setPaths(watchedMediaPaths);
+    resumeMediaFileMonitoring();
   }
 });
 ipcMain.handle('rename:control', (_event, control: unknown) => {
@@ -283,7 +298,7 @@ ipcMain.handle('rename:undo', async (event, operationId: unknown) => {
     lastRename = { ...recorded, operation };
     return lastRename;
   } finally {
-    await mediaFileMonitor.setPaths(watchedMediaPaths);
+    resumeMediaFileMonitoring();
   }
 });
 ipcMain.handle('rename:export-plan', async (_event, value: unknown) => {
