@@ -44,4 +44,16 @@ describe('filesystem rename preflight', () => {
     await fs.writeFile(sourcePath, 'subtitle');
     await expect(preflightRenameItems([{ sourcePath, targetPath: path.join(directory, 'renamed.en.srt') }])).resolves.toEqual([]);
   });
+
+  it('identifies the file and setting when a destination is not absolute', async () => {
+    const { sourcePath } = await fixture();
+    await expect(preflightRenameItems([{ sourcePath, targetPath: 'Movies/renamed.mkv' }]))
+      .rejects.toThrow(/destination path for “source\.mkv” is not absolute.*Preferences/i);
+  });
+
+  it('identifies unsupported generated destination types', async () => {
+    const { sourcePath, directory } = await fixture();
+    await expect(preflightRenameItems([{ sourcePath, targetPath: path.join(directory, 'renamed.invalid') }]))
+      .rejects.toThrow(/generated destination for “source\.mkv”.*unsupported file type.*\.invalid/i);
+  });
 });
