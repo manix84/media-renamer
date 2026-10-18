@@ -11,6 +11,19 @@ describe('movie-name inference', () => {
     expect(inferMovieQuery(['/movies/Blade.Runner.2049.2017.1080p.mkv'], 2026)).toBe('Blade Runner 2049 (2017)');
   });
 
+  it('supports collection filenames prefixed with their chronological release year', () => {
+    expect(inferMovieQuery(['/movies/1985.The.Return.Of.The.Living.Dead.1920x1040.BDRip.x264.DTS-HD.MA.mkv'], 2026))
+      .toBe('The Return Of The Living Dead (1985)');
+    expect(inferMovieQuery(['/movies/1988.Return.Of.The.Living.Dead.II.1920x1036.BDRip.x264.DTS-HD.MA.mkv'], 2026))
+      .toBe('Return Of The Living Dead II (1988)');
+    expect(inferMovieQuery(['/movies/1993.Return.Of.The.Living.Dead.III.1920x1040.BDRip.x264.DTS-HD.MA.mkv'], 2026))
+      .toBe('Return Of The Living Dead III (1993)');
+  });
+
+  it('does not reinterpret a leading numeric movie title as its release year', () => {
+    expect(inferMovieQuery(['/movies/2001.A.Space.Odyssey.2160p.UHD.mkv'], 2026)).toBe('2001 A Space Odyssey');
+  });
+
   it('does not mistake a future number in a title for a release year', () => {
     expect(inferMovieQuery(['/movies/Blade.Runner.2049.mkv'], 2026)).toBe('Blade Runner 2049');
   });

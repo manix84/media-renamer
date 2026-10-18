@@ -4,7 +4,7 @@ export type InferredMediaKind = 'shows' | 'movies';
 export type MediaFileKind = InferredMediaKind | 'ambiguous';
 
 const explicitEpisodeWord = /(?:^|[ ._-])ep(?:isode)?\.?[ ._-]*\d{1,4}(?=$|[ ._-])/i;
-const releaseEvidence = /\b(?:2160p|1080p|720p|576p|480p|uhd|hdr10?|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos)\b/i;
+const releaseEvidence = /\b(?:\d{3,4}x\d{3,4}|2160p|1080p|720p|576p|480p|uhd|hdr10?|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos)\b/i;
 
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') ?? filePath;
@@ -21,6 +21,10 @@ function hasMovieEvidence(filename: string, latestYear: number): boolean {
   const years = [...filename.matchAll(/(?:^|[^0-9])((?:18|19|20)\d{2})(?![0-9])/g)]
     .filter((match) => Number(match[1]) <= latestYear);
   const year = years.at(-1);
+  if (year?.index === 0) {
+    const remainder = filename.slice(year[0].length).replace(/^[._ -]+/, '');
+    return Number(year[1]) <= latestYear && !/^(?:a|an)[._ -]+/i.test(remainder) && releaseEvidence.test(remainder);
+  }
   if (!year?.index) return false;
   const title = filename.slice(0, year.index).replace(/[._-]+/g, ' ').trim();
   const suffix = filename.slice(year.index + year[0].length).trim();

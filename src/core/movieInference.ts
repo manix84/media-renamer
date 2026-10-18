@@ -1,6 +1,6 @@
 import { stripEditionTokens, stripTrailingMovieEdition } from './releaseTags';
 
-const releaseTokenPattern = /\b(?:2160p|1080p|720p|576p|480p|uhd|hdr10?|dv|dolby[ ._-]?vision|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos|proper|repack|yify|rarbg)\b/i;
+const releaseTokenPattern = /\b(?:\d{3,4}x\d{3,4}|2160p|1080p|720p|576p|480p|uhd|hdr10?|dv|dolby[ ._-]?vision|web[ ._-]?(?:dl|rip)|blu[ ._-]?ray|b[dr]rip|hdtv|dvd[ ._-]?rip|remux|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts|truehd|atmos|proper|repack|yify|rarbg)\b/i;
 
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
@@ -24,6 +24,13 @@ function inferCandidate(filePath: string, latestYear: number): string | undefine
     const title = cleanTitle(stripEditionTokens(normalized.slice(0, match.index)));
     const suffix = normalized.slice((match.index ?? 0) + match[0].length).trim();
     if (title && (!suffix || releaseTokenPattern.test(suffix))) return `${title} (${match[1]})`;
+  }
+
+  const leadingYear = normalized.match(/^((?:18|19|20)\d{2})\s+(.+)$/);
+  if (leadingYear && Number(leadingYear[1]) <= latestYear && !/^(?:a|an)\s+/i.test(leadingYear[2])) {
+    const releaseMarker = leadingYear[2].search(releaseTokenPattern);
+    const title = cleanTitle(stripEditionTokens(releaseMarker > 0 ? leadingYear[2].slice(0, releaseMarker) : leadingYear[2]));
+    if (title.length >= 2) return `${title} (${leadingYear[1]})`;
   }
 
   const releaseMarker = normalized.search(releaseTokenPattern);

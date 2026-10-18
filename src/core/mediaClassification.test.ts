@@ -4,6 +4,8 @@ import { classifyMediaBatch, classifyMediaFile } from './mediaClassification';
 describe('media batch classification', () => {
   it('recognises a movie from its title, year, and release suffix', () => {
     expect(classifyMediaBatch(['28.Years.Later.The.Bone.Temple.2026.1080p.WEBRip.x265.10bit.AAC5.1.mkv'], 2026)).toBe('movies');
+    expect(classifyMediaFile('1988.Return.Of.The.Living.Dead.II.1920x1036.BDRip.x264.mkv', 2026)).toBe('movies');
+    expect(classifyMediaFile('2001.A.Space.Odyssey.2160p.UHD.mkv', 2026)).toBe('ambiguous');
   });
 
   it.each([
