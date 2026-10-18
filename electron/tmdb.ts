@@ -36,6 +36,7 @@ export interface TmdbMovieSearchResult {
   id: string;
   mediaType?: 'movie' | 'tv';
   imdbId?: string;
+  runtimeMinutes?: number;
   name: string;
   year?: number;
   overview: string;
@@ -57,6 +58,7 @@ type RawMovie = {
   release_date?: string;
   overview?: string;
   poster_path?: string | null;
+  runtime?: number | null;
 };
 
 type RawExternalIds = { tvdb_id?: number | null; imdb_id?: string | null };
@@ -102,6 +104,7 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
     year: Number.isFinite(year) ? year : undefined,
     overview: movie.overview ?? '',
     posterUrl: movie.poster_path ? `${IMAGE_ROOT}${movie.poster_path}` : undefined,
+    ...(movie.runtime && movie.runtime > 0 ? { runtimeMinutes: movie.runtime } : {}),
   };
 }
 

@@ -999,12 +999,25 @@ export default function App() {
               found = await window.mediaRenamer?.searchMovies(candidateQuery) ?? [];
               if (found.length) break;
             }
-            match = chooseMovieMatch(path, matchedQuery, found);
+            match = chooseMovieMatch(path, matchedQuery, found, technicalTags[path]?.durationSeconds);
+            const hydrated = new Set<string>();
+            if (match.status === 'review' && found.length > 1 && window.mediaRenamer?.getMovie) {
+              const leading = await Promise.all(match.candidates.slice(0, 5).map(async (candidate) => {
+                try {
+                  const details = await window.mediaRenamer!.getMovie(candidate.id, candidate.mediaType);
+                  hydrated.add(movieResultKey(candidate));
+                  return details;
+                } catch { return candidate; }
+              }));
+              const leadingKeys = new Set(leading.map(movieResultKey));
+              const detailedCandidates = [...leading, ...match.candidates.filter((candidate) => !leadingKeys.has(movieResultKey(candidate)))];
+              match = chooseMovieMatch(path, matchedQuery, detailedCandidates, technicalTags[path]?.durationSeconds);
+            }
             if (match.movie && window.mediaRenamer?.getMovie) {
               const matchedMovie = match.movie;
               try {
-                const details = await window.mediaRenamer.getMovie(matchedMovie.id, matchedMovie.mediaType);
-                if (details) match = { ...match, movie: details, candidates: match.candidates.map((candidate) => candidate.id === details.id ? details : candidate) };
+                const details = hydrated.has(movieResultKey(matchedMovie)) ? matchedMovie : await window.mediaRenamer.getMovie(matchedMovie.id, matchedMovie.mediaType);
+                if (details) match = { ...match, movie: details, candidates: match.candidates.map((candidate) => movieResultKey(candidate) === movieResultKey(details) ? details : candidate) };
               } catch (reason) {
                 addDebug('warning', `Could not load artwork for ${matchedMovie.name}`, errorMessage(reason));
               }
@@ -1027,6 +1040,24 @@ export default function App() {
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
   }, [activeMediaTab, addDebug, movieDetectionAttempt, paths, provider?.configured]);
+
+  useEffect(() => {
+    setMovieMatches((current) => {
+      let changed = false;
+      const next = Object.fromEntries(Object.entries(current).map(([path, match]) => {
+        const durationSeconds = technicalTags[path]?.durationSeconds;
+        if (match.status !== 'review' || !durationSeconds || !match.candidates.some((candidate) => candidate.runtimeMinutes)) return [path, match];
+        const recalculated = chooseMovieMatch(path, match.query, match.candidates, durationSeconds);
+        const same = recalculated.status === match.status
+          && (recalculated.movie ? movieResultKey(recalculated.movie) : '') === (match.movie ? movieResultKey(match.movie) : '')
+          && recalculated.confidence === match.confidence
+          && recalculated.reasons.join('|') === match.reasons.join('|');
+        if (!same) changed = true;
+        return [path, same ? match : recalculated];
+      }));
+      return changed ? next : current;
+    });
+  }, [technicalTags]);
 
   useEffect(() => {
     setMatchOverrides({});
@@ -2026,7 +2057,7 @@ export default function App() {
           <div className="movie-review-candidates" role="listbox" aria-label="Movie search results">
             {movieReviewResults.map((movie) => <button key={movieResultKey(movie)} role="option" aria-selected={movieReviewSelection === movieResultKey(movie)} className={movieReviewSelection === movieResultKey(movie) ? 'selected' : ''} onClick={() => setMovieReviewSelection(movieResultKey(movie))} onDoubleClick={() => void confirmMovieReview(movieResultKey(movie))}>
               {movie.posterUrl ? <img src={movie.posterUrl} alt=""/> : <span className="movie-review-poster-placeholder"><Film size={19}/></span>}
-              <span><strong>{movie.name}</strong><small>{movie.year ?? 'Release year unknown'} · {movie.mediaType === 'tv' ? 'TV miniseries · ' : ''}TMDB {movie.id}</small>{movie.overview && <em>{movie.overview}</em>}</span>
+              <span><strong>{movie.name}</strong><small>{movie.year ?? 'Release year unknown'}{movie.runtimeMinutes ? ` · ${movie.runtimeMinutes} min` : ''} · {movie.mediaType === 'tv' ? 'TV miniseries · ' : ''}TMDB {movie.id}</small>{movie.overview && <em>{movie.overview}</em>}</span>
               {movieReviewSelection === movieResultKey(movie) && <Check size={16}/>}
             </button>)}
             {!movieReviewSearching && !movieReviewResults.length && <div className="review-empty">No movies found. Refine the title or add a release year.</div>}

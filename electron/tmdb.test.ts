@@ -14,10 +14,10 @@ describe('TMDB adapter', () => {
     });
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04' }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', external_ids: { imdb_id: 'tt1856101' }, images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] } }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', runtime: 164, external_ids: { imdb_id: 'tt1856101' }, images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] } }), { status: 200 }));
     const client = new TmdbClient('token', fetcher);
     await expect(client.searchMovies('Blade Runner 2049 (2017)')).resolves.toEqual([expect.objectContaining({ id: '335984', year: 2017 })]);
-    await expect(client.getMovie('335984')).resolves.toMatchObject({ id: '335984', imdbId: 'tt1856101', logoUrl: 'https://image.tmdb.org/t/p/w500/logo.png' });
+    await expect(client.getMovie('335984')).resolves.toMatchObject({ id: '335984', imdbId: 'tt1856101', runtimeMinutes: 164, logoUrl: 'https://image.tmdb.org/t/p/w500/logo.png' });
     const searchUrl = fetcher.mock.calls[0][0] as URL;
     expect(searchUrl.pathname).toBe('/3/search/movie');
     expect(searchUrl.searchParams.get('query')).toBe('Blade Runner 2049');

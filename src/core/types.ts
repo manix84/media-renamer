@@ -36,6 +36,7 @@ export interface MovieSearchResult {
   id: string;
   mediaType?: 'movie' | 'tv';
   imdbId?: string;
+  runtimeMinutes?: number;
   name: string;
   year?: number;
   overview: string;
