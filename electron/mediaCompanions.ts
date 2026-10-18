@@ -81,7 +81,9 @@ function deduplicateSubtitleSuffixes(companions: MediaCompanion[]): void {
     const count = (counts.get(key) ?? 0) + 1;
     counts.set(key, count);
     if (count === 1) continue;
-    const extension = path.extname(companion.suffix);
+    // A bare suffix such as ".srt" is treated as a dotfile by path.extname(),
+    // so take the extension from the real source path instead.
+    const extension = path.extname(companion.path).toLowerCase();
     companion.suffix = `${companion.suffix.slice(0, -extension.length)}.${count}${extension}`;
   }
 }

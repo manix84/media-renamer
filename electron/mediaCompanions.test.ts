@@ -44,13 +44,14 @@ describe('media companion discovery', () => {
       fs.writeFile(path.join(subs, 'English.srt'), 'subtitle'),
       fs.writeFile(path.join(subs, 'eng.srt'), 'subtitle'),
       fs.writeFile(path.join(subs, 'Commentary.srt'), 'subtitle'),
+      fs.writeFile(path.join(subs, 'Dubtitles.srt'), 'subtitle'),
       fs.writeFile(path.join(subs, 'Empty.srt'), ''),
       fs.writeFile(path.join(alternate, 'French.forced.ass'), 'subtitle'),
     ]);
     const videoPath = path.join(directory, 'Movie.2020.mkv');
     const scan = await discoverMediaCompanions([videoPath]);
 
-    expect(scan.byVideo[videoPath].map((companion) => companion.suffix)).toEqual(['.srt', '.en.srt', '.en.sdh.srt', '.en.2.srt', '.fr.forced.ass']);
+    expect(scan.byVideo[videoPath].map((companion) => companion.suffix)).toEqual(['.srt', '.2.srt', '.en.srt', '.en.sdh.srt', '.en.2.srt', '.fr.forced.ass']);
     expect(scan.byVideo[videoPath].some((companion) => companion.path.endsWith('Empty.srt'))).toBe(false);
     expect(scan.ambiguous).toEqual([]);
   });
