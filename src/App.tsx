@@ -68,6 +68,7 @@ const MOVIE_TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> =
     { name: 'movie.name', description: 'Movie title', example: 'Blade Runner: 2049' },
     { name: 'movie.year', description: 'Release year, when known', example: '2017' },
     { name: 'movie.tmdbId', description: 'Canonical TMDB movie ID', example: '335984' },
+    { name: 'movie.imdbId', description: 'Canonical IMDb movie ID', example: 'tt1856101' },
     { name: 'release.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
   ] },
   TEMPLATE_FIELDS.find((group) => group.label === 'Release')!,
@@ -85,6 +86,7 @@ const MOVIE_FOLDER_FIELDS: TemplateField[] = [
   { name: 'movie.name', description: 'Movie title', example: 'Blade Runner: 2049' },
   { name: 'movie.year', description: 'Release year', example: '2017' },
   { name: 'movie.tmdbId', description: 'TMDB movie ID', example: '335984' },
+  { name: 'movie.imdbId', description: 'IMDb movie ID', example: 'tt1856101' },
   { name: 'movie.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
 ];
 
@@ -535,14 +537,14 @@ export default function App() {
     const effectiveShowYear = metadataOverride ? optionalMetadataNumber(metadataOverride.year) : show?.year;
     const effectiveTvdbId = metadataOverride?.providerId.trim() || show?.tvdbId;
     const showFolder = effectiveEpisodes.length && effectiveShowName && !folderFormatError ? formatShowFolder(showFolderTemplate, effectiveShowName, effectiveShowYear, effectiveTvdbId, effectiveEpisodes[0].season) : undefined;
-    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition) : undefined;
+    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition, movieForPath.imdbId) : undefined;
     const companions = companionScan.byVideo[path] ?? [];
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
     const longestCompanionSuffix = companions.reduce((longest, companion) => Math.max(longest, encoder.encode(companion.suffix).length), 0);
     const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
-      ? movieForPath && tags && !movieFormatError ? formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget) : undefined
+      ? movieForPath && tags && !movieFormatError ? formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId) : undefined
       : effectiveEpisodes.length && effectiveShowName && tags && !formatError ? formatEpisodeFilename(episodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
@@ -1987,7 +1989,7 @@ export default function App() {
         <aside className="review-panel movie-review-panel" aria-label="Match movie">
           <div className="review-heading"><div><p className="eyebrow">MOVIE MATCH</p><h2>Choose a movie</h2></div><button className="icon-button" aria-label="Close movie match" onClick={() => setMovieReviewPath(undefined)}><X size={18}/></button></div>
           <div className="review-file"><FileVideo size={17}/><span><strong>{filenameFromPath(movieReviewPath)}</strong><small>Search TMDB and choose the exact title and release year.</small></span></div>
-          <label className="review-search"><Search size={15}/><input value={movieReviewQuery} onChange={(event) => { setMovieReviewQuery(event.target.value); setMovieReviewSelection(undefined); }} placeholder="Movie title, year, or tmdb-…" autoFocus/>{movieReviewSearching && <LoaderCircle className="spin" size={14}/>}</label>
+          <label className="review-search"><Search size={15}/><input value={movieReviewQuery} onChange={(event) => { setMovieReviewQuery(event.target.value); setMovieReviewSelection(undefined); }} placeholder="Movie title, tmdb-…, or imdb-tt…" autoFocus/>{movieReviewSearching && <LoaderCircle className="spin" size={14}/>}</label>
           <div className="review-results-heading"><strong>Search results</strong><small>{movieReviewResults.length} movie{movieReviewResults.length === 1 ? '' : 's'}</small></div>
           <div className="movie-review-candidates" role="listbox" aria-label="Movie search results">
             {movieReviewResults.map((movie) => <button key={movie.id} role="option" aria-selected={movieReviewSelection === movie.id} className={movieReviewSelection === movie.id ? 'selected' : ''} onClick={() => setMovieReviewSelection(movie.id)} onDoubleClick={() => void confirmMovieReview(movie.id)}>
@@ -2079,14 +2081,14 @@ export default function App() {
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Movies</strong><small>TMDB currently supplies movie search, artwork, and metadata.</small></span><select value="tmdb" disabled aria-label="Movie metadata agent"><option value="tmdb">TMDB</option></select></label></div></section>
             <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
               <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Create the movie folder beside its source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Create the movie folder beside its source" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
-              <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
-              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.edition}}'}</code><code>{'{{movie.tmdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, movie.imdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
+              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.edition}}'}</code><code>{'{{movie.tmdbId}}'}</code><code>{'{{movie.imdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : <div className="format-preview"><span>Output</span><strong>{joinPath(movieBaseFolder || 'Source folder', formatMovieFolder(movieFolderTemplate, 'Blade Runner: 2049', 2017, '335984'))}</strong></div>}
             </section>
             <section className={`preference-section format-editor ${movieFormatError ? 'invalid' : ''}`}>
               <div className="format-heading"><span><h3>Movie filename template</h3><p>Controls the filename produced by the movie workflow.</p></span><button onClick={() => setMovieTemplate(DEFAULT_MOVIE_TEMPLATE)} disabled={movieTemplate === DEFAULT_MOVIE_TEMPLATE}>Reset</button></div>
               <TemplateEditor value={movieTemplate} onChange={setMovieTemplate}/>
-              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {movieFormatError ? <small className="format-error">{movieFormatError}</small> : <small className="format-help"><code>{'{{movie.name}}'}</code> <code>{'{{movie.year}}'}</code> <code>{'{{movie.tmdbId}}'}</code> <code>{'{{movie.imdbId}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFormatExample && <div className="format-preview"><span>Output</span><strong>{movieFormatExample}.mkv</strong></div>}
             </section>
           </div>}

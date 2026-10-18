@@ -142,7 +142,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
 | 3 — Resilient matching and metadata | In progress | 11 of 14 steps |
-| 4 — Movies and library workflows | Started | 4 of 10 steps |
+| 4 — Movies and library workflows | Started | 5 of 11 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
 | 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
@@ -199,6 +199,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 ### Milestone 4 — movies and library workflows (started)
 
 - [x] per-file movie batch matching with automatic title/year inference, independent TMDB results, and manual row review
+- [x] direct movie lookup by TMDB or IMDb ID, with both identifiers available to filename and folder templates
 - [x] separate persisted Movie destination, folder template, and filename template
 - [ ] runtime-assisted movie disambiguation
 - [ ] multipart movie grouping and extras/sample detection

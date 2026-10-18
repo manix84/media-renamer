@@ -34,6 +34,7 @@ export interface TmdbEpisode {
 
 export interface TmdbMovieSearchResult {
   id: string;
+  imdbId?: string;
   name: string;
   year?: number;
   overview: string;
@@ -57,7 +58,7 @@ type RawMovie = {
   poster_path?: string | null;
 };
 
-type RawExternalIds = { tvdb_id?: number | null };
+type RawExternalIds = { tvdb_id?: number | null; imdb_id?: string | null };
 type RawImage = { file_path: string; iso_639_1?: string | null; vote_average?: number; width?: number };
 
 type RawSeason = {
@@ -95,6 +96,7 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
   const year = movie.release_date ? Number(movie.release_date.slice(0, 4)) : undefined;
   return {
     id: String(movie.id),
+    ...('imdb_id' in movie && typeof movie.imdb_id === 'string' && /^tt\d+$/i.test(movie.imdb_id) ? { imdbId: movie.imdb_id.toLowerCase() } : {}),
     name: movie.title,
     year: Number.isFinite(year) ? year : undefined,
     overview: movie.overview ?? '',
@@ -182,6 +184,11 @@ export class TmdbClient {
   }
 
   async searchMovies(query: string): Promise<TmdbMovieSearchResult[]> {
+    const imdbId = query.match(/^(?:imdb-)?(tt\d+)$/i)?.[1];
+    if (imdbId) {
+      const data = await this.request<{ movie_results: RawMovie[] }>(`/find/${imdbId.toLowerCase()}`, new URLSearchParams({ external_source: 'imdb_id' }));
+      return data.movie_results.map((movie) => ({ ...normalizeMovie(movie), imdbId: imdbId.toLowerCase() }));
+    }
     const tmdbId = query.match(/^tmdb-(\d+)$/i)?.[1];
     if (tmdbId) return [normalizeMovie(await this.request<RawMovie>(`/movie/${tmdbId}`))];
     const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/);
@@ -194,12 +201,16 @@ export class TmdbClient {
   }
 
   async getMovie(movieId: string): Promise<TmdbMovieSearchResult> {
-    const data = await this.request<RawMovie & { images?: { logos?: RawImage[] } }>(
+    const data = await this.request<RawMovie & { external_ids?: RawExternalIds; images?: { logos?: RawImage[] } }>(
       `/movie/${encodeURIComponent(movieId)}`,
-      new URLSearchParams({ append_to_response: 'images', include_image_language: 'en,null' }),
+      new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
     );
     const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
-    return { ...normalizeMovie(data), logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined };
+    return {
+      ...normalizeMovie(data),
+      imdbId: data.external_ids?.imdb_id && /^tt\d+$/i.test(data.external_ids.imdb_id) ? data.external_ids.imdb_id.toLowerCase() : undefined,
+      logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined,
+    };
   }
 
   async getShow(showId: string): Promise<TmdbShowDetails> {

@@ -107,6 +107,14 @@ describe('episode filename templates', () => {
     expect(movieTemplateError('{{episode.range}}')).toBe('Unknown field “episode.range”');
   });
 
+  it('exposes IMDb IDs to movie filename and folder templates', () => {
+    const template = '{{movie.name}} {imdb-{{movie.imdbId}}}';
+    expect(formatMovie(template, 'Total Recall', 1990, tags, '861', 'tt0099864')).toBe('Total Recall {imdb-tt0099864}');
+    expect(formatMovieFolder(template, 'Total Recall', 1990, '861', undefined, 'tt0099864')).toBe('Total Recall {imdb-tt0099864}');
+    expect(movieTemplateError(template)).toBeUndefined();
+    expect(movieFolderTemplateError(template)).toBeUndefined();
+  });
+
   it('exposes full and shorthand web origins plus the release group to templates', () => {
     const releaseTags: ReleaseTags = { ...tags, webOrigin: 'Netflix', webOriginShort: 'NF', group: 'QxR' };
     expect(formatMovie('{{movie.name}} [{{release.webOrigin}} {{release.webOriginShort}} {{release.group}}]', 'Movie', 2026, releaseTags))
