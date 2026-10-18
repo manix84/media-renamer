@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   resolveTvdbSeries: (request: { name: string; year?: number }) => ipcRenderer.invoke('metadata:resolve-tvdb-series', request),
   getShowEpisodes: (request: { agent: 'tvdb-aired' | 'tmdb-aired'; tmdbId: string; tvdbId?: string; seasons: number[] }) => ipcRenderer.invoke('metadata:get-show-episodes', request),
   searchMovies: (query: string) => ipcRenderer.invoke('tmdb:search-movies', query),
-  getMovie: (movieId: string) => ipcRenderer.invoke('tmdb:get-movie', movieId),
+  getMovie: (movieId: string, mediaType?: 'movie' | 'tv') => ipcRenderer.invoke('tmdb:get-movie', movieId, mediaType),
   openDebugConsole: (): Promise<void> => ipcRenderer.invoke('debug:open'),
   dockDebugConsole: (): Promise<void> => ipcRenderer.invoke('debug:dock'),
   appendDebug: (entry: { level: string; message: string; detail?: string }): void => ipcRenderer.send('debug:append', entry),

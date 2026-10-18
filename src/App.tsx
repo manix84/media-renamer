@@ -97,6 +97,10 @@ function errorMessage(error: unknown): string {
   return message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 }
 
+function movieResultKey(movie: MovieSearchResult): string {
+  return `${movie.mediaType ?? 'movie'}:${movie.id}`;
+}
+
 function formatDuration(milliseconds: number): string {
   const seconds = Math.max(0, Math.round(milliseconds / 1000));
   if (seconds < 60) return `${seconds}s`;
@@ -976,7 +980,7 @@ export default function App() {
             if (match.movie && window.mediaRenamer?.getMovie) {
               const matchedMovie = match.movie;
               try {
-                const details = await window.mediaRenamer.getMovie(matchedMovie.id);
+                const details = await window.mediaRenamer.getMovie(matchedMovie.id, matchedMovie.mediaType);
                 if (details) match = { ...match, movie: details, candidates: match.candidates.map((candidate) => candidate.id === details.id ? details : candidate) };
               } catch (reason) {
                 addDebug('warning', `Could not load artwork for ${matchedMovie.name}`, errorMessage(reason));
@@ -1130,7 +1134,7 @@ export default function App() {
         const found = await window.mediaRenamer?.searchMovies(trimmed) ?? [];
         if (movieReviewSequence.current !== sequence) return;
         setMovieReviewResults(found);
-        setMovieReviewSelection((current) => found.some((movie) => movie.id === current) ? current : found[0]?.id);
+        setMovieReviewSelection((current) => found.some((movie) => movieResultKey(movie) === current) ? current : found[0] ? movieResultKey(found[0]) : undefined);
         addDebug(found.length ? 'success' : 'warning', `Movie review search returned ${found.length} result${found.length === 1 ? '' : 's'}`, `Query: “${trimmed}”.`);
       } catch (reason) {
         if (movieReviewSequence.current === sequence) setMovieReviewError(errorMessage(reason));
@@ -1194,18 +1198,18 @@ export default function App() {
     setMovieReviewPath(path);
     setMovieReviewQuery(match.query);
     setMovieReviewResults(match.candidates);
-    setMovieReviewSelection(match.movie?.id ?? match.candidates[0]?.id);
+    setMovieReviewSelection(match.movie ? movieResultKey(match.movie) : match.candidates[0] ? movieResultKey(match.candidates[0]) : undefined);
     setMovieReviewError(undefined);
   }
 
   async function confirmMovieReview(selection = movieReviewSelection) {
     if (!movieReviewPath || !selection) return;
-    const result = movieReviewResults.find((movie) => movie.id === selection);
+    const result = movieReviewResults.find((movie) => movieResultKey(movie) === selection);
     if (!result) return;
     setMovieReviewLoading(true);
     setMovieReviewError(undefined);
     try {
-      const details = await window.mediaRenamer?.getMovie(result.id);
+      const details = await window.mediaRenamer?.getMovie(result.id, result.mediaType);
       if (!details) throw new Error('The metadata provider returned no movie details.');
       setMovieMatches((current) => ({ ...current, [movieReviewPath]: manuallySelectMovie(current[movieReviewPath] ?? { path: movieReviewPath, query: movieReviewQuery, candidates: [], status: 'review', confidence: 0, reasons: [] }, details) }));
       addDebug('success', `Matched ${filenameFromPath(movieReviewPath)} → ${details.name}`, `${details.year ?? 'Release year unknown'} · manually selected TMDB movie.`);
@@ -1992,10 +1996,10 @@ export default function App() {
           <label className="review-search"><Search size={15}/><input value={movieReviewQuery} onChange={(event) => { setMovieReviewQuery(event.target.value); setMovieReviewSelection(undefined); }} placeholder="Movie title, tmdb-…, or imdb-tt…" autoFocus/>{movieReviewSearching && <LoaderCircle className="spin" size={14}/>}</label>
           <div className="review-results-heading"><strong>Search results</strong><small>{movieReviewResults.length} movie{movieReviewResults.length === 1 ? '' : 's'}</small></div>
           <div className="movie-review-candidates" role="listbox" aria-label="Movie search results">
-            {movieReviewResults.map((movie) => <button key={movie.id} role="option" aria-selected={movieReviewSelection === movie.id} className={movieReviewSelection === movie.id ? 'selected' : ''} onClick={() => setMovieReviewSelection(movie.id)} onDoubleClick={() => void confirmMovieReview(movie.id)}>
+            {movieReviewResults.map((movie) => <button key={movieResultKey(movie)} role="option" aria-selected={movieReviewSelection === movieResultKey(movie)} className={movieReviewSelection === movieResultKey(movie) ? 'selected' : ''} onClick={() => setMovieReviewSelection(movieResultKey(movie))} onDoubleClick={() => void confirmMovieReview(movieResultKey(movie))}>
               {movie.posterUrl ? <img src={movie.posterUrl} alt=""/> : <span className="movie-review-poster-placeholder"><Film size={19}/></span>}
-              <span><strong>{movie.name}</strong><small>{movie.year ?? 'Release year unknown'} · TMDB {movie.id}</small>{movie.overview && <em>{movie.overview}</em>}</span>
-              {movieReviewSelection === movie.id && <Check size={16}/>}
+              <span><strong>{movie.name}</strong><small>{movie.year ?? 'Release year unknown'} · {movie.mediaType === 'tv' ? 'TV miniseries · ' : ''}TMDB {movie.id}</small>{movie.overview && <em>{movie.overview}</em>}</span>
+              {movieReviewSelection === movieResultKey(movie) && <Check size={16}/>}
             </button>)}
             {!movieReviewSearching && !movieReviewResults.length && <div className="review-empty">No movies found. Refine the title or add a release year.</div>}
           </div>

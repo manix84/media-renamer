@@ -34,6 +34,7 @@ export interface ShowDetails extends ShowSearchResult {
 
 export interface MovieSearchResult {
   id: string;
+  mediaType?: 'movie' | 'tv';
   imdbId?: string;
   name: string;
   year?: number;

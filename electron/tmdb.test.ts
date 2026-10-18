@@ -38,6 +38,21 @@ describe('TMDB adapter', () => {
     }
   });
 
+  it('falls back to an exact TV miniseries when no exact movie title and year exists', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 123781, title: 'Strike It Rich', release_date: '1990-01-01' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 19614, name: 'It', first_air_date: '1990-11-18' }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 19614, name: 'It', first_air_date: '1990-11-18', external_ids: { imdb_id: 'tt0099864' } }), { status: 200 }));
+    const client = new TmdbClient('token', fetcher);
+    const results = await client.searchMovies('It (1990)');
+    expect(results[0]).toMatchObject({ id: '19614', mediaType: 'tv', name: 'It', year: 1990 });
+    await expect(client.getMovie(results[0].id, results[0].mediaType)).resolves.toMatchObject({ id: '19614', mediaType: 'tv', imdbId: 'tt0099864' });
+    expect((fetcher.mock.calls[0][0] as URL).pathname).toBe('/3/search/movie');
+    expect((fetcher.mock.calls[1][0] as URL).pathname).toBe('/3/search/tv');
+    expect((fetcher.mock.calls[1][0] as URL).searchParams.get('first_air_date_year')).toBe('1990');
+    expect((fetcher.mock.calls[2][0] as URL).pathname).toBe('/3/tv/19614');
+  });
+
   it('authenticates with the read access token and normalizes episodes', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ episodes: [{ id: 7, season_number: 1, episode_number: 2, name: 'Second', air_date: '2020-01-02', runtime: 52 }] }), { status: 200 }));
     const client = new TmdbClient('secret-token', fetcher);

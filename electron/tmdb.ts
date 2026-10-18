@@ -34,6 +34,7 @@ export interface TmdbEpisode {
 
 export interface TmdbMovieSearchResult {
   id: string;
+  mediaType?: 'movie' | 'tv';
   imdbId?: string;
   name: string;
   year?: number;
@@ -102,6 +103,15 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
     overview: movie.overview ?? '',
     posterUrl: movie.poster_path ? `${IMAGE_ROOT}${movie.poster_path}` : undefined,
   };
+}
+
+function normalizeMovieLikeShow(show: RawShow): TmdbMovieSearchResult {
+  const normalized = normalizeShow(show);
+  return { ...normalized, mediaType: 'tv' };
+}
+
+function sameTitle(left: string, right: string): boolean {
+  return titleWords(left).join(' ') === titleWords(right).join(' ');
 }
 
 function titleWords(value: string): string[] {
@@ -186,28 +196,40 @@ export class TmdbClient {
   async searchMovies(query: string): Promise<TmdbMovieSearchResult[]> {
     const imdbId = query.match(/^(?:imdb-)?(tt\d+)$/i)?.[1];
     if (imdbId) {
-      const data = await this.request<{ movie_results: RawMovie[] }>(`/find/${imdbId.toLowerCase()}`, new URLSearchParams({ external_source: 'imdb_id' }));
-      return data.movie_results.map((movie) => ({ ...normalizeMovie(movie), imdbId: imdbId.toLowerCase() }));
+      const data = await this.request<{ movie_results: RawMovie[]; tv_results?: RawShow[] }>(`/find/${imdbId.toLowerCase()}`, new URLSearchParams({ external_source: 'imdb_id' }));
+      return [
+        ...data.movie_results.map((movie) => ({ ...normalizeMovie(movie), mediaType: 'movie' as const, imdbId: imdbId.toLowerCase() })),
+        ...(data.tv_results ?? []).map((show) => ({ ...normalizeMovieLikeShow(show), imdbId: imdbId.toLowerCase() })),
+      ];
     }
     const tmdbId = query.match(/^tmdb-(\d+)$/i)?.[1];
-    if (tmdbId) return [normalizeMovie(await this.request<RawMovie>(`/movie/${tmdbId}`))];
+    if (tmdbId) return [{ ...normalizeMovie(await this.request<RawMovie>(`/movie/${tmdbId}`)), mediaType: 'movie' }];
     const datedTitle = query.match(/^(.*\S)\s+\(((?:19|20)\d{2})\)$/);
-    const params = new URLSearchParams({ query: datedTitle?.[1] ?? query, include_adult: 'false' });
+    const title = datedTitle?.[1] ?? query;
+    const params = new URLSearchParams({ query: title, include_adult: 'false' });
     if (datedTitle) params.set('year', datedTitle[2]);
     const data = await this.request<{ results: RawMovie[] }>('/search/movie', params);
-    return data.results.map(normalizeMovie)
+    const movies = data.results.map((movie) => ({ ...normalizeMovie(movie), mediaType: 'movie' as const }))
       .sort((left, right) => Number(right.year === Number(datedTitle?.[2])) - Number(left.year === Number(datedTitle?.[2])))
       .slice(0, 10);
+    if (movies.some((movie) => sameTitle(movie.name, title) && (!datedTitle || movie.year === Number(datedTitle[2])))) return movies;
+
+    const tvParams = new URLSearchParams({ query: title, include_adult: 'false' });
+    if (datedTitle) tvParams.set('first_air_date_year', datedTitle[2]);
+    const tvData = await this.request<{ results: RawShow[] }>('/search/tv', tvParams);
+    const exactShows = tvData.results.map(normalizeMovieLikeShow)
+      .filter((show) => sameTitle(show.name, title) && (!datedTitle || show.year === Number(datedTitle[2])));
+    return [...exactShows, ...movies].slice(0, 10);
   }
 
-  async getMovie(movieId: string): Promise<TmdbMovieSearchResult> {
-    const data = await this.request<RawMovie & { external_ids?: RawExternalIds; images?: { logos?: RawImage[] } }>(
-      `/movie/${encodeURIComponent(movieId)}`,
+  async getMovie(movieId: string, mediaType: 'movie' | 'tv' = 'movie'): Promise<TmdbMovieSearchResult> {
+    const data = await this.request<(RawMovie | RawShow) & { external_ids?: RawExternalIds; images?: { logos?: RawImage[] } }>(
+      `/${mediaType}/${encodeURIComponent(movieId)}`,
       new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
     );
     const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
     return {
-      ...normalizeMovie(data),
+      ...(mediaType === 'tv' ? normalizeMovieLikeShow(data as RawShow) : { ...normalizeMovie(data as RawMovie), mediaType: 'movie' as const }),
       imdbId: data.external_ids?.imdb_id && /^tt\d+$/i.test(data.external_ids.imdb_id) ? data.external_ids.imdb_id.toLowerCase() : undefined,
       logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined,
     };

@@ -343,9 +343,11 @@ ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
   return metadataCache().get(`search:movies:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, () => tmdb().searchMovies(search));
 });
-ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown) => {
+ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown, mediaType: unknown) => {
   const id = textArgument(movieId, 'movie ID');
-  return metadataCache().get(`tmdb:movie:${id}`, DETAILS_CACHE_AGE, () => tmdb().getMovie(id));
+  if (mediaType !== undefined && mediaType !== 'movie' && mediaType !== 'tv') throw new Error('Invalid movie media type.');
+  const type = mediaType === 'tv' ? 'tv' : 'movie';
+  return metadataCache().get(`tmdb:${type}:${id}`, DETAILS_CACHE_AGE, () => tmdb().getMovie(id, type));
 });
 ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');

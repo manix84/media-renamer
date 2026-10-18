@@ -198,7 +198,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 
 ### Milestone 4 — movies and library workflows (started)
 
-- [x] per-file movie batch matching with automatic title/year inference, independent TMDB results, and manual row review
+- [x] per-file movie batch matching with automatic title/year inference, independent TMDB results, exact TV-miniseries fallback, and manual row review
 - [x] direct movie lookup by TMDB or IMDb ID, with both identifiers available to filename and folder templates
 - [x] separate persisted Movie destination, folder template, and filename template
 - [ ] runtime-assisted movie disambiguation

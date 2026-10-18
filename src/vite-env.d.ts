@@ -90,7 +90,7 @@ declare global {
       resolveTvdbSeries(request: { name: string; year?: number }): Promise<{ id: string; name: string; year?: number } | undefined>;
       getShowEpisodes(request: { agent: ShowMetadataAgent; tmdbId: string; tvdbId?: string; seasons: number[] }): Promise<Episode[]>;
       searchMovies(query: string): Promise<MovieSearchResult[]>;
-      getMovie(movieId: string): Promise<MovieDetails>;
+      getMovie(movieId: string, mediaType?: 'movie' | 'tv'): Promise<MovieDetails>;
       openDebugConsole(): Promise<void>;
       dockDebugConsole(): Promise<void>;
       appendDebug(entry: { level: DebugLevel; message: string; detail?: string }): void;
