@@ -371,7 +371,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .match-list.view-compact { padding-top: 0; }
 .view-compact .original svg { width: 13px; }
 .view-compact .score small { display: none; }
-.row-trailing { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+.row-trailing { align-self: start; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
 .row-trailing .score { width: 58px; flex: 0 0 58px; }
 .row-extras { width: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; opacity: 0; transition: width .14s ease, opacity .1s ease; }
 .match-row:hover .row-extras, .row-extras:focus-within { width: 53px; opacity: 1; }
