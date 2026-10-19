@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const VIDEO_EXTENSIONS = new Set(['.mkv', '.mp4', '.avi', '.m4v', '.mov', '.webm']);
+export const VIDEO_FILE_EXTENSIONS = ['mkv', 'mp4', 'm4v', 'avi', 'mov', 'webm', 'wmv', 'mpg', 'mpeg', 'ts', 'm2ts'] as const;
+const VIDEO_EXTENSIONS = new Set(VIDEO_FILE_EXTENSIONS.map((extension) => `.${extension}`));
 const SYSTEM_METADATA_NAMES = new Set(['.ds_store', 'thumbs.db', 'desktop.ini', 'icon\r']);
 
 export function isSystemMetadataPath(filePath: string): boolean {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
 import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
-import { expandMediaPaths, isVideoFile } from './mediaFiles.js';
+import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { preflightRenameItems } from './renamePreflight.js';
 import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
@@ -171,7 +171,7 @@ function resumeMediaFileMonitoring(): void {
 ipcMain.handle('files:pick', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Video files', extensions: ['mkv', 'mp4', 'avi', 'm4v', 'mov', 'webm'] }],
+    filters: [{ name: 'Video files', extensions: [...VIDEO_FILE_EXTENSIONS] }],
   });
   return result.canceled ? [] : result.filePaths.filter(isVideoFile);
 });

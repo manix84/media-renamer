@@ -27,6 +27,16 @@ describe('media companion discovery', () => {
     expect(scan.ambiguous).toEqual([]);
   });
 
+  it('associates metadata sidecars with an MPG video', async () => {
+    const directory = await fixture(['Archive.mpg', 'Archive.mpg.nfo']);
+    const videoPath = path.join(directory, 'Archive.mpg');
+    const scan = await discoverMediaCompanions([videoPath]);
+
+    expect(scan.byVideo[videoPath]).toEqual([
+      { path: path.join(directory, 'Archive.mpg.nfo'), suffix: '.nfo', kind: 'metadata' },
+    ]);
+  });
+
   it('surfaces a sidecar that can belong to more than one imported video', async () => {
     const directory = await fixture(['Episode.mkv', 'Episode.en.mkv', 'Episode.en.srt']);
     const videos = [path.join(directory, 'Episode.mkv'), path.join(directory, 'Episode.en.mkv')];

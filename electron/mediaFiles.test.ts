@@ -13,6 +13,8 @@ afterEach(async () => {
 describe('media path expansion', () => {
   it('recognizes supported video extensions case-insensitively', () => {
     expect(isVideoFile('/shows/episode.MKV')).toBe(true);
+    expect(isVideoFile('/shows/episode.MPG')).toBe(true);
+    expect(isVideoFile('/shows/episode.mpeg')).toBe(true);
     expect(isVideoFile('/shows/episode.srt')).toBe(false);
   });
 
@@ -33,9 +35,11 @@ describe('media path expansion', () => {
       fs.writeFile(path.join(root, '._Show.S01E01.mkv'), ''),
       fs.writeFile(path.join(root, '.DS_Store'), ''),
       fs.writeFile(path.join(root, 'notes.txt'), ''),
+      fs.writeFile(path.join(root, 'Movie.mpg'), ''),
       fs.writeFile(path.join(root, 'Season 2', 'Disc 1', 'Show.S02E01.mp4'), ''),
     ]);
     await expect(expandMediaPaths([root])).resolves.toEqual([
+      path.join(root, 'Movie.mpg'),
       path.join(root, 'Season 2', 'Disc 1', 'Show.S02E01.mp4'),
       path.join(root, 'Show.S01E01.mkv'),
     ]);

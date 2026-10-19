@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { preflightRenameItems, renamePreflightItems, type RenamePreflightItem } from './renamePreflight.js';
 import { writeJsonAtomically } from './atomicJson.js';
+import { isVideoFile } from './mediaFiles.js';
 
 export type RenameOperation = {
   version: 1;
@@ -22,7 +23,6 @@ export type RenameOperation = {
 export type RenameControl = 'stop' | 'undo';
 export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
 
-const videoExtensionPattern = /\.(?:mkv|mp4|m4v|avi|mov|webm|wmv|mpg|mpeg|ts|m2ts)$/i;
 const subtitleExtensionPattern = /\.(?:srt|ass|ssa|sub|vtt)$/i;
 const sourceJunkPatterns = [
   /\.!qb$/i,
@@ -177,7 +177,7 @@ async function writeExternalOperation(directory: string, operation: RenameOperat
 async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{ removed: string[]; warnings: string[] }> {
   const movedItems = items.filter((item) => path.dirname(item.sourcePath) !== path.dirname(item.targetPath));
   const sourceRoots = [...new Set(movedItems
-    .filter((item) => videoExtensionPattern.test(item.sourcePath))
+    .filter((item) => isVideoFile(item.sourcePath))
     .map((item) => path.dirname(item.sourcePath)))];
   const isWithin = (directory: string, root: string): boolean => {
     const relative = path.relative(root, directory);
@@ -218,7 +218,7 @@ async function removeEmptySourceParents(items: RenamePreflightItem[]): Promise<{
 
 async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: string[]; directories: string[]; warnings: string[] }> {
   const roots = [...new Set(items
-    .filter((item) => videoExtensionPattern.test(item.sourcePath) && path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
+    .filter((item) => isVideoFile(item.sourcePath) && path.dirname(item.sourcePath) !== path.dirname(item.targetPath))
     .map((item) => path.dirname(item.sourcePath)))]
     .filter((directory) => directory !== path.parse(directory).root);
   const files: string[] = [];

@@ -32,7 +32,7 @@ export function isCompanionFile(filePath: string): boolean {
 function kindFor(filename: string, suffix: string): CompanionKind | undefined {
   const extension = path.extname(filename).toLowerCase();
   if (SUBTITLE_EXTENSIONS.has(extension) && suffix.startsWith('.')) return 'subtitle';
-  if (extension === '.nfo' && /^(?:\.(?:mkv|mp4|avi|m4v|mov|webm))?\.nfo$/i.test(suffix)) return 'metadata';
+  if (extension === '.nfo' && /^(?:\.(?:mkv|mp4|m4v|avi|mov|webm|wmv|mpg|mpeg|ts|m2ts))?\.nfo$/i.test(suffix)) return 'metadata';
   if (ARTWORK_EXTENSIONS.has(extension) && ARTWORK_SUFFIX.test(suffix)) return 'artwork';
   return undefined;
 }
