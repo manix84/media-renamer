@@ -22,6 +22,7 @@ describe('episode code parser', () => {
     'Video_S03_1080p.mp4',
     'Archive_S03_2024.mkv',
     'Show.S03version2.mkv',
+    'Hotel.Transylvania.2.2015.1080p.BluRay.DDP.5.1.x265-EDGE2020.mkv',
   ])('does not treat unrelated separated numbers as an episode code: %s', (filename) => {
     expect(parseEpisodeCode(filename)).toBeUndefined();
   });

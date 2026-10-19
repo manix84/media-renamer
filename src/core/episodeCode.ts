@@ -3,7 +3,7 @@ export type ParsedStandaloneEpisode = { episode: number; index: number };
 export type ParsedSpecialEpisode = { episode: number; index: number };
 export type ParsedFolderEpisode = { season: number; episode: number };
 
-const episodeCodePattern = /(?:^|[ ._-])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})[ ._-]*x[ ._-]*(\d{1,3})|s(\d{1,2})[ ._-]+(\d{1,3}))(?:v\d+)?(?=$|[ ._-])/i;
+const episodeCodePattern = /(?:^|[ ._-])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})[ ._-]*x[ ._-]*(?!26[45](?=$|[ ._-]))(\d{1,3})|s(\d{1,2})[ ._-]+(\d{1,3}))(?:v\d+)?(?=$|[ ._-])/i;
 const standaloneEpisodePattern = /\s+-\s+(\d{1,3})(?=\s*(?:-|\[|\(|$))/;
 const specialEpisodePattern = /(?:^|[ ._-])(?:sp|special|ova|oad)[ ._-]*(\d{1,3})(?=$|[ ._-])/i;
 const compactMultiEpisodePattern = /(?:^|[ ._-])s(\d{1,2})[ ._-]*e(\d{1,3})((?:[ ._-]*e\d{1,3})+)(?=$|[ ._-])/i;

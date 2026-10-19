@@ -7,6 +7,11 @@ describe('movie-name inference', () => {
     expect(inferMovieQuery(['/movies/Mercury.Rising.1998.1080p.BluRay.x264.YIFY.mp4'], 2026)).toBe('Mercury Rising (1998)');
   });
 
+  it('keeps a numbered sequel title separate from its release year', () => {
+    expect(inferMovieQuery(['Hotel.Transylvania.2.2015.1080p.BluRay.DDP.5.1.x265-EDGE2020.mkv'], 2026))
+      .toBe('Hotel Transylvania 2 (2015)');
+  });
+
   it('keeps years that are part of a title and uses the later release year', () => {
     expect(inferMovieQuery(['/movies/2001.A.Space.Odyssey.1968.2160p.UHD.mkv'], 2026)).toBe('2001 A Space Odyssey (1968)');
     expect(inferMovieQuery(['/movies/Blade.Runner.2049.2017.1080p.mkv'], 2026)).toBe('Blade Runner 2049 (2017)');

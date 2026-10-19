@@ -278,6 +278,7 @@ export default function App() {
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
   const [movieMatches, setMovieMatches] = useState<Record<string, MovieFileMatch>>({});
+  const [forcedMoviePaths, setForcedMoviePaths] = useState<Set<string>>(() => new Set());
   const [movieBatchFilter, setMovieBatchFilter] = useState<MovieBatchFilter>('all');
   const [movieDetectionAttempt, setMovieDetectionAttempt] = useState(0);
   const [movieReviewPath, setMovieReviewPath] = useState<string>();
@@ -476,7 +477,7 @@ export default function App() {
   const movieFormatError = movieTemplateError(movieTemplate);
   const parsedReleaseAliases = useMemo(() => parseReleaseAliasText(releaseAliasText), [releaseAliasText]);
   const releaseAliases = useMemo(() => parsedReleaseAliases.errors.length ? [] : parsedReleaseAliases.aliases, [parsedReleaseAliases]);
-  const deferredMoviePaths = useMemo(() => new Set(paths.filter((path) => classifyMediaFile(path) === 'shows')), [paths]);
+  const deferredMoviePaths = useMemo(() => new Set(paths.filter((path) => !forcedMoviePaths.has(path) && classifyMediaFile(path) === 'shows')), [forcedMoviePaths, paths]);
   const movieVideoRoles = useMemo(() => classifyMovieVideoRoles(paths), [paths]);
   const movieMatchCounts = useMemo(() => ({
     ready: paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === 'confident').length,
@@ -1275,6 +1276,19 @@ export default function App() {
     setMovieReviewError(undefined);
   }
 
+  function forceMovieMatchReview(path: string) {
+    const inferred = inferMovieQuery([path], new Date().getFullYear(), movieVideoRoles) ?? filenameFromPath(path).replace(/\.[^.]+$/, '').replace(/[._-]+/g, ' ');
+    const provisional: MovieFileMatch = { path, query: inferred, candidates: [], status: 'unmatched', confidence: 0, reasons: ['manually classified as a movie'] };
+    setForcedMoviePaths((current) => new Set(current).add(path));
+    setMovieMatches((current) => ({ ...current, [path]: provisional }));
+    setMovieReviewPath(path);
+    setMovieReviewQuery(inferred);
+    setMovieReviewResults([]);
+    setMovieReviewSelection(undefined);
+    setMovieReviewError(undefined);
+    addDebug('info', `Treating ${filenameFromPath(path)} as a movie`, 'The automatic TV classification was overridden for this imported file.');
+  }
+
   async function confirmMovieReview(selection = movieReviewSelection) {
     if (!movieReviewPath || !selection) return;
     const result = movieReviewResults.find((movie) => movieResultKey(movie) === selection);
@@ -1531,6 +1545,7 @@ export default function App() {
     setSearching(false);
     setShow(undefined);
     setMovieMatches({});
+    setForcedMoviePaths(new Set());
     setMovieReviewPath(undefined);
     setMovieReviewQuery('');
     setMovieReviewResults([]);
@@ -1571,6 +1586,7 @@ export default function App() {
     setProbeStates(withoutPath);
     setMatchOverrides(withoutPath);
     setMovieMatches(withoutPath);
+    setForcedMoviePaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setMetadataOverrides(withoutPath);
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
@@ -1668,7 +1684,10 @@ export default function App() {
   function reviewFromConfirmation(path: string) {
     setConfirmAllOpen(false);
     setConfirmAllResult(undefined);
-    if (activeMediaTab === 'movies') openMovieMatchReview(path);
+    if (activeMediaTab === 'movies') {
+      if (deferredMoviePaths.has(path)) forceMovieMatchReview(path);
+      else openMovieMatchReview(path);
+    }
     else openMatchReview(path);
   }
 
@@ -1924,7 +1943,7 @@ export default function App() {
                       <button className="row-remove" aria-label={`Remove ${filename} from batch`} title="Remove from batch" disabled={removing} onClick={() => removeFileFromBatch(path)}><Trash2 size={14}/></button>
                       <button className="row-edit" aria-label={`Edit metadata for ${filename}`} title="Edit metadata" disabled={activeMediaTab === 'movies' ? !movieFileMatch?.movie : !item?.match || !show} onClick={() => openMetadataEditor(path)}><FilePenLine size={14}/></button>
                       {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
-                      {activeMediaTab === 'movies' && deferredToTv && <button className="row-open-tv" aria-label={`Open ${filename} in TV mode`} title="Open batch in TV mode" onClick={() => switchMediaTab('shows')}><Tv size={14}/></button>}
+                      {activeMediaTab === 'movies' && deferredToTv && <button className="row-review required" aria-label={`Treat ${filename} as a movie and choose its match`} title="Treat as movie and choose match" onClick={() => forceMovieMatchReview(path)}><Film size={14}/></button>}
                       {activeMediaTab === 'movies' && !deferredToTv && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Match movie for ${filename}`} title="Match movie" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => openMovieMatchReview(path)}><ListChecks size={14}/></button>}
                     </div>
                     {(matchingRequired && item?.match) || movieConfirmationRequired ? <button className="row-confirm" aria-label={`Confirm suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
@@ -2009,9 +2028,9 @@ export default function App() {
             {confirmationSuggestions.length > 0 && <section><h3>Suggested matches</h3><ul className="confirmation-results actionable">{confirmationSuggestions.map((item) => <li key={item.path}><span><strong>{filenameFromPath(item.path)}</strong><small>{item.label}</small></span><button className="secondary" onClick={() => { setConfirmAllResult(undefined); confirmSuggestedMatch(item.path); }}><Check size={13}/> Accept</button></li>)}</ul></section>}
             {confirmationBlockers.length > 0 && <section><h3>Needs manual attention</h3><ul className="confirmation-results actionable">{confirmationBlockers.map((item) => {
               const canReview = activeMediaTab === 'movies'
-                ? Boolean(movieMatches[item.path] && movieMatches[item.path].status !== 'detecting' && !deferredMoviePaths.has(item.path))
+                ? deferredMoviePaths.has(item.path) || Boolean(movieMatches[item.path] && movieMatches[item.path].status !== 'detecting')
                 : Boolean(show && episodes.length && matchesByPath.get(item.path));
-              return <li key={item.path}><span><strong>{filenameFromPath(item.path)}</strong><small>{item.reason}</small></span><button className="secondary" disabled={!canReview} title={canReview ? `Choose a ${activeMediaTab === 'movies' ? 'movie' : 'TV episode'} match` : activeMediaTab === 'movies' && deferredMoviePaths.has(item.path) ? 'Open this file in TV mode from its row.' : 'Load show metadata before choosing an episode.'} onClick={() => reviewFromConfirmation(item.path)}><ListChecks size={13}/> Review</button></li>;
+              return <li key={item.path}><span><strong>{filenameFromPath(item.path)}</strong><small>{item.reason}</small></span><button className="secondary" disabled={!canReview} title={canReview ? activeMediaTab === 'movies' && deferredMoviePaths.has(item.path) ? 'Treat as movie and choose its match' : `Choose a ${activeMediaTab === 'movies' ? 'movie' : 'TV episode'} match` : 'Load show metadata before choosing an episode.'} onClick={() => reviewFromConfirmation(item.path)}><ListChecks size={13}/> Review</button></li>;
             })}</ul></section>}
           </div>
           <div><button className="secondary" autoFocus onClick={() => setConfirmAllOpen(false)}>{confirmAllResult ? 'Done' : 'Close'}</button>{confirmationSuggestions.length > 0 && <button className="primary" onClick={confirmAllSuggestedMatches}><Check size={15}/> Accept all {confirmationSuggestions.length}</button>}</div>

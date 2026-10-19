@@ -32,6 +32,7 @@ describe('media batch classification', () => {
 
   it('keeps movie-like and ambiguous files out of the TV-only bucket', () => {
     expect(classifyMediaFile('Total.Recall.1990.1080p.BluRay.mkv', 2026)).toBe('movies');
+    expect(classifyMediaFile('Hotel.Transylvania.2.2015.1080p.BluRay.DDP.5.1.x265-EDGE2020.mkv', 2026)).toBe('movies');
     expect(classifyMediaFile('Family Holiday.mkv', 2026)).toBe('ambiguous');
   });
 
