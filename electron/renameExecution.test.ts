@@ -143,9 +143,10 @@ describe('rename execution', () => {
     const sourceDirectory = path.join(root, 'incoming', 'Movie');
     const nestedDirectory = path.join(sourceDirectory, 'Other');
     const subtitlesDirectory = path.join(sourceDirectory, 'Subs');
+    const featurettesDirectory = path.join(sourceDirectory, 'Featurettes');
     const source = path.join(sourceDirectory, 'Movie.mp4');
     const target = path.join(root, 'library', 'Movie', 'Movie.mp4');
-    await Promise.all([fs.promises.mkdir(nestedDirectory, { recursive: true }), fs.promises.mkdir(subtitlesDirectory, { recursive: true })]);
+    await Promise.all([fs.promises.mkdir(nestedDirectory, { recursive: true }), fs.promises.mkdir(subtitlesDirectory, { recursive: true }), fs.promises.mkdir(featurettesDirectory, { recursive: true })]);
     await Promise.all([
       fs.promises.writeFile(source, 'video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.MX.jpg'), 'advert'),
@@ -173,7 +174,11 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_1_1080p.jpg'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_2_1080p.jpg'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_3_1080p.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, '[TGx]Downloaded from torrentgalaxy.to .txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'NEW upcoming releases by Xclusive.txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'info.txt'), 'advert'),
       fs.promises.writeFile(path.join(subtitlesDirectory, 'English.srt'), 'subtitle'),
+      fs.promises.writeFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'extra video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'keep'),
@@ -187,7 +192,7 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(24);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(27);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG.txt'));
@@ -201,6 +206,7 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie.srt'), 'utf8')).resolves.toContain('Subtitle');
     await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
+    await expect(fs.promises.readFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'utf8')).resolves.toBe('extra video');
   });
 
   it('optionally writes a timestamped log to the common destination folder', async () => {
