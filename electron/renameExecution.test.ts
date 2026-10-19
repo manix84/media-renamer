@@ -157,6 +157,8 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.TO.jpg'), 'advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'YTSYifyUP.com (TOR).txt'), 'advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Movie.mkv.!qB'), 'partial download'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'), 'release advert'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'RARBG.txt'), 'release advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Assassins.1995.1080p.BluRay.x264.YIFY.srt'), ''),
       fs.promises.writeFile(path.join(sourceDirectory, 'Movie.srt'), '1\n00:00:01,000 --> 00:00:02,000\nSubtitle'),
       fs.promises.writeFile(path.join(nestedDirectory, 'WWW.YIFY-TORRENTS.COM.jpg'), 'advert'),
@@ -177,6 +179,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'keep'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'keep'),
     ]);
 
     const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, {
@@ -184,8 +187,10 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(22);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(24);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG.txt'));
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
@@ -193,6 +198,7 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie.srt'), 'utf8')).resolves.toContain('Subtitle');
     await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
   });
