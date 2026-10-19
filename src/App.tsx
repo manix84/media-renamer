@@ -7,6 +7,7 @@ import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './co
 import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
+import { requestedEpisodeSeasons, seasonCompatibleShow } from './core/showSelection';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { appendMovieVideoSuffix, classifyMovieVideoRoles } from './core/movieVideoRole';
 import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassification';
@@ -1158,8 +1159,15 @@ export default function App() {
           addDebug(found.length ? 'success' : 'warning', `Search returned ${found.length} result${found.length === 1 ? '' : 's'}`, found.length ? found.slice(0, 5).map((item) => `${item.name}${item.year ? ` (${item.year})` : ''}`).join(', ') : `No provider result matched “${trimmed}”.`);
           if (autoSelectResult.current && found[0]) {
             autoSelectResult.current = false;
-            addDebug('info', `Automatically selecting ${found[0].name}`, 'Using the first result for the show name inferred from the imported files.');
-            void selectShow(found[0]);
+            const requestedSeasons = requestedEpisodeSeasons(paths);
+            const candidateDetails = requestedSeasons.length && window.mediaRenamer?.getShow
+              ? (await Promise.all(found.slice(0, 5).map((candidate) => window.mediaRenamer!.getShow(candidate.id).catch(() => undefined)))).filter((candidate): candidate is ShowDetails => Boolean(candidate))
+              : [];
+            if (searchSequence.current !== sequence) return;
+            const automaticResult = seasonCompatibleShow(found, candidateDetails, requestedSeasons) ?? found[0];
+            const seasonReason = requestedSeasons.length ? ` Preferring a result with season ${requestedSeasons.join(', ')} from the imported filenames.` : '';
+            addDebug('info', `Automatically selecting ${automaticResult.name}`, `Selected from the show name inferred from the imported files.${seasonReason}`);
+            void selectShow(automaticResult);
           } else {
             setActiveSearchResult(-1);
             setResults(found);
@@ -1176,7 +1184,7 @@ export default function App() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [activeMediaTab, addDebug, provider?.configured, query, show?.name]);
+  }, [activeMediaTab, addDebug, paths, provider?.configured, query, show?.name]);
 
   useEffect(() => {
     if (!movieReviewPath || !provider?.configured) return;
@@ -1238,6 +1246,10 @@ export default function App() {
         });
         setShow({ ...details, tvdbId, seasons });
         setEpisodes(sortedEpisodes);
+        const missingSeasons = requestedEpisodeSeasons(paths).filter((season) => !seasonNumbers.includes(season));
+        if (missingSeasons.length) {
+          setError(`${details.name} does not contain season ${missingSeasons.join(', ')} required by the imported filenames. Choose a different show result or episode order.`);
+        }
         addDebug('success', `Loaded ${details.name}`, `${sortedEpisodes.length} ${episodeAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'} episodes across ${seasons.length} seasons.`);
       }
     } catch (reason) {
