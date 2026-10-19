@@ -182,7 +182,7 @@ export function parseReleaseTags(filename: string, aliases: ReleaseTagAlias[] = 
   const videoCodec = evidence.match(/\b(x265|x264|h[ ._-]?265|hevc|h[ ._-]?264|av1)\b/i)?.[1].replace(/[ ._-]/g, '');
   const audio = evidence.match(/\b(DDP?|EAC3|AC3|AAC|DTS(?:-HD)?|TrueHD|FLAC)[ ._-]?(\d[ .]\d)?\b/i);
   const flags = knownFlags.filter((flag) => new RegExp(`\\b${flag}\\b`, 'i').test(evidence));
-  const animeVersion = evidence.match(/(?:\bS\d{1,3}E\d{1,4}|\b\d{1,3}x\d{1,4})v(\d+)\b/i)?.[1];
+  const animeVersion = evidence.match(/(?:\bS\d{1,3}E\d{1,4}|\b\d{1,3}x\d{1,4}|\s+-\s+\d{1,3})v(\d+)\b/i)?.[1];
   if (animeVersion && Number(animeVersion) >= 2) flags.push('REPACK');
   if (/\bai[ ._-]*upscal(?:e|ed)\b/i.test(evidence)) flags.push('AI Upscale');
   const group = detectReleaseGroup(stem, source, resolution, videoCodec);

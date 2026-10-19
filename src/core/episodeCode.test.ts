@@ -30,9 +30,11 @@ describe('episode code parser', () => {
   it('recognises a dash-delimited standalone anime episode number', () => {
     expect(parseStandaloneEpisode("[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [1080p].mkv"))
       .toMatchObject({ episode: 7 });
+    expect(parseStandaloneEpisode('[sam] The Ghost in the Shell (2026) - 01v2 [WEB 1080p EAC-3] [27E6D99D].mkv'))
+      .toMatchObject({ episode: 1 });
   });
 
-  it.each(['Show 07.mkv', 'Show - 2026 [1080p].mkv', 'Show_07.mkv'])
+  it.each(['Show 07.mkv', 'Show - 2026 [1080p].mkv', 'Show_07.mkv', 'Show - v2 [1080p].mkv'])
     ('rejects an ambiguous bare number: %s', (filename) => {
       expect(parseStandaloneEpisode(filename)).toBeUndefined();
     });

@@ -25,6 +25,8 @@ describe('show-name inference', () => {
   it('extracts an anime title before a dash-delimited bare episode number', () => {
     expect(inferShowQuery(["/anime/[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [Dub] [1080p OV WEB-DL].mkv"]))
       .toBe("Marika's Love Meter Malfunction");
+    expect(inferShowQuery(['/anime/[sam] The Ghost in the Shell (2026) - 01v2 [WEB 1080p EAC-3] [27E6D99D].mkv']))
+      .toBe('The Ghost in the Shell (2026)');
   });
 
   it('extracts a show title before an explicit special marker', () => {

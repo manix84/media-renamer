@@ -123,12 +123,14 @@ describe('release tag parser', () => {
     ['Anime.S01E01v2.1080p.mkv', 'REPACK'],
     ['Anime.S05E10v3.1080p.mkv', 'REPACK'],
     ['Anime.01x02v4.1080p.mkv', 'REPACK'],
+    ['[sam] The Ghost in the Shell (2026) - 01v2 [WEB 1080p EAC-3].mkv', 'REPACK'],
   ])('treats an attached anime version as a repack: %s', (filename, flag) => {
     expect(parseReleaseTags(filename).flags).toContain(flag);
   });
 
   it('does not treat a first-version episode as a repack', () => {
     expect(parseReleaseTags('Anime.S01E01v1.1080p.mkv').flags).not.toContain('REPACK');
+    expect(parseReleaseTags('Anime - 01v1 [1080p].mkv').flags).not.toContain('REPACK');
   });
 });
 
@@ -214,6 +216,17 @@ describe('episode matcher', () => {
 
     expect(result.match?.episode.id).toBe('episode-7');
     expect(result.match?.reasons).toContain('episode number in the only matching season');
+  });
+
+  it('matches a versioned standalone anime episode and records it as a repack', () => {
+    const result = matchFile('[sam] The Ghost in the Shell (2026) - 01v2 [WEB 1080p EAC-3] [27E6D99D].mkv', [
+      { id: 'episode-1', season: 1, number: 1, title: 'Episode 01: Prologue' },
+      { id: 'episode-2', season: 1, number: 2, title: 'Episode 02: Super Spartan' },
+    ], true, .8, 'The Ghost in the Shell');
+
+    expect(result.match?.episode.id).toBe('episode-1');
+    expect(result.match?.reasons).toContain('episode number in the only matching season');
+    expect(result.tags.flags).toContain('REPACK');
   });
 
   it('does not guess a season when a bare episode number is ambiguous', () => {
