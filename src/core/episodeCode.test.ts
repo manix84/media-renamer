@@ -11,9 +11,17 @@ describe('episode code parser', () => {
   });
 
   it.each([
+    ['[Judas] Tensei Shitara Slime Datta Ken - S04E02v2.mkv', 4, 2],
+    ['Anime.01x03v4.1080p.mkv', 1, 3],
+  ])('ignores an attached anime release revision: %s', (filename, season, episode) => {
+    expect(parseEpisodeCode(filename)).toMatchObject({ season, episode });
+  });
+
+  it.each([
     'Report_2024_03.pdf',
     'Video_S03_1080p.mp4',
     'Archive_S03_2024.mkv',
+    'Show.S03version2.mkv',
   ])('does not treat unrelated separated numbers as an episode code: %s', (filename) => {
     expect(parseEpisodeCode(filename)).toBeUndefined();
   });

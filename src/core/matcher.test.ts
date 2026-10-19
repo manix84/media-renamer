@@ -165,6 +165,7 @@ describe('episode matcher', () => {
 
   it('normalizes punctuation and noise', () => {
     expect(normalizeTitle("The.Off-Site.Meeting.720p.WEBRip")).toEqual(['off', 'site', 'meeting']);
+    expect(normalizeTitle('Anime.S04E02v2.Episode.Two.1080p')).toEqual(['anime', 'two']);
   });
 
   it('matches files from different seasons in a combined episode catalogue', () => {
@@ -174,6 +175,15 @@ describe('episode matcher', () => {
     ];
     expect(matchFile('Show.S01E02.mkv', combined).match?.episode.id).toBe('s1');
     expect(matchFile('Show.S04E02.mkv', combined).match?.episode.id).toBe('s4');
+  });
+
+  it('matches an anime episode with an attached release revision', () => {
+    const result = matchFile('[Judas] Tensei Shitara Slime Datta Ken - S04E02v2.mkv', [
+      { id: 's4e2', season: 4, number: 2, title: 'Episode Two' },
+    ], false);
+    expect(result.match?.episode.id).toBe('s4e2');
+    expect(result.tags.flags).toContain('REPACK');
+    expect(result.status).toBe('review');
   });
 
   it.each([
