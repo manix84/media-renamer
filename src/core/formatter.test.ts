@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, showFolderTemplateError, templateError } from './formatter';
+import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, showFolderTemplateError, templateError } from './formatter';
 import type { Episode, ReleaseTags } from './types';
 
 const tags: ReleaseTags = { source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', flags: [], audioCodec: 'AAC', channels: '2.0' };
@@ -70,6 +70,18 @@ describe('episode filename templates', () => {
     const companion = `${filename.slice(0, -4)}.en.forced.srt`;
     expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(240);
     expect(new TextEncoder().encode(companion).length).toBeLessThanOrEqual(255);
+  });
+
+  it('reserves collision space by truncating the episode title while protecting identity fields', () => {
+    const longEpisode = { ...episodes[0], title: 'When I Went to Apologize With a Friend Who Was a Shut-In for Two Years, We Were Unexpectedly Served Apple Bunnies, so I Think '.repeat(4) };
+    const maximumBytes = FILESYSTEM_FILENAME_BYTES - COLLISION_INCREMENT_RESERVE_BYTES;
+    const filename = formatEpisodeFilename(DEFAULT_EPISODE_TEMPLATE, 'The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life', 2026, longEpisode, tags, '.mkv', '473642', maximumBytes);
+
+    expect(new TextEncoder().encode(filename).length).toBeLessThanOrEqual(maximumBytes);
+    expect(filename).toContain('The Laid-Off Cheat-Granting Mage Enjoys a Second Lease on Life (2026)');
+    expect(filename).toContain('S01E01');
+    expect(filename).toContain('{tvdb-473642}.mkv');
+    expect(filename).toContain('…');
   });
 
   it('generates portable filenames using Windows-compatible character rules', () => {

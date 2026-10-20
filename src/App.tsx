@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime } from './completionChime';
-import { DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
+import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource, unchangedRenameItemPaths } from './core/renamePlan';
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
 import { parseReleaseAliasText } from './core/releaseAliases';
@@ -9,7 +9,7 @@ import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { requestedEpisodeSeasons, seasonCompatibleShow } from './core/showSelection';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
-import { appendMovieVideoSuffix, classifyMovieVideoRoles } from './core/movieVideoRole';
+import { appendMovieVideoSuffix, classifyMovieVideoRoles, movieVideoSuffix } from './core/movieVideoRole';
 import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassification';
 import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverride } from './core/metadataEditing';
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
@@ -553,9 +553,14 @@ export default function App() {
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
     const longestCompanionSuffix = companions.reduce((longest, companion) => Math.max(longest, encoder.encode(companion.suffix).length), 0);
-    const videoFilenameBudget = 255 - Math.max(0, longestCompanionSuffix - extensionBytes);
+    const movieVideoRole = movieVideoRoles[path] ?? { kind: 'main' as const };
+    const movieRoleSuffixBytes = activeMediaTab === 'movies' ? encoder.encode(movieVideoSuffix(movieVideoRole)).length : 0;
+    const videoFilenameBudget = FILESYSTEM_FILENAME_BYTES
+      - COLLISION_INCREMENT_RESERVE_BYTES
+      - movieRoleSuffixBytes
+      - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
-      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId), movieVideoRoles[path] ?? { kind: 'main' }) : undefined
+      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId), movieVideoRole) : undefined
       : effectiveEpisodes.length && effectiveShowName && tags && !formatError ? formatEpisodeFilename(episodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,

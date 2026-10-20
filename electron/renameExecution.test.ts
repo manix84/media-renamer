@@ -287,4 +287,18 @@ describe('rename execution', () => {
       'VisionQuest (2026) - S01E02 - Theseus (3).mkv',
     ]);
   });
+
+  it('keeps a reserved long filename within the filesystem limit after incrementing it', async () => {
+    const root = await temporaryDirectory();
+    const filename = `${'a'.repeat(245)}.mkv`;
+    const target = path.join(root, filename);
+    await fs.promises.writeFile(target, 'occupied');
+    const [group] = await resolveRenameCollisions([{ items: [
+      { sourcePath: path.join(root, 'source.mkv'), targetPath: target },
+    ] }]);
+
+    expect(new TextEncoder().encode(filename).length).toBe(249);
+    expect(new TextEncoder().encode(path.basename(group.items[0].targetPath)).length).toBeLessThanOrEqual(255);
+    expect(path.basename(group.items[0].targetPath)).toMatch(/ \(2\)\.mkv$/);
+  });
 });

@@ -17,6 +17,10 @@ export const DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}
 {{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}
 {{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
 
+export const FILESYSTEM_FILENAME_BYTES = 255;
+// Collision handling may append any increment from " (2)" through " (999)".
+export const COLLISION_INCREMENT_RESERVE_BYTES = 6;
+
 type TemplateValue = string | number | boolean | TemplateContext[] | TemplateContext | undefined;
 type TemplateContext = { [key: string]: TemplateValue };
 type TemplateNode =
@@ -189,7 +193,7 @@ export function formatEpisode(template: string, show: string, year: number | und
   return renderEpisode(template, show, year, Array.isArray(episode) ? episode : [episode], tags, tvdbId);
 }
 
-export function formatEpisodeFilename(template: string, show: string, year: number | undefined, episode: Episode | Episode[], tags: ReleaseTags, extension: string, tvdbId?: string, maximumBytes = 255): string {
+export function formatEpisodeFilename(template: string, show: string, year: number | undefined, episode: Episode | Episode[], tags: ReleaseTags, extension: string, tvdbId?: string, maximumBytes = FILESYSTEM_FILENAME_BYTES): string {
   const episodes = Array.isArray(episode) ? episode : [episode];
   const encoder = new TextEncoder();
   const filename = (items: Episode[]) => `${portableFilenameBase(renderEpisode(template, show, year, items, tags, tvdbId))}${extension}`;
@@ -265,7 +269,7 @@ export function formatMovie(template: string, movie: string, year: number | unde
   return templatePlacesEdition ? rendered : insertMissingMovieEdition(rendered, movie, year, normalizedTags.edition);
 }
 
-export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = 255, imdbId?: string): string {
+export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = FILESYSTEM_FILENAME_BYTES, imdbId?: string): string {
   const encoder = new TextEncoder();
   const filename = (title: string) => `${portableFilenameBase(formatMovie(template, title, year, tags, tmdbId, imdbId))}${extension}`;
   const full = filename(movie);
