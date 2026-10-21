@@ -24,15 +24,11 @@ describe('completion chimes', () => {
     ]);
   });
 
-  it('plays the Halloween phrase followed by two clicks', () => {
+  it('plays the four-note Halloween phrase at 400 BPM', () => {
     const tones = completionChimeTones('halloween');
 
-    expect(tones.slice(0, 8).map((tone) => tone.frequency)).toEqual([
-      261.63, 349.23, 440, 349.23, 261.63, 466.16, 392, 329.63,
-    ]);
-    expect(tones.slice(8)).toEqual([
-      { frequency: 1800, start: 1.24, duration: .025, gain: .075, wave: 'square' },
-      { frequency: 1800, start: 1.43, duration: .025, gain: .075, wave: 'square' },
-    ]);
+    expect(tones.map((tone) => tone.frequency)).toEqual([261.63, 293.66, 329.63, 349.23]);
+    expect(tones.map((tone) => tone.start)).toEqual([0, .15, .3, .45]);
+    expect(tones.map((tone) => tone.duration)).toEqual([.15, .15, .15, .15]);
   });
 });
