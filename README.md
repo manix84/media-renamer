@@ -42,6 +42,9 @@ This first scaffold includes:
 - opt-in move preferences that clear a conservative allowlist of recognized release-site promotional junk and zero-byte subtitle files after a successful move, while preserving non-empty unlabelled subtitles and other unrecognized files;
 - post-rename preferences for automatically clearing fully completed batches, showing an optional completion report (on by default), playing an optional completion chime that sounds once when enabled (with distinct Halloween and Christmas sounds), and writing timestamped JSON operation logs to a chosen folder or the active media destination, while retaining the internal undo record;
 - per-file match review with ranked suggestions, full episode search, manual selection, and explicit confirmation before preflight accepts uncertain matches;
+- persisted per-show matching rules for title evidence and automatic-confirmation thresholds;
+- embedded container-title evidence plus conservative adjacent-file sequence evidence for difficult episode batches;
+- optional Plex NFO export for movies, series, episodes, and multi-episode files, accompanied by every available Plex-named provider artwork sidecar (poster, background, logo, square art, banner, season poster, and episode thumbnail); both exports are off by default;
 - a persisted 50–100% automatic-confirmation threshold, defaulting to 80%;
 - complete original/proposed filename inspection through hover, keyboard-focus, pinnable previews, and wrapped Detailed-mode rows;
 - companion-file discovery and planning for subtitles, NFO metadata, and named episode artwork, including preserved language/role suffixes and ambiguity blocking;
@@ -101,11 +104,18 @@ Every imported file is ranked against the selected show's episodes. Evidence is 
 1. Extract explicit season/episode numbers.
 2. Normalize filename and episode titles (case, punctuation, diacritics, stop words, and release noise).
 3. Score title coverage with a high recall bias because filenames contain extra show and release tokens.
-4. Add a small positive score when the `ffprobe` container duration agrees with the provider's episode runtime; duration never creates a match by itself or penalizes a mismatch.
-5. Surface contradictions—such as `S02E07` containing the exact title of episode 8—as review items instead of hiding the decision.
-6. Automatically accept matches at or above the configured confidence threshold (80% by default), and require confirmation below it.
+4. Add supporting evidence from the embedded container title and `ffprobe` duration when they agree with provider metadata; neither creates a high-confidence match by itself.
+5. For a lexically ordered batch, suggest the single episode bracketed by two confidently numbered adjacent files. This remains a review match unless the configured threshold permits it.
+6. Surface contradictions—such as `S02E07` containing the exact title of episode 8—as review items instead of hiding the decision.
+7. Apply saved show-specific title-matching and confidence settings when present, then automatically accept matches at or above the effective threshold (80% globally by default).
 
-Future matching evidence can include air date, embedded title, and adjacent-file ordering. Provider ordering is metadata, not ground truth.
+Provider ordering is supporting metadata, not ground truth.
+
+## Plex metadata sidecars
+
+NFO and artwork exports are independent opt-in preferences and are disabled by default. Generated files join the normal rename execution and are covered by the operation log and Undo. Existing local NFO or artwork destinations are preserved rather than overwritten or renamed to forms Plex would not recognize.
+
+Movies receive a filename-matched `.nfo`; TV libraries receive `tvshow.nfo` plus filename-matched episode NFOs. A merged episode file emits one `<episodedetails>` block per episode. Available provider images use Plex local-asset names: `poster`, `background`, `logo`, `square`, `banner`, season poster names, and filename-matched episode thumbnails. Missing artwork classes are omitted rather than synthesized from an unsuitable image.
 
 ## Filename templates
 
@@ -141,7 +151,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | --- | --- | --- |
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
-| 3 — Resilient matching and metadata | In progress | 11 of 14 steps |
+| 3 — Resilient matching and metadata | Complete | 14 of 14 steps |
 | 4 — Movies and library workflows | Started | 7 of 11 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
@@ -179,7 +189,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] persisted preferences, appearance palettes, localization, and post-rename actions
 - [x] dockable debug console and JSON dry-run export
 
-### Milestone 3 — resilient matching and metadata (in progress)
+### Milestone 3 — resilient matching and metadata (complete)
 
 - [x] compact, separated, and seasonless episode-marker variants
 - [x] best-effort title matching with number/title conflict review
@@ -191,10 +201,10 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] editable release-tag vocabulary and aliases
 - [x] ordered, deduplicated audio-language detection with full-name, ISO 639-2, and ISO 639-1 template fields
 - [x] conservative show/season folder evidence for sparsely named episode files
-- [ ] per-show rules
+- [x] per-show rules
 - [x] saved per-show filename-to-episode decisions with stale-decision conflict handling
-- [ ] NFO export
-- [ ] embedded-title and adjacent-file ordering evidence
+- [x] opt-in Plex NFO export with available local artwork sidecars
+- [x] embedded-title and adjacent-file ordering evidence
 
 ### Milestone 4 — movies and library workflows (started)
 
@@ -262,6 +272,6 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Continue resilient matching work: per-show rules, NFO export, and additional evidence.
+1. Continue movie and library workflows: custom edition aliases, collection-aware fields, saved roots, and repeatable queues.
 2. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
 3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.

@@ -1,6 +1,7 @@
 const API_ROOT = 'https://api.themoviedb.org/3';
 const IMAGE_ROOT = 'https://image.tmdb.org/t/p/w342';
 const LOGO_ROOT = 'https://image.tmdb.org/t/p/w500';
+const BACKDROP_ROOT = 'https://image.tmdb.org/t/p/original';
 
 export interface TmdbShowSearchResult {
   id: string;
@@ -10,6 +11,7 @@ export interface TmdbShowSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  backgroundUrl?: string;
 }
 
 export interface TmdbSeasonSummary {
@@ -17,6 +19,7 @@ export interface TmdbSeasonSummary {
   name: string;
   episodeCount: number;
   airDate?: string;
+  posterUrl?: string;
 }
 
 export interface TmdbShowDetails extends TmdbShowSearchResult {
@@ -30,6 +33,8 @@ export interface TmdbEpisode {
   title: string;
   airDate?: string;
   runtimeMinutes?: number;
+  overview?: string;
+  imageUrl?: string;
 }
 
 export interface TmdbMovieSearchResult {
@@ -42,6 +47,7 @@ export interface TmdbMovieSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  backgroundUrl?: string;
 }
 
 type RawShow = {
@@ -50,6 +56,7 @@ type RawShow = {
   first_air_date?: string;
   overview?: string;
   poster_path?: string | null;
+  backdrop_path?: string | null;
 };
 
 type RawMovie = {
@@ -58,6 +65,7 @@ type RawMovie = {
   release_date?: string;
   overview?: string;
   poster_path?: string | null;
+  backdrop_path?: string | null;
   runtime?: number | null;
 };
 
@@ -69,6 +77,7 @@ type RawSeason = {
   name: string;
   episode_count: number;
   air_date?: string | null;
+  poster_path?: string | null;
 };
 
 type RawEpisode = {
@@ -78,6 +87,8 @@ type RawEpisode = {
   name: string;
   air_date?: string | null;
   runtime?: number | null;
+  overview?: string | null;
+  still_path?: string | null;
 };
 
 function optionalDate(value?: string | null): string | undefined {
@@ -92,6 +103,7 @@ export function normalizeShow(show: RawShow): TmdbShowSearchResult {
     year: Number.isFinite(year) ? year : undefined,
     overview: show.overview ?? '',
     posterUrl: show.poster_path ? `${IMAGE_ROOT}${show.poster_path}` : undefined,
+    backgroundUrl: show.backdrop_path ? `${BACKDROP_ROOT}${show.backdrop_path}` : undefined,
   };
 }
 
@@ -104,6 +116,7 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
     year: Number.isFinite(year) ? year : undefined,
     overview: movie.overview ?? '',
     posterUrl: movie.poster_path ? `${IMAGE_ROOT}${movie.poster_path}` : undefined,
+    backgroundUrl: movie.backdrop_path ? `${BACKDROP_ROOT}${movie.backdrop_path}` : undefined,
     ...(movie.runtime && movie.runtime > 0 ? { runtimeMinutes: movie.runtime } : {}),
   };
 }
@@ -255,6 +268,7 @@ export class TmdbClient {
           name: season.name,
           episodeCount: season.episode_count,
           airDate: optionalDate(season.air_date),
+          posterUrl: season.poster_path ? `${IMAGE_ROOT}${season.poster_path}` : undefined,
         })),
     };
   }
@@ -268,6 +282,8 @@ export class TmdbClient {
       title: episode.name,
       airDate: optionalDate(episode.air_date),
       ...(episode.runtime && episode.runtime > 0 ? { runtimeMinutes: episode.runtime } : {}),
+      ...(episode.overview ? { overview: episode.overview } : {}),
+      ...(episode.still_path ? { imageUrl: `${BACKDROP_ROOT}${episode.still_path}` } : {}),
     }));
   }
 }

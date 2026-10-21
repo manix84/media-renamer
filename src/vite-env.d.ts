@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowSearchResult } from './core/types';
+import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 type RenameOperationRecord = {
@@ -28,6 +28,8 @@ declare global {
         completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
+        exportNfo?: boolean;
+        exportPlexArtwork?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
@@ -38,6 +40,7 @@ declare global {
         removeEmptySourceParents?: boolean;
         releaseAliasText?: string;
         savedMatchDecisions?: SavedMatchDecision[];
+        showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -52,6 +55,8 @@ declare global {
         completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
+        exportNfo?: boolean;
+        exportPlexArtwork?: boolean;
         episodeTemplate?: string;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
@@ -62,6 +67,7 @@ declare global {
         removeEmptySourceParents?: boolean;
         releaseAliasText?: string;
         savedMatchDecisions?: SavedMatchDecision[];
+        showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -77,6 +83,7 @@ declare global {
       onWatchedFilesChanged(listener: (changes: Array<{ type: 'moved'; previousPath: string; path: string } | { type: 'deleted'; path: string }>) => void): () => void;
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
+      stageGeneratedSidecars(assets: Array<{ targetPath: string; content?: string; url?: string }>): Promise<Array<{ sourcePath: string; targetPath: string }>>;
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>>;

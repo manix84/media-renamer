@@ -15,7 +15,8 @@ import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverri
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowSearchResult, Source } from './core/types';
+import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -223,6 +224,7 @@ export default function App() {
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [releaseAliasText, setReleaseAliasText] = useState('');
   const [savedMatchDecisions, setSavedMatchDecisions] = useState<SavedMatchDecision[]>([]);
+  const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
   const [removeEmptySourceParents, setRemoveEmptySourceParents] = useState(() => localStorage.getItem('media-renamer-remove-empty-source-parents') === 'true');
@@ -232,6 +234,8 @@ export default function App() {
   const [completionReportAutoClose, setCompletionReportAutoClose] = useState(true);
   const [clearSourceJunk, setClearSourceJunk] = useState(false);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
+  const [exportNfo, setExportNfo] = useState(false);
+  const [exportPlexArtwork, setExportPlexArtwork] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
@@ -427,6 +431,9 @@ export default function App() {
 
   const automaticMatchesByPath = useMemo(() => new Map(matches.map((item) => [item.path, item])), [matches]);
   const showMatchDecisionId = show ? showDecisionId(show) : undefined;
+  const activeShowRule = showMatchDecisionId ? showRules.find((rule) => rule.showId === showMatchDecisionId) : undefined;
+  const effectiveTitleMatching = activeShowRule?.titleMatching ?? titleMatching;
+  const effectiveConfidenceThreshold = activeShowRule?.confidenceThreshold ?? matchConfidenceThreshold;
   const savedDecisionResults = useMemo<Array<{ match: FileMatch; conflict?: string }>>(() => showMatchDecisionId
     ? matches.map((item) => applySavedMatchDecision(item, episodes, savedMatchDecisions, showMatchDecisionId))
     : matches.map((match) => ({ match })), [episodes, matches, savedMatchDecisions, showMatchDecisionId]);
@@ -625,6 +632,36 @@ export default function App() {
     if (!item.targetPath || issues.some((issue) => issue.severity === 'error' || issue.code === 'no-change')) return [];
     return [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }];
   }), [preflightPlan]);
+  const generatedSidecars = useMemo<PlexGeneratedAsset[]>(() => {
+    if (!exportNfo && !exportPlexArtwork) return [];
+    const assets: PlexGeneratedAsset[] = [];
+    const showRoots = new Set<string>();
+    for (const group of executableGroups) {
+      const video = group.items[0];
+      if (!video) continue;
+      const targetDirectory = parentDirectory(video.targetPath);
+      if (activeMediaTab === 'movies') {
+        const movie = movieMatches[video.sourcePath]?.movie;
+        if (!movie) continue;
+        if (exportNfo) assets.push({ targetPath: siblingPath(video.targetPath, '.nfo'), content: movieNfo(movie) });
+        if (exportPlexArtwork) assets.push(...plexMovieArtworkAssets(video.targetPath, movie, moveFiles));
+        continue;
+      }
+      const candidate = matchesByPath.get(video.sourcePath)?.match;
+      if (!candidate || !show) continue;
+      const matchedEpisodes = candidateEpisodes(candidate);
+      if (exportNfo) assets.push({ targetPath: siblingPath(video.targetPath, '.nfo'), content: episodeNfo(matchedEpisodes) });
+      if (exportPlexArtwork && matchedEpisodes[0]?.imageUrl) assets.push({ targetPath: siblingPath(video.targetPath, '.jpg'), url: matchedEpisodes[0].imageUrl });
+      const season = show.seasons.find((item) => item.number === matchedEpisodes[0]?.season);
+      const { showRoot, seasonDirectory } = plexShowDirectories(targetDirectory);
+      if (exportPlexArtwork && season?.posterUrl) assets.push(plexSeasonArtworkAsset(seasonDirectory, season.number, season.posterUrl));
+      if (showRoots.has(showRoot)) continue;
+      showRoots.add(showRoot);
+      if (exportNfo) assets.push({ targetPath: `${showRoot}${showRoot.includes('\\') && !showRoot.includes('/') ? '\\' : '/'}tvshow.nfo`, content: showNfo(show) });
+      if (exportPlexArtwork) assets.push(...plexArtworkAssets(showRoot, show));
+    }
+    return [...new Map(assets.map((asset) => [asset.targetPath.toLocaleLowerCase(), asset])).values()];
+  }, [activeMediaTab, executableGroups, exportNfo, exportPlexArtwork, matchesByPath, moveFiles, movieMatches, show]);
   const executableFileCount = executableGroups.reduce((total, group) => total + group.items.length, 0);
   const unchangedPaths = useMemo(() => unchangedRenameItemPaths(preflightPlan), [preflightPlan]);
   const unchangedPathSet = useMemo(() => new Set(unchangedPaths), [unchangedPaths]);
@@ -708,12 +745,15 @@ export default function App() {
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.releaseAliasText !== undefined) setReleaseAliasText(saved.releaseAliasText);
       if (saved.savedMatchDecisions !== undefined) setSavedMatchDecisions(saved.savedMatchDecisions);
+      if (saved.showRules !== undefined) setShowRules(saved.showRules);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
       if (saved.completionReportAutoClose !== undefined) setCompletionReportAutoClose(saved.completionReportAutoClose);
       if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
+      if (saved.exportNfo !== undefined) setExportNfo(saved.exportNfo);
+      if (saved.exportPlexArtwork !== undefined) setExportPlexArtwork(saved.exportPlexArtwork);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
       if (saved.titleMatching !== undefined) setTitleMatching(saved.titleMatching);
@@ -783,6 +823,8 @@ export default function App() {
       completionReportAutoClose,
       clearSourceJunk,
       createExternalRenameLog,
+      exportNfo,
+      exportPlexArtwork,
       episodeTemplate,
       fileViewMode,
       matchConfidenceThreshold,
@@ -792,12 +834,13 @@ export default function App() {
       removeEmptySourceParents,
       releaseAliasText,
       savedMatchDecisions,
+      showRules,
       renameLogFolder,
       showFolderTemplate,
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     if (!renameReport || !completionReportAutoClose) {
@@ -1169,10 +1212,10 @@ export default function App() {
         setWork(undefined);
         worker?.terminate();
       };
-      worker.postMessage({ paths, episodes, titleMatching, confidenceThreshold: matchConfidenceThreshold / 100, showTitle: show?.name, durationsByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.durationSeconds])) });
+      worker.postMessage({ paths, episodes, titleMatching: effectiveTitleMatching, confidenceThreshold: effectiveConfidenceThreshold / 100, showTitle: show?.name, durationsByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.durationSeconds])), embeddedTitlesByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.embeddedTitle])) });
     }, 120);
     return () => { window.clearTimeout(start); worker?.terminate(); };
-  }, [activeMediaTab, addDebug, movieMatches, paths, releaseAliases, episodes, show?.name, technicalTags, titleMatching, matchConfidenceThreshold]);
+  }, [activeMediaTab, addDebug, movieMatches, paths, releaseAliases, episodes, show?.name, technicalTags, effectiveTitleMatching, effectiveConfidenceThreshold]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -1469,11 +1512,15 @@ export default function App() {
     setRenameStartedAt(Date.now());
     setRenameClock(Date.now());
     setError(undefined);
-    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount });
+    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length });
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
+      const stagedSidecars = generatedSidecars.length && window.mediaRenamer.stageGeneratedSidecars
+        ? await window.mediaRenamer.stageGeneratedSidecars(generatedSidecars)
+        : [];
+      const executionGroups = [...executableGroups, ...stagedSidecars.map((item) => ({ items: [item] }))];
       const preferredLogDirectory = renameLogFolder || (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) || undefined;
-      const result = await window.mediaRenamer.executeRenamePlan(executableGroups, {
+      const result = await window.mediaRenamer.executeRenamePlan(executionGroups, {
         clearSourceJunk: moveFiles && clearSourceJunk,
         removeEmptySourceParents: moveFiles && removeEmptySourceParents,
         createExternalLog: createExternalRenameLog,
@@ -2186,6 +2233,7 @@ export default function App() {
           </div></section>
           <section className={`preference-section release-alias-settings ${parsedReleaseAliases.errors.length ? 'invalid' : ''}`}><h3>Release-tag aliases</h3><p>Add personal filename vocabulary without replacing the built-in detector. Matches are case-insensitive, separator-tolerant, and require complete tokens.</p><label><span><strong>Aliases</strong><small><code>field = filename alias =&gt; output</code>; web origins may add <code>| shorthand</code>.</small></span><textarea value={releaseAliasText} onChange={(event) => setReleaseAliasText(event.target.value)} spellCheck={false} placeholder={'source = web download => WEB-DL\nvideoCodec = AVC => H.264\nflag = dual audio => Dual Audio\nwebOrigin = crunchy premium => Crunchyroll | CR'}/></label><small className="release-alias-fields">Fields: <code>source</code> <code>resolution</code> <code>videoCodec</code> <code>audioCodec</code> <code>channels</code> <code>flag</code> <code>webOrigin</code></small>{parsedReleaseAliases.errors.length ? <ul className="release-alias-errors">{parsedReleaseAliases.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <div className="release-alias-status"><Check size={13}/>{parsedReleaseAliases.aliases.length ? `${parsedReleaseAliases.aliases.length} custom alias${parsedReleaseAliases.aliases.length === 1 ? '' : 'es'} active` : 'Built-in vocabulary only'}</div>}{releaseAliasText && <button className="clear-overrides" onClick={() => setReleaseAliasText('')}>Clear custom aliases</button>}</section>
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
+          <section className="preference-section"><h3>Plex metadata sidecars</h3><p>Create Plex NFO metadata and local artwork as part of the same reversible rename operation.</p><label className="preference-toggle"><span><FileText size={17}/><span><strong>Export NFO files</strong><small>Write movie, series, and episode NFOs, including multi-episode records.</small></span></span><input type="checkbox" checked={exportNfo} onChange={(event) => setExportNfo(event.target.checked)}/></label><label className="preference-toggle"><span><FileImage size={17}/><span><strong>Download Plex artwork</strong><small>Save every available provider poster, background, logo, and episode thumbnail using Plex names.</small></span></span><input type="checkbox" checked={exportPlexArtwork} onChange={(event) => setExportPlexArtwork(event.target.checked)}/></label></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
@@ -2200,7 +2248,7 @@ export default function App() {
           </div>
           {preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired supplies Plex-oriented episode numbering and titles. Search and artwork continue to use TMDB.</small></span><select value="tvdb-aired" disabled aria-label="Show metadata agent"><option value="tvdb-aired">TVDB Aired</option></select></label></div></section>
-            <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label></section>
+            <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label>{showMatchDecisionId && <div className="destination-row standalone"><span><strong>Rule for {show?.name}</strong><small>{activeShowRule ? `Title matching ${activeShowRule.titleMatching ? 'on' : 'off'} · ${activeShowRule.confidenceThreshold}% confirmation` : 'Use the current matching settings whenever this show is selected.'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => setShowRules((current) => [...current.filter((rule) => rule.showId !== showMatchDecisionId), { showId: showMatchDecisionId, titleMatching, confidenceThreshold: matchConfidenceThreshold, updatedAt: Date.now() }])}>{activeShowRule ? 'Update rule' : 'Save rule'}</button>{activeShowRule && <button className="icon-button" aria-label={`Remove rule for ${show?.name}`} title="Use global matching settings" onClick={() => setShowRules((current) => current.filter((rule) => rule.showId !== showMatchDecisionId))}><X size={14}/></button>}</span></div>}</section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Use seasonFolder for “Season 5” and “Specials” automatically.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>

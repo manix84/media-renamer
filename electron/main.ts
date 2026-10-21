@@ -7,6 +7,7 @@ import { TmdbClient } from './tmdb.js';
 import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
+import { stageGeneratedAssets } from './generatedAssets.js';
 import { preflightRenameItems } from './renamePreflight.js';
 import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
@@ -52,8 +53,9 @@ function metadataCache(): MetadataCache {
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 2;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
+const DETAILS_CACHE_VERSION = 2;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
-const EPISODE_CACHE_VERSION = 3;
+const EPISODE_CACHE_VERSION = 4;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());
@@ -239,6 +241,7 @@ ipcMain.handle('preferences:set', async (_event, value: unknown) => {
   await preferenceWrite;
 });
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
+ipcMain.handle('metadata:stage-sidecars', (_event, assets: unknown) => stageGeneratedAssets(assets, path.join(app.getPath('temp'), 'media-renamer-sidecars')));
 ipcMain.handle('media:companions', (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid media paths.');
   return discoverMediaCompanions(values.map(mediaPathArgument));
@@ -344,7 +347,7 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
 });
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
   const id = textArgument(showId, 'show ID');
-  return metadataCache().get(`tmdb:show:${id}`, DETAILS_CACHE_AGE, () => tmdb().getShow(id));
+  return metadataCache().get(`tmdb:v${DETAILS_CACHE_VERSION}:show:${id}`, DETAILS_CACHE_AGE, () => tmdb().getShow(id));
 });
 ipcMain.handle('metadata:resolve-tvdb-series', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid TVDB series lookup.');
@@ -362,7 +365,7 @@ ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown, mediaType: unknown) 
   const id = textArgument(movieId, 'movie ID');
   if (mediaType !== undefined && mediaType !== 'movie' && mediaType !== 'tv') throw new Error('Invalid movie media type.');
   const type = mediaType === 'tv' ? 'tv' : 'movie';
-  return metadataCache().get(`tmdb:${type}:${id}`, DETAILS_CACHE_AGE, () => tmdb().getMovie(id, type));
+  return metadataCache().get(`tmdb:v${DETAILS_CACHE_VERSION}:${type}:${id}`, DETAILS_CACHE_AGE, () => tmdb().getMovie(id, type));
 });
 ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');

@@ -11,7 +11,7 @@ type ProbeStream = {
   channels?: number;
   channel_layout?: string;
   disposition?: { default?: number };
-  tags?: { language?: string };
+  tags?: { language?: string; title?: string };
 };
 
 export interface AudioLanguage { name: string; code3: string; code2?: string }
@@ -23,6 +23,7 @@ export interface MediaTechnicalTags {
   channels?: string;
   audioLanguages?: AudioLanguage[];
   durationSeconds?: number;
+  embeddedTitle?: string;
 }
 
 function videoCodec(name?: string): string | undefined {
@@ -91,12 +92,13 @@ function standardResolution(width?: number, height?: number): string | undefined
 }
 
 export function parseProbeOutput(output: string): MediaTechnicalTags {
-  const data = JSON.parse(output) as { streams?: ProbeStream[]; format?: { duration?: string } };
+  const data = JSON.parse(output) as { streams?: ProbeStream[]; format?: { duration?: string; tags?: { title?: string } } };
   const streams = data.streams ?? [];
   const video = preferredStream(streams, 'video');
   const audio = preferredStream(streams, 'audio');
   const duration = Number(data.format?.duration);
   const languages = audioLanguages(streams);
+  const embeddedTitle = data.format?.tags?.title?.trim() || video?.tags?.title?.trim() || undefined;
   return {
     resolution: standardResolution(video?.width, video?.height),
     videoCodec: videoCodec(video?.codec_name),
@@ -104,6 +106,7 @@ export function parseProbeOutput(output: string): MediaTechnicalTags {
     channels: channelLayout(audio),
     ...(languages ? { audioLanguages: languages } : {}),
     durationSeconds: Number.isFinite(duration) && duration > 0 ? duration : undefined,
+    ...(embeddedTitle ? { embeddedTitle } : {}),
   };
 }
 
@@ -111,7 +114,7 @@ export async function probeMedia(filePath: string, ffprobePath = process.env.FFP
   try {
     const { stdout } = await execFileAsync(ffprobePath, [
       '-v', 'error',
-      '-show_entries', 'format=duration:stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default:stream_tags=language',
+      '-show_entries', 'format=duration:format_tags=title:stream=codec_type,codec_name,width,height,channels,channel_layout:stream_disposition=default:stream_tags=language,title',
       '-of', 'json',
       filePath,
     ], { encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 30_000 });

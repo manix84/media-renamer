@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export type SavedMatchDecision = { showId: string; filenameKey: string; episodeIds: string[]; updatedAt: number };
+export type ShowRule = { showId: string; titleMatching: boolean; confidenceThreshold: number; updatedAt: number };
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
@@ -10,6 +11,8 @@ export type PersistedPreferences = {
   completionReportAutoClose?: boolean;
   clearSourceJunk?: boolean;
   createExternalRenameLog?: boolean;
+  exportNfo?: boolean;
+  exportPlexArtwork?: boolean;
   episodeTemplate?: string;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
   languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
@@ -20,6 +23,7 @@ export type PersistedPreferences = {
   removeEmptySourceParents?: boolean;
   releaseAliasText?: string;
   savedMatchDecisions?: SavedMatchDecision[];
+  showRules?: ShowRule[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
@@ -48,6 +52,8 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
   if (typeof source.clearSourceJunk === 'boolean') result.clearSourceJunk = source.clearSourceJunk;
   if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
+  if (typeof source.exportNfo === 'boolean') result.exportNfo = source.exportNfo;
+  if (typeof source.exportPlexArtwork === 'boolean') result.exportPlexArtwork = source.exportPlexArtwork;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
@@ -62,6 +68,17 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
         || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
       return [{ showId: item.showId, filenameKey: item.filenameKey, episodeIds: item.episodeIds as string[], updatedAt: item.updatedAt }];
     }).slice(0, 1000);
+  }
+  if (Array.isArray(source.showRules)) {
+    result.showRules = source.showRules.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.showId !== 'string' || !item.showId || item.showId.length > 200
+        || typeof item.titleMatching !== 'boolean'
+        || typeof item.confidenceThreshold !== 'number' || !Number.isFinite(item.confidenceThreshold) || item.confidenceThreshold < 50 || item.confidenceThreshold > 100
+        || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
+      return [{ showId: item.showId, titleMatching: item.titleMatching, confidenceThreshold: Math.round(item.confidenceThreshold), updatedAt: item.updatedAt }];
+    }).slice(0, 500);
   }
   return result;
 }

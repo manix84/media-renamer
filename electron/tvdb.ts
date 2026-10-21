@@ -5,7 +5,7 @@ type RemoteId = { id?: string; sourceName?: string; type?: number };
 type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
 type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
-type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number };
+type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number; overview?: string; image?: string };
 type EpisodesResponse = { data?: { episodes?: RawEpisode[] }; links?: { next?: string | null } };
 
 export interface TvdbSeries {
@@ -23,6 +23,8 @@ export interface TvdbEpisode {
   title: string;
   airDate?: string;
   runtimeMinutes?: number;
+  overview?: string;
+  imageUrl?: string;
 }
 
 function normalizedSeriesName(value: string): string {
@@ -108,6 +110,8 @@ export class TvdbClient {
           title: episode.name?.trim() || `Episode ${episode.number}`,
           airDate: episode.aired || undefined,
           ...(episode.runtime && episode.runtime > 0 ? { runtimeMinutes: episode.runtime } : {}),
+          ...(episode.overview?.trim() ? { overview: episode.overview.trim() } : {}),
+          ...(episode.image?.trim() ? { imageUrl: episode.image.trim() } : {}),
         });
       }
       if (!payload.links?.next) break;

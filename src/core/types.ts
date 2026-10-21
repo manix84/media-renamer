@@ -9,6 +9,8 @@ export interface Episode {
   title: string;
   airDate?: string;
   runtimeMinutes?: number;
+  overview?: string;
+  imageUrl?: string;
 }
 
 export interface ShowSearchResult {
@@ -19,6 +21,9 @@ export interface ShowSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  backgroundUrl?: string;
+  squareUrl?: string;
+  bannerUrl?: string;
 }
 
 export interface SeasonSummary {
@@ -26,6 +31,7 @@ export interface SeasonSummary {
   name: string;
   episodeCount: number;
   airDate?: string;
+  posterUrl?: string;
 }
 
 export interface ShowDetails extends ShowSearchResult {
@@ -42,6 +48,9 @@ export interface MovieSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  backgroundUrl?: string;
+  squareUrl?: string;
+  bannerUrl?: string;
 }
 
 export type MovieDetails = MovieSearchResult;
@@ -68,7 +77,7 @@ export interface ReleaseTags {
 
 export interface AudioLanguage { name: string; code3: string; code2?: string }
 
-export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'audioLanguages'>> & { durationSeconds?: number };
+export type MediaTechnicalTags = Partial<Pick<ReleaseTags, 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'audioLanguages'>> & { durationSeconds?: number; embeddedTitle?: string };
 
 export type CompanionKind = 'subtitle' | 'metadata' | 'artwork';
 export interface MediaCompanion { path: string; suffix: string; kind: CompanionKind }
@@ -95,6 +104,13 @@ export interface SavedMatchDecision {
   showId: string;
   filenameKey: string;
   episodeIds: string[];
+  updatedAt: number;
+}
+
+export interface ShowRule {
+  showId: string;
+  titleMatching: boolean;
+  confidenceThreshold: number;
   updatedAt: number;
 }
 

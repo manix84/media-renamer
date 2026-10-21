@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   },
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
+  stageGeneratedSidecars: (assets: Array<{ targetPath: string; content?: string; url?: string }>) => ipcRenderer.invoke('metadata:stage-sidecars', assets),
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
