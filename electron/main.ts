@@ -231,6 +231,7 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 });
 
 ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
+ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('preferences:get', () => loadPreferences());
 ipcMain.handle('preferences:set', async (_event, value: unknown) => {
   const next = normalizePreferences(value);

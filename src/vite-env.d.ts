@@ -18,9 +18,11 @@ type RenameOperationRecord = {
 };
 
 declare global {
+  const __APP_VERSION__: string;
   interface Window {
     mediaRenamer?: {
       platform: string;
+      getAppVersion(): Promise<string>;
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
@@ -28,6 +30,7 @@ declare global {
         completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
+        developerMode?: boolean;
         exportNfo?: boolean;
         exportPlexArtwork?: boolean;
         episodeTemplate?: string;
@@ -57,6 +60,7 @@ declare global {
         completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
+        developerMode?: boolean;
         exportNfo?: boolean;
         exportPlexArtwork?: boolean;
         episodeTemplate?: string;

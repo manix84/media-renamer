@@ -23,6 +23,7 @@ import { SeasonalEffects } from './SeasonalEffects';
 import { availablePalettes } from './seasonalThemes';
 import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
+import { registerDeveloperVersionClick } from './core/developerMode';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
 type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceJunkFiles?: string[]; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
@@ -250,6 +251,10 @@ export default function App() {
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState(__APP_VERSION__);
+  const [developerMode, setDeveloperMode] = useState(false);
+  const [developerVersionClicks, setDeveloperVersionClicks] = useState(0);
+  const [developerUnlockMessage, setDeveloperUnlockMessage] = useState<string>();
   const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
   const [templateReferenceOpen, setTemplateReferenceOpen] = useState(false);
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
@@ -764,6 +769,7 @@ export default function App() {
       if (saved.completionReportAutoClose !== undefined) setCompletionReportAutoClose(saved.completionReportAutoClose);
       if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
+      if (saved.developerMode !== undefined) setDeveloperMode(saved.developerMode);
       if (saved.exportNfo !== undefined) setExportNfo(saved.exportNfo);
       if (saved.exportPlexArtwork !== undefined) setExportPlexArtwork(saved.exportPlexArtwork);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
@@ -835,6 +841,7 @@ export default function App() {
       completionReportAutoClose,
       clearSourceJunk,
       createExternalRenameLog,
+      developerMode,
       exportNfo,
       exportPlexArtwork,
       episodeTemplate,
@@ -854,7 +861,23 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
+
+  useEffect(() => {
+    void window.mediaRenamer?.getAppVersion().then((version) => {
+      if (version) setAppVersion(version);
+    }).catch(() => undefined);
+  }, []);
+
+  function clickVersion() {
+    const result = registerDeveloperVersionClick(developerVersionClicks, developerMode);
+    setDeveloperVersionClicks(result.clicks);
+    if (result.unlocked && !developerMode) {
+      setDeveloperMode(true);
+      setDeveloperUnlockMessage('Developer mode unlocked');
+      addDebug('success', 'Developer mode unlocked', 'Developer-only diagnostics are now available.');
+    } else if (result.showHint) setDeveloperUnlockMessage(`${result.remaining} click${result.remaining === 1 ? '' : 's'} remaining`);
+  }
 
   useEffect(() => {
     if (!renameReport || !completionReportAutoClose) {
@@ -1912,7 +1935,7 @@ export default function App() {
         <nav><button className={activeMediaTab === 'shows' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'shows'} onClick={() => switchMediaTab('shows')}><Tv size={15}/> {t('nav.tv')}</button><button className={activeMediaTab === 'movies' ? 'nav-active' : ''} aria-pressed={activeMediaTab === 'movies'} onClick={() => switchMediaTab('movies')}><Film size={15}/> {t('nav.movies')}</button></nav>
         <div className="topbar-actions">
           <button className={`icon-button ${preferencesOpen ? 'active' : ''}`} aria-label={preferencesOpen ? 'Close preferences' : 'Open preferences'} title={preferencesOpen ? 'Close preferences' : 'Preferences'} onClick={() => { if (preferencesOpen) { setPreferencesOpen(false); setTemplateReferenceOpen(false); } else { setPreferenceMediaTab(activeMediaTab); setPreferencesOpen(true); } }}><Settings size={18}/></button>
-          <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>
+          {developerMode && <button className={`icon-button ${debugDocked ? 'active' : ''}`} aria-label="Toggle docked debug console" title="Toggle debug console" onClick={() => { if (debugDocked) setDebugDocked(false); else { setDebugDocked(true); void window.mediaRenamer?.dockDebugConsole(); } }}><SquareTerminal size={18}/></button>}
         </div>
       </header>
       <SeasonalEffects palette={palette}/>
@@ -2318,10 +2341,12 @@ export default function App() {
               {movieFormatExample && <div className="format-preview"><span>Output</span><strong>{movieFormatExample}.mkv</strong></div>}
             </section>
           </div>}
+          {developerMode && <section className="preference-section developer-settings"><h3>Developer tools</h3><p>Diagnostic controls intended for development and troubleshooting.</p><div className="destination-row standalone"><span><strong>Debug console</strong><small>Inspect local provider, matching, and filesystem activity.</small></span><span className="destination-actions"><button className="secondary" onClick={() => { setDebugDocked(true); setPreferencesOpen(false); void window.mediaRenamer?.dockDebugConsole(); }}><SquareTerminal size={14}/>Open</button><button className="secondary" onClick={() => { setDeveloperMode(false); setDeveloperVersionClicks(0); setDeveloperUnlockMessage(undefined); setDebugDocked(false); }}>Disable developer mode</button></span></div></section>}
+          <div className="preferences-version"><button type="button" aria-label={`Media Renamer version ${appVersion}`} onClick={clickVersion}>Media Renamer {appVersion}</button>{developerUnlockMessage && <span className="preferences-version-message" role="status" key={developerUnlockMessage}>{developerUnlockMessage}</span>}</div>
         </aside>
       </div>}
 
-      {debugDocked && (
+      {developerMode && debugDocked && (
         <DebugPanel entries={debugEntries} mode="docked" dockPosition={dockPosition} onDockPositionChange={setDockPosition} onResizeStart={beginDockResize} onClear={() => void window.mediaRenamer?.clearDebugEntries()} onPopout={() => {
           setDebugDocked(false);
           void window.mediaRenamer?.openDebugConsole();

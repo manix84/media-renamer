@@ -13,6 +13,7 @@ export type PersistedPreferences = {
   completionReportAutoClose?: boolean;
   clearSourceJunk?: boolean;
   createExternalRenameLog?: boolean;
+  developerMode?: boolean;
   exportNfo?: boolean;
   exportPlexArtwork?: boolean;
   episodeTemplate?: string;
@@ -56,6 +57,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
   if (typeof source.clearSourceJunk === 'boolean') result.clearSourceJunk = source.clearSourceJunk;
   if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
+  if (typeof source.developerMode === 'boolean') result.developerMode = source.developerMode;
   if (typeof source.exportNfo === 'boolean') result.exportNfo = source.exportNfo;
   if (typeof source.exportPlexArtwork === 'boolean') result.exportPlexArtwork = source.exportPlexArtwork;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;

@@ -236,13 +236,13 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] asymmetric media filtering: defer obvious episodes in Movies, accept episode and movie-like specials in TV, and never silently discard ambiguous imports
 - [x] discover `Subs`, `Subtitles`, and similar movie subfolders; associate subtitles with their movie; detect filename language, Forced, and SDH variants; preview Plex-compatible names; move them alongside the movie without overwriting or deleting originals before success
 
-### Milestone 7 — versioning, developer tools, and personality (planned)
+### Milestone 7 — versioning, developer tools, and personality (in progress)
 
-- [ ] automate application-version maintenance as part of the commit/release workflow without creating self-mutating commits
-- [ ] display the current application version at the bottom of Preferences
-- [ ] hidden developer mode for developer-only options
-- [ ] unlock developer mode by clicking the version seven times
-- [ ] after the third version click, show and update the remaining-click count
+- [x] use the package/application version as the single build and runtime source, avoiding duplicated self-mutating version files
+- [x] display the current application version at the bottom of Preferences
+- [x] hidden, locally persisted developer mode for developer-only diagnostics
+- [x] unlock developer mode by clicking the version seven times
+- [x] after the third version click, show and update the remaining-click count
 - [ ] add more seasonal themes
 - [ ] replace seasonal-theme colour dots with appropriate emojis
 - [ ] add a hidden, non-disruptive Easter egg
