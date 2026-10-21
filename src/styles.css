@@ -709,10 +709,46 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--accent); }
 [data-theme="light"] .dropzone:hover { border-color: var(--accent); background: var(--accent-soft); }
 [data-theme="light"] .drop-target-overlay, [data-theme="light"] .match-panel.drop-active .dropzone-empty { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 92%, white); color: var(--accent-text); }
 
+/* Pride uses the moving spectrum for selected and actionable states, not only decoration. */
+html[data-palette="pride"] .preference-toggle:has(input:checked),
+html[data-palette="pride"] .matching-option:has(input:checked),
+html[data-palette="pride"] .confidence-threshold,
+html[data-palette="pride"] .preference-media-tabs button.active,
+html[data-palette="pride"] .theme-switcher button.active,
+html[data-palette="pride"] nav .nav-active,
+html[data-palette="pride"] .icon-button.active,
+html[data-palette="pride"] .movie-batch-filters button.active,
+html[data-palette="pride"] .review-candidates button.selected {
+  border-color: transparent;
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)) padding-box, var(--accent-gradient) border-box;
+  animation: pride-border-flow 2.8s linear infinite;
+}
+html[data-theme="light"][data-palette="pride"] .preference-toggle:has(input:checked),
+html[data-theme="light"][data-palette="pride"] .matching-option:has(input:checked),
+html[data-theme="light"][data-palette="pride"] .confidence-threshold,
+html[data-theme="light"][data-palette="pride"] .preference-media-tabs button.active,
+html[data-theme="light"][data-palette="pride"] .theme-switcher button.active,
+html[data-theme="light"][data-palette="pride"] nav .nav-active,
+html[data-theme="light"][data-palette="pride"] .icon-button.active,
+html[data-theme="light"][data-palette="pride"] .movie-batch-filters button.active,
+html[data-theme="light"][data-palette="pride"] .review-candidates button.selected {
+  background: linear-gradient(#fbfaff, #fbfaff) padding-box, var(--accent-gradient) border-box;
+}
+html[data-palette="pride"] button.primary:not(.destructive) { border-color: transparent; background: var(--accent-gradient); color: #fff; text-shadow: 0 1px 2px #000b; animation: pride-colour-flow 2.8s linear infinite; }
+html[data-palette="pride"] input[type="checkbox"] { appearance: none; width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 48%, #7a8494); border-radius: 3px; background: transparent; }
+html[data-palette="pride"] input[type="checkbox"]::after { width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; content: ""; opacity: 0; transform: translateY(-1px) rotate(45deg) scale(.6); transition: opacity .12s ease, transform .12s ease; }
+html[data-palette="pride"] input[type="checkbox"]:checked { border-color: transparent; background: var(--accent-gradient); animation: pride-colour-flow 2.8s linear infinite; }
+html[data-palette="pride"] input[type="checkbox"]:checked::after { opacity: 1; transform: translateY(-1px) rotate(45deg) scale(1); }
+html[data-palette="pride"] input[type="range"] { appearance: none; height: 6px; border-radius: 999px; background: var(--accent-gradient); animation: pride-colour-flow 2.8s linear infinite; }
+html[data-palette="pride"] input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border: 3px solid #7656d6; border-radius: 50%; background: white; box-shadow: 0 1px 4px #17132666; }
+html[data-palette="pride"] input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 3px solid #7656d6; border-radius: 50%; background: white; box-shadow: 0 1px 4px #17132666; }
+html[data-palette="pride"] .confidence-threshold output { border: 1px solid transparent; background: linear-gradient(var(--accent-soft), var(--accent-soft)) padding-box, var(--accent-gradient) border-box; animation: pride-border-flow 2.8s linear infinite; }
+
 html[data-theme] *, html[data-theme] *::before, html[data-theme] *::after { transition-property: color, background-color, border-color, box-shadow, fill, stroke; transition-duration: 180ms; transition-timing-function: ease; }
 html[data-theme] .smooth-progress > span { transition-property: width; transition-duration: .32s; transition-timing-function: ease-out; }
 @media (prefers-reduced-motion: reduce) { html[data-theme] *, html[data-theme] *::before, html[data-theme] *::after { transition-duration: 0s; } }
 @media (prefers-reduced-motion: reduce) { html[data-theme] .smooth-progress > span { transition: none; } }
 @media (prefers-reduced-motion: reduce) { html[data-palette="pride"] .brand-mark, html[data-palette="pride"] .smooth-progress > span, html[data-palette="pride"] .palette-switcher button[aria-pressed="true"] .palette-swatch, html[data-palette="pride"] .active-indicator, html[data-palette="pride"] .palette-switcher button.active, html[data-palette="pride"] button.secondary.active, html[data-palette="pride"] .view-mode-switcher button.active { animation: none; } }
+@media (prefers-reduced-motion: reduce) { html[data-palette="pride"] .preference-toggle:has(input:checked), html[data-palette="pride"] .matching-option:has(input:checked), html[data-palette="pride"] .confidence-threshold, html[data-palette="pride"] .preference-media-tabs button.active, html[data-palette="pride"] .theme-switcher button.active, html[data-palette="pride"] nav .nav-active, html[data-palette="pride"] .icon-button.active, html[data-palette="pride"] .movie-batch-filters button.active, html[data-palette="pride"] .review-candidates button.selected, html[data-palette="pride"] button.primary:not(.destructive), html[data-palette="pride"] input[type="checkbox"]:checked, html[data-palette="pride"] input[type="range"], html[data-palette="pride"] .confidence-threshold output { animation: none; } }
 @media (max-width: 900px) { .workflow { grid-template-columns: 1fr; } .episode-panel { display: none; } .match-panel { position: relative; top: auto; height: auto; max-height: none; } .match-list { height: auto; overflow-y: visible; } .hero { align-items: stretch; gap: 18px; flex-direction: column; } .show-search { width: 100%; } .file-pair { grid-template-columns: 1fr; } .arrow { display: none; } }
 @media (max-width: 700px) { .metadata-editor-layer { padding: 10px; } .metadata-field-grid, .release-fields { grid-template-columns: 1fr 1fr; } .metadata-field-grid label.wide, .release-fields label.wide { grid-column: span 2; } .metadata-episode { grid-template-columns: 1fr 1fr; } .metadata-episode > strong, .metadata-episode .episode-title { grid-column: span 2; } .metadata-editor-actions { flex-wrap: wrap; } }
