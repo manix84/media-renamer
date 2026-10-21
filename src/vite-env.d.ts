@@ -25,6 +25,7 @@ declare global {
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
         completionReport?: boolean;
+        completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;
@@ -48,6 +49,7 @@ declare global {
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
         completionReport?: boolean;
+        completionReportAutoClose?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         episodeTemplate?: string;

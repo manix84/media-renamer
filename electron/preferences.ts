@@ -7,6 +7,7 @@ export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
   completionChime?: boolean;
   completionReport?: boolean;
+  completionReportAutoClose?: boolean;
   clearSourceJunk?: boolean;
   createExternalRenameLog?: boolean;
   episodeTemplate?: string;
@@ -44,6 +45,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;
   if (typeof source.completionChime === 'boolean') result.completionChime = source.completionChime;
   if (typeof source.completionReport === 'boolean') result.completionReport = source.completionReport;
+  if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
   if (typeof source.clearSourceJunk === 'boolean') result.clearSourceJunk = source.clearSourceJunk;
   if (typeof source.createExternalRenameLog === 'boolean') result.createExternalRenameLog = source.createExternalRenameLog;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;

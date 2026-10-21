@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
-import { AlertCircle, BellRing, Captions, Check, ChevronRight, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime } from './completionChime';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource, unchangedRenameItemPaths } from './core/renamePlan';
@@ -229,6 +229,7 @@ export default function App() {
   const [autoClearCompletedBatch, setAutoClearCompletedBatch] = useState(false);
   const [completionChime, setCompletionChime] = useState(false);
   const [completionReport, setCompletionReport] = useState(true);
+  const [completionReportAutoClose, setCompletionReportAutoClose] = useState(true);
   const [clearSourceJunk, setClearSourceJunk] = useState(false);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
@@ -251,6 +252,7 @@ export default function App() {
   const [undoing, setUndoing] = useState(false);
   const [lastRename, setLastRename] = useState<RenameOperationRecord>();
   const [renameReport, setRenameReport] = useState<RenameReport>();
+  const [renameReportCountdown, setRenameReportCountdown] = useState<number>();
   const [fileViewMode, setFileViewMode] = useState<FileViewMode>(() => {
     const saved = localStorage.getItem('media-renamer-file-view-mode');
     return saved === 'detailed' || saved === 'compact' ? saved : 'summary';
@@ -372,6 +374,14 @@ export default function App() {
     event.preventDefault();
     fileDropDepth.current = 0;
     setFileDropActive(false);
+    if (event.dataTransfer.files.length) void addDroppedItems(event.dataTransfer.files);
+  };
+
+  const dropFilesOnRenameReport = (event: ReactDragEvent<HTMLElement>) => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setRenameReport(undefined);
     if (event.dataTransfer.files.length) void addDroppedItems(event.dataTransfer.files);
   };
 
@@ -701,6 +711,7 @@ export default function App() {
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
+      if (saved.completionReportAutoClose !== undefined) setCompletionReportAutoClose(saved.completionReportAutoClose);
       if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
       if (saved.renameLogFolder !== undefined) setRenameLogFolder(saved.renameLogFolder);
@@ -769,6 +780,7 @@ export default function App() {
       autoClearCompletedBatch,
       completionChime,
       completionReport,
+      completionReportAutoClose,
       clearSourceJunk,
       createExternalRenameLog,
       episodeTemplate,
@@ -785,7 +797,23 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, titleMatching, tvBaseFolder]);
+
+  useEffect(() => {
+    if (!renameReport || !completionReportAutoClose) {
+      setRenameReportCountdown(undefined);
+      return;
+    }
+    const deadline = Date.now() + 30_000;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setRenameReportCountdown(remaining);
+      if (remaining === 0) setRenameReport(undefined);
+    };
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 250);
+    return () => window.clearInterval(timer);
+  }, [completionReportAutoClose, renameReport]);
 
   useEffect(() => () => {
     for (const timer of Object.values(removalTimers.current)) window.clearTimeout(timer);
@@ -2061,7 +2089,7 @@ export default function App() {
         </section>
       </div>}
 
-      {renameReport && reportOperation && <div className="confirmation-layer" role="presentation">
+      {renameReport && reportOperation && <div className="confirmation-layer" role="presentation" onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={dropFilesOnRenameReport}>
         <button className="confirmation-backdrop" aria-label="Close rename report" onClick={() => setRenameReport(undefined)}/>
         <section className={`confirmation-dialog rename-report ${reportOperation.status === 'completed' ? '' : 'warning'}`} role="dialog" aria-modal="true" aria-labelledby="rename-report-title" aria-describedby="rename-report-description">
           <span className="confirmation-icon">{reportOperation.status === 'completed' ? <Check size={20}/> : reportOperation.status === 'undone' ? <RotateCcw size={20}/> : <Square size={18}/>}</span>
@@ -2078,7 +2106,7 @@ export default function App() {
             {reportOperation.externalLogPath && <span><FileText size={14}/><span><strong>Operation log saved</strong><small>{reportOperation.externalLogPath}</small></span></span>}
             {reportWarnings > 0 && <span className="warning"><TriangleAlert size={14}/><span><strong>{reportWarnings} warning{reportWarnings === 1 ? '' : 's'} recorded</strong><small>Open the debug console for details.</small></span></span>}
           </div>
-          <div><button className="primary" autoFocus onClick={() => setRenameReport(undefined)}>Done</button></div>
+          <div><button className="primary rename-report-done" autoFocus onClick={() => setRenameReport(undefined)}>Done{renameReportCountdown !== undefined && <span className="rename-report-countdown"><Clock3 size={12}/>{renameReportCountdown}</span>}</button></div>
         </section>
       </div>}
 
@@ -2162,6 +2190,7 @@ export default function App() {
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
             <label className="preference-toggle"><span><ListChecks size={17}/><span><strong>{t('prefs.completionReport')}</strong><small>{t('prefs.completionReportHelp')}</small></span></span><input type="checkbox" checked={completionReport} onChange={(event) => setCompletionReport(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><Clock3 size={17}/><span><strong>{t('prefs.completionReportAutoClose')}</strong><small>{t('prefs.completionReportAutoCloseHelp')}</small></span></span><input type="checkbox" checked={completionReportAutoClose} onChange={(event) => setCompletionReportAutoClose(event.target.checked)}/></label>
             <label className="preference-toggle"><span><FileText size={17}/><span><strong>{t('prefs.saveLog')}</strong><small>{t('prefs.saveLogHelp')}</small></span></span><input type="checkbox" checked={createExternalRenameLog} onChange={(event) => setCreateExternalRenameLog(event.target.checked)}/></label>
             {createExternalRenameLog && <div className="destination-row standalone"><span><strong>Operation log folder</strong><small>{renameLogFolder || 'Use the active TV or Movie destination; otherwise use the renamed files’ common folder'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Log')}><FolderTree size={14}/>{renameLogFolder ? 'Change' : 'Choose'}</button>{renameLogFolder && <button className="icon-button" aria-label="Clear operation log folder" title="Use the active media destination" onClick={() => setRenameLogFolder('')}><X size={14}/></button>}</span></div>}
           </section>

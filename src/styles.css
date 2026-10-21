@@ -270,6 +270,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .rename-report-notes strong { color: #cdd5e2; font-size: 10px; }
 .rename-report-notes small { margin-top: 2px; overflow: hidden; color: #717d90; font: 8px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .rename-report-notes .warning { color: #efbd52; }
+.rename-report-done { gap: 8px; }
+.rename-report-countdown { min-width: 29px; padding-left: 7px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; border-left: 1px solid #ffffff38; font: 700 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .poster-preview-layer { position: fixed; z-index: 19; inset: 64px 0 0; padding: 24px; display: grid; place-items: center; }
 .poster-preview-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: #050812a6; backdrop-filter: blur(12px); cursor: zoom-out; }
 .poster-preview-dialog { position: relative; max-width: 100%; max-height: 100%; overflow: auto; border-radius: 12px; }

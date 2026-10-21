@@ -35,6 +35,7 @@ const en = {
   'prefs.autoClear': 'Clear completed batches automatically', 'prefs.autoClearHelp': 'Remove the finished batch from the workspace while keeping Undo available',
   'prefs.completionChime': 'Play a chime when complete', 'prefs.completionChimeHelp': 'Plays once when enabled, with matching Halloween and Christmas sounds',
   'prefs.completionReport': 'Show a completion report', 'prefs.completionReportHelp': 'Summarise processed files, removed folders, warnings, and logs',
+  'prefs.completionReportAutoClose': 'Close completion reports automatically', 'prefs.completionReportAutoCloseHelp': 'Dismiss the completion report after 30 seconds unless you close it or add more media first',
   'prefs.saveLog': 'Save a timestamped operation log', 'prefs.saveLogHelp': 'Off by default; rename success is not blocked if this optional log cannot be written',
   'debug.title': 'Debug console', 'debug.empty': 'No activity recorded yet.', 'debug.session': '{count} events · local session only',
 } as const;
