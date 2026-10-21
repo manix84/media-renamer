@@ -14,12 +14,6 @@ const STANDARD_CHIME: CompletionChimeTone[] = [
   { frequency: 783.99, start: .24, duration: .36, gain: .08, wave: 'sine' },
 ];
 
-const HALLOWEEN_CHIME: CompletionChimeTone[] = [
-  { frequency: 392, start: 0, duration: .32, gain: .07, wave: 'triangle' },
-  { frequency: 311.13, start: .13, duration: .38, gain: .065, wave: 'triangle' },
-  { frequency: 523.25, start: .3, duration: .5, gain: .055, wave: 'sine' },
-];
-
 function melody(
   frequencies: number[],
   { step = .12, duration = .22, gain = .065, wave = 'sine' as OscillatorType } = {},
@@ -32,6 +26,17 @@ function melody(
     wave,
   }));
 }
+
+const HALLOWEEN_CHIME: CompletionChimeTone[] = [
+  ...melody([261.63, 349.23, 440, 349.23, 261.63, 466.16, 392, 329.63], {
+    step: .13,
+    duration: .16,
+    gain: .065,
+    wave: 'triangle',
+  }),
+  { frequency: 1800, start: 1.24, duration: .025, gain: .075, wave: 'square' },
+  { frequency: 1800, start: 1.43, duration: .025, gain: .075, wave: 'square' },
+];
 
 const CHRISTMAS_CHIME: CompletionChimeTone[] = [
   ...melody([523.25, 493.88, 440, 392, 349.23, 392, 440, 349.23], {

@@ -23,4 +23,16 @@ describe('completion chimes', () => {
       523.25, 493.88, 440, 392, 349.23, 392, 440, 349.23,
     ]);
   });
+
+  it('plays the Halloween phrase followed by two clicks', () => {
+    const tones = completionChimeTones('halloween');
+
+    expect(tones.slice(0, 8).map((tone) => tone.frequency)).toEqual([
+      261.63, 349.23, 440, 349.23, 261.63, 466.16, 392, 329.63,
+    ]);
+    expect(tones.slice(8)).toEqual([
+      { frequency: 1800, start: 1.24, duration: .025, gain: .075, wave: 'square' },
+      { frequency: 1800, start: 1.43, duration: .025, gain: .075, wave: 'square' },
+    ]);
+  });
 });
