@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { isPaletteAvailable } from './seasonalThemes';
+import { availablePaletteOrDefault, isPaletteAvailable } from './seasonalThemes';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = Exclude<ThemePreference, 'system'>;
@@ -12,7 +12,7 @@ const ThemeContext = createContext<{
   resolvedTheme: ResolvedTheme;
   palette: ThemePalette;
   setPreference: (preference: ThemePreference) => void;
-  setPalette: (palette: ThemePalette) => void;
+  setPalette: (palette: ThemePalette, developerMode?: boolean) => void;
 } | undefined>(undefined);
 
 export function isThemePreference(value: unknown): value is ThemePreference {
@@ -40,7 +40,7 @@ function storedPalette(): ThemePalette {
   try {
     const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
     const palette = stored === 'winter' ? 'christmas' : isThemePalette(stored) ? stored : 'classic';
-    return isPaletteAvailable(palette, new Date(), import.meta.env.DEV) ? palette : 'classic';
+    return availablePaletteOrDefault(palette, new Date(), false);
   } catch {
     return 'classic';
   }
@@ -66,7 +66,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     void window.mediaRenamer.loadPreferences().then((saved) => {
       if (!active) return;
       if (isThemePreference(saved.themePreference)) setPreferenceState(saved.themePreference);
-      if (isThemePalette(saved.themePalette) && isPaletteAvailable(saved.themePalette, new Date(), import.meta.env.DEV)) setPaletteState(saved.themePalette);
+      if (isThemePalette(saved.themePalette)) setPaletteState(availablePaletteOrDefault(saved.themePalette, new Date(), saved.developerMode === true));
     }).catch(() => undefined).finally(() => { if (active) setPreferencesHydrated(true); });
     return () => { active = false; };
   }, []);
@@ -84,7 +84,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (event.key === STORAGE_KEY) setPreferenceState(isThemePreference(event.newValue) ? event.newValue : 'system');
       if (event.key === PALETTE_STORAGE_KEY) {
         const next = isThemePalette(event.newValue) ? event.newValue : 'classic';
-        setPaletteState(isPaletteAvailable(next, new Date(), import.meta.env.DEV) ? next : 'classic');
+        setPaletteState(availablePaletteOrDefault(next, new Date(), false));
       }
     };
     window.addEventListener('storage', sync);
@@ -111,8 +111,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function setPalette(next: ThemePalette) {
-    if (!isPaletteAvailable(next, new Date(), import.meta.env.DEV)) return;
+  function setPalette(next: ThemePalette, developerMode = false) {
+    if (!isPaletteAvailable(next, new Date(), developerMode)) return;
     setPaletteState(next);
     try {
       window.localStorage.setItem(PALETTE_STORAGE_KEY, next);

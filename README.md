@@ -243,6 +243,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] hidden, locally persisted developer mode for developer-only diagnostics
 - [x] unlock developer mode by clicking the version seven times
 - [x] after the third version click, show and update the remaining-click count
+- [x] show Halloween only in October and Christmas only in December, with developer-mode preview and an automatic Classic fallback outside each season
 - [ ] add more seasonal themes
 - [ ] replace seasonal-theme colour dots with appropriate emojis
 - [ ] add a hidden, non-disruptive Easter egg

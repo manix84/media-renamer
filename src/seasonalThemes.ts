@@ -15,3 +15,7 @@ export function availablePalettes(date: Date, debugging: boolean): ThemePalette[
 export function isPaletteAvailable(palette: ThemePalette, date: Date, debugging: boolean): boolean {
   return availablePalettes(date, debugging).includes(palette);
 }
+
+export function availablePaletteOrDefault(palette: ThemePalette, date: Date, developerMode: boolean): ThemePalette {
+  return isPaletteAvailable(palette, date, developerMode) ? palette : 'classic';
+}

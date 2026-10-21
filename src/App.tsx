@@ -20,7 +20,7 @@ import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalT
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
-import { availablePalettes } from './seasonalThemes';
+import { availablePalettes, isPaletteAvailable } from './seasonalThemes';
 import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
@@ -255,6 +255,7 @@ export default function App() {
   const [developerMode, setDeveloperMode] = useState(false);
   const [developerVersionClicks, setDeveloperVersionClicks] = useState(0);
   const [developerUnlockMessage, setDeveloperUnlockMessage] = useState<string>();
+  const [seasonalDate, setSeasonalDate] = useState(() => new Date());
   const [preferenceMediaTab, setPreferenceMediaTab] = useState<PreferenceMediaTab>('shows');
   const [templateReferenceOpen, setTemplateReferenceOpen] = useState(false);
   const [batchMetadataOpen, setBatchMetadataOpen] = useState(false);
@@ -878,6 +879,24 @@ export default function App() {
       addDebug('success', 'Developer mode unlocked', 'Developer-only diagnostics are now available.');
     } else if (result.showHint) setDeveloperUnlockMessage(`${result.remaining} click${result.remaining === 1 ? '' : 's'} remaining`);
   }
+
+  useEffect(() => {
+    if (!isPaletteAvailable(palette, seasonalDate, developerMode)) setPalette('classic');
+  }, [developerMode, palette, seasonalDate, setPalette]);
+
+  useEffect(() => {
+    let timeout = 0;
+    const scheduleNextDay = () => {
+      const now = new Date();
+      const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      timeout = window.setTimeout(() => {
+        setSeasonalDate(new Date());
+        scheduleNextDay();
+      }, nextDay.getTime() - now.getTime() + 1_000);
+    };
+    scheduleNextDay();
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     if (!renameReport || !completionReportAutoClose) {
@@ -1898,7 +1917,7 @@ export default function App() {
   }
 
   const activeTitle = activeMediaTab === 'shows' ? show : undefined;
-  const selectablePalettes = availablePalettes(new Date(), import.meta.env.DEV);
+  const selectablePalettes = availablePalettes(seasonalDate, developerMode);
   const metadataDraftError = metadataDraft ? validateMediaMetadata(metadataDraft, activeMediaTab === 'movies') : undefined;
   const metadataDraftPreview = editingMetadataPath && metadataDraft && !metadataDraftError ? (() => {
     const extension = filenameFromPath(editingMetadataPath).match(/(\.[^.]+)$/)?.[1] ?? '';
@@ -2286,7 +2305,7 @@ export default function App() {
             ))}
           </div><div className="palette-heading"><strong>{t('prefs.colourTheme')}</strong><small>{t('prefs.colourHelp')}</small></div><div className="palette-switcher" role="group" aria-label="Colour theme">
             {([['classic', 'Classic', '#7663dc'], ['ocean', 'Ocean', '#1688c9'], ['forest', 'Forest', '#27865b'], ['rose', 'Rose', '#c04f82'], ['amber', 'Amber', '#c47a16'], ['halloween', 'Halloween', '#e56b18'], ['christmas', 'Christmas', '#4f8fc9']] as Array<[ThemePalette, string, string]>).filter(([value]) => selectablePalettes.includes(value)).map(([value, label, colour]) => (
-              <button key={value} className={`${palette === value ? 'active' : ''} ${value === 'halloween' || value === 'christmas' ? 'seasonal' : ''}`.trim()} aria-pressed={palette === value} onClick={() => setPalette(value)}><span className="palette-swatch" style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{(value === 'halloween' || value === 'christmas') && <small>Seasonal</small>}</button>
+              <button key={value} className={`${palette === value ? 'active' : ''} ${value === 'halloween' || value === 'christmas' ? 'seasonal' : ''}`.trim()} aria-pressed={palette === value} onClick={() => setPalette(value, developerMode)}><span className="palette-swatch" style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{(value === 'halloween' || value === 'christmas') && <small>Seasonal</small>}</button>
             ))}
           </div></section>
           <section className="preference-section"><h3>{t('prefs.fileList')}</h3><p>{t('prefs.fileListHelp')}</p><div className="view-mode-switcher" role="group" aria-label="File list view">
