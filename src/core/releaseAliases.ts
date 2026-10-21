@@ -1,10 +1,10 @@
 import type { ReleaseTags, Source } from './types';
 
-export type ReleaseAliasField = 'source' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'flag' | 'webOrigin';
+export type ReleaseAliasField = 'source' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'flag' | 'webOrigin' | 'edition';
 export type ReleaseTagAlias = { field: ReleaseAliasField; match: string; value: string; short?: string };
 export type ParsedReleaseAliases = { aliases: ReleaseTagAlias[]; errors: string[] };
 
-const fields = new Set<ReleaseAliasField>(['source', 'resolution', 'videoCodec', 'audioCodec', 'channels', 'flag', 'webOrigin']);
+const fields = new Set<ReleaseAliasField>(['source', 'resolution', 'videoCodec', 'audioCodec', 'channels', 'flag', 'webOrigin', 'edition']);
 const sources = new Set<Source>(['BluRay', 'DVD', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip', 'Unknown']);
 
 export function parseReleaseAliasText(text: string): ParsedReleaseAliases {
@@ -13,7 +13,7 @@ export function parseReleaseAliasText(text: string): ParsedReleaseAliases {
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
     if (!line || line.startsWith('#')) return;
-    const match = /^(source|resolution|videoCodec|audioCodec|channels|flag|webOrigin)\s*=\s*([^=]+?)\s*=>\s*([^|]+?)(?:\s*\|\s*(.+))?$/i.exec(line);
+    const match = /^(source|resolution|videoCodec|audioCodec|channels|flag|webOrigin|edition)\s*=\s*([^=]+?)\s*=>\s*([^|]+?)(?:\s*\|\s*(.+))?$/i.exec(line);
     if (!match) { errors.push(`Line ${index + 1}: use field = alias => output.`); return; }
     const field = [...fields].find((candidate) => candidate.toLowerCase() === match[1].toLowerCase());
     const alias = match[2].trim();
@@ -36,6 +36,7 @@ export function applyReleaseAliases(evidence: string, detected: ReleaseTags, ali
   const result: ReleaseTags = { ...detected, flags: [...detected.flags] };
   for (const alias of aliases) {
     if (!aliasPattern(alias.match).test(evidence)) continue;
+    if (alias.field === 'edition') continue;
     if (alias.field === 'flag') result.flags.push(alias.value);
     else if (alias.field === 'source') result.source = alias.value as Source;
     else if (alias.field === 'webOrigin') { result.webOrigin = alias.value; result.webOriginShort = alias.short; }
@@ -44,4 +45,11 @@ export function applyReleaseAliases(evidence: string, detected: ReleaseTags, ali
   result.flags = [...new Map(result.flags.map((flag) => [flag.toLocaleLowerCase(), flag])).values()];
   if (result.source !== 'WEB-DL' && result.source !== 'WEBRip') { delete result.webOrigin; delete result.webOriginShort; }
   return result;
+}
+
+export function matchingEditionAliases(evidence: string, aliases: ReleaseTagAlias[]): Array<{ value: string; index: number }> {
+  return aliases.filter((alias) => alias.field === 'edition').flatMap((alias) => {
+    const match = aliasPattern(alias.match).exec(evidence);
+    return match ? [{ value: alias.value, index: match.index }] : [];
+  });
 }

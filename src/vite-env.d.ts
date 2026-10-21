@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult } from './core/types';
+import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
 
 type RenameOperationRecord = {
@@ -40,6 +40,8 @@ declare global {
         removeEmptySourceParents?: boolean;
         releaseAliasText?: string;
         savedMatchDecisions?: SavedMatchDecision[];
+        savedLibraryRoots?: SavedLibraryRoot[];
+        savedBatchQueues?: SavedBatchQueue[];
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
@@ -67,6 +69,8 @@ declare global {
         removeEmptySourceParents?: boolean;
         releaseAliasText?: string;
         savedMatchDecisions?: SavedMatchDecision[];
+        savedLibraryRoots?: SavedLibraryRoot[];
+        savedBatchQueues?: SavedBatchQueue[];
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;

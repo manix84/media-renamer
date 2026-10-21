@@ -22,4 +22,10 @@ describe('custom release-tag aliases', () => {
     const { aliases } = parseReleaseAliasText('flag = TS => Telesync');
     expect(parseReleaseTags('Show.DTS-HD.mkv', aliases).flags).not.toContain('Telesync');
   });
+
+  it('accepts saved movie edition aliases', () => {
+    expect(parseReleaseAliasText('edition = mindbending => Mind Bending')).toEqual({
+      aliases: [{ field: 'edition', match: 'mindbending', value: 'Mind Bending' }], errors: [],
+    });
+  });
 });

@@ -48,6 +48,7 @@ export interface TmdbMovieSearchResult {
   posterUrl?: string;
   logoUrl?: string;
   backgroundUrl?: string;
+  collection?: { id: string; name: string };
 }
 
 type RawShow = {
@@ -67,6 +68,7 @@ type RawMovie = {
   poster_path?: string | null;
   backdrop_path?: string | null;
   runtime?: number | null;
+  belongs_to_collection?: { id: number; name: string } | null;
 };
 
 type RawExternalIds = { tvdb_id?: number | null; imdb_id?: string | null };
@@ -118,6 +120,7 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
     posterUrl: movie.poster_path ? `${IMAGE_ROOT}${movie.poster_path}` : undefined,
     backgroundUrl: movie.backdrop_path ? `${BACKDROP_ROOT}${movie.backdrop_path}` : undefined,
     ...(movie.runtime && movie.runtime > 0 ? { runtimeMinutes: movie.runtime } : {}),
+    ...(movie.belongs_to_collection ? { collection: { id: String(movie.belongs_to_collection.id), name: movie.belongs_to_collection.name } } : {}),
   };
 }
 

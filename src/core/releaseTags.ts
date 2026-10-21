@@ -1,5 +1,5 @@
 import type { ReleaseTags, Source } from './types';
-import { applyReleaseAliases, type ReleaseTagAlias } from './releaseAliases';
+import { applyReleaseAliases, matchingEditionAliases, type ReleaseTagAlias } from './releaseAliases';
 
 const sources: Array<[RegExp, Source]> = [
   [/\b(?:blu[ ._-]?ray|b[dr]rip|bd)\b/i, 'BluRay'],
@@ -128,7 +128,7 @@ function explicitMovieEditions(suffix: string): { names?: string[]; error?: stri
   return { names };
 }
 
-export function parseMovieEdition(filename: string, title?: string, year?: number): { edition?: string; error?: string } {
+export function parseMovieEdition(filename: string, title?: string, year?: number, aliases: ReleaseTagAlias[] = []): { edition?: string; error?: string } {
   const suffix = movieSuffix(filename, title, year);
   if (suffix === undefined) return {};
   const explicit = explicitMovieEditions(suffix);
@@ -138,7 +138,7 @@ export function parseMovieEdition(filename: string, title?: string, year?: numbe
     canonical: definition.canonical,
     index: match.index,
     end: match.index + match[0].length,
-  })));
+  }))).concat(matchingEditionAliases(suffix, aliases).map((alias) => ({ canonical: normalizeMovieEditionName(alias.value) ?? alias.value, index: alias.index, end: alias.index + 1 })));
   const accepted: typeof candidates = [];
   for (const candidate of candidates.sort((left, right) => left.index - right.index || (right.end - right.index) - (left.end - left.index))) {
     if (!accepted.some((existing) => candidate.index < existing.end && candidate.end > existing.index)) accepted.push(candidate);

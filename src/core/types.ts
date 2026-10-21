@@ -51,9 +51,31 @@ export interface MovieSearchResult {
   backgroundUrl?: string;
   squareUrl?: string;
   bannerUrl?: string;
+  collection?: MovieCollection;
+}
+
+export interface MovieCollection {
+  id: string;
+  name: string;
 }
 
 export type MovieDetails = MovieSearchResult;
+
+export interface SavedLibraryRoot {
+  id: string;
+  kind: 'shows' | 'movies';
+  name: string;
+  path: string;
+  updatedAt: number;
+}
+
+export interface SavedBatchQueue {
+  id: string;
+  name: string;
+  mediaType: 'shows' | 'movies';
+  paths: string[];
+  updatedAt: number;
+}
 
 export interface ProviderStatus {
   configured: boolean;

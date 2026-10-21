@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchFile, normalizeTitle } from './matcher';
 import { applyReleaseOverrides, formatEditionNames, normalizeMovieEditionName, parseExplicitEdition, parseMovieEdition, parseReleaseTags } from './releaseTags';
+import { parseReleaseAliasText } from './releaseAliases';
 
 const episodes = [
   { id: '1', season: 2, number: 7, title: 'The Security Guard' },
@@ -58,6 +59,11 @@ describe('release tag parser', () => {
     ['Total.Recall.Mind.Bending.Edition.1990.1080p.BluRay.mkv', 'Total Recall', 1990, 'Mind Bending'],
   ])('normalises a movie edition after the matched title: %s', (filename, title, year, edition) => {
     expect(parseMovieEdition(filename, title, year).edition).toBe(edition);
+  });
+
+  it('maps saved custom spellings onto movie editions', () => {
+    const aliases = parseReleaseAliasText("edition = directors version => Director's Cut").aliases;
+    expect(parseMovieEdition('Movie.2020.Directors.Version.1080p.mkv', 'Movie', 2020, aliases).edition).toBe("Director's Cut");
   });
 
   it.each([

@@ -1,4 +1,4 @@
-import type { Episode, ReleaseTags } from './types';
+import type { Episode, MovieCollection, ReleaseTags } from './types';
 import { normalizeMovieEditionName } from './releaseTags';
 
 export const PREVIOUS_DEFAULT_EPISODE_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}';
@@ -37,7 +37,7 @@ const VALID_NAMES = new Set([
   'audio.languages', 'audio.languageNames', 'audio.languageCodes3', 'audio.languageCodes2', 'name', 'code3', 'code2',
 ]);
 const MOVIE_VALID_NAMES = new Set([
-  'movie.name', 'movie.year', 'movie.tmdbId', 'movie.imdbId', 'movie.edition', 'technical',
+  'movie.name', 'movie.year', 'movie.tmdbId', 'movie.imdbId', 'movie.edition', 'movie.collection', 'movie.collection.name', 'movie.collection.tmdbId', 'technical',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
   'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags', 'release.edition',
   'audio.languages', 'audio.languageNames', 'audio.languageCodes3', 'audio.languageCodes2', 'name', 'code3', 'code2', 'first', 'last',
@@ -234,8 +234,8 @@ export function formatShowFolder(template: string, show: string, year: number | 
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
 }
 
-export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string, edition?: string, imdbId?: string): string {
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, imdbId, edition: normalizeMovieEditionName(edition) ?? edition } }])
+export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string, edition?: string, imdbId?: string, collection?: MovieCollection): string {
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, imdbId, edition: normalizeMovieEditionName(edition) ?? edition, collection: collection && { name: collection.name, tmdbId: collection.id } } }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').trim();
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');
@@ -260,18 +260,18 @@ function insertMissingMovieEdition(rendered: string, movie: string, year: number
   return `${rendered.slice(0, insertion).trimEnd()}${marker}${rendered.slice(insertion)}`.trim();
 }
 
-export function formatMovie(template: string, movie: string, year: number | undefined, tags: ReleaseTags, tmdbId?: string, imdbId?: string): string {
+export function formatMovie(template: string, movie: string, year: number | undefined, tags: ReleaseTags, tmdbId?: string, imdbId?: string, collection?: MovieCollection): string {
   const normalizedTags = { ...tags, edition: normalizeMovieEditionName(tags.edition) ?? tags.edition };
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, imdbId }, ...releaseContext(normalizedTags) }])
+  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, imdbId, collection: collection && { name: collection.name, tmdbId: collection.id } }, ...releaseContext(normalizedTags) }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim();
   const templatePlacesEdition = /\{\{\s*[#^/]?\s*release\.edition\s*\}\}/i.test(template);
   return templatePlacesEdition ? rendered : insertMissingMovieEdition(rendered, movie, year, normalizedTags.edition);
 }
 
-export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = FILESYSTEM_FILENAME_BYTES, imdbId?: string): string {
+export function formatMovieFilename(template: string, movie: string, year: number | undefined, tags: ReleaseTags, extension: string, tmdbId?: string, maximumBytes = FILESYSTEM_FILENAME_BYTES, imdbId?: string, collection?: MovieCollection): string {
   const encoder = new TextEncoder();
-  const filename = (title: string) => `${portableFilenameBase(formatMovie(template, title, year, tags, tmdbId, imdbId))}${extension}`;
+  const filename = (title: string) => `${portableFilenameBase(formatMovie(template, title, year, tags, tmdbId, imdbId, collection))}${extension}`;
   const full = filename(movie);
   if (encoder.encode(full).length <= maximumBytes) return full;
   const characters = Array.from(movie);

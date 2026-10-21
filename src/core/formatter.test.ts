@@ -127,6 +127,14 @@ describe('episode filename templates', () => {
     expect(movieFolderTemplateError(template)).toBeUndefined();
   });
 
+  it('exposes TMDB collection fields to movie templates', () => {
+    const collection = { id: '422837', name: 'Blade Runner Collection' };
+    expect(formatMovieFolder('{{movie.collection.name}}/{tmdb-{{movie.collection.tmdbId}}}/{{movie.name}}', 'Blade Runner 2049', 2017, '335984', undefined, 'tt1856101', collection))
+      .toBe('Blade Runner Collection/{tmdb-422837}/Blade Runner 2049');
+    expect(formatMovie('{{movie.name}}{{#movie.collection}} [{{name}}]{{/movie.collection}}', 'Blade Runner 2049', 2017, { source: 'BluRay', flags: [] }, '335984', 'tt1856101', collection))
+      .toBe('Blade Runner 2049 [Blade Runner Collection]');
+  });
+
   it('exposes full and shorthand web origins plus the release group to templates', () => {
     const releaseTags: ReleaseTags = { ...tags, webOrigin: 'Netflix', webOriginShort: 'NF', group: 'QxR' };
     expect(formatMovie('{{movie.name}} [{{release.webOrigin}} {{release.webOriginShort}} {{release.group}}]', 'Movie', 2026, releaseTags))

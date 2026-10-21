@@ -16,7 +16,7 @@ import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/ma
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -73,6 +73,8 @@ const MOVIE_TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> =
     { name: 'movie.year', description: 'Release year, when known', example: '2017' },
     { name: 'movie.tmdbId', description: 'Canonical TMDB movie ID', example: '335984' },
     { name: 'movie.imdbId', description: 'Canonical IMDb movie ID', example: 'tt1856101' },
+    { name: 'movie.collection.name', description: 'TMDB collection title, when present', example: 'Blade Runner Collection' },
+    { name: 'movie.collection.tmdbId', description: 'TMDB collection ID', example: '422837' },
     { name: 'release.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
   ] },
   TEMPLATE_FIELDS.find((group) => group.label === 'Release')!,
@@ -91,6 +93,8 @@ const MOVIE_FOLDER_FIELDS: TemplateField[] = [
   { name: 'movie.year', description: 'Release year', example: '2017' },
   { name: 'movie.tmdbId', description: 'TMDB movie ID', example: '335984' },
   { name: 'movie.imdbId', description: 'IMDb movie ID', example: 'tt1856101' },
+  { name: 'movie.collection.name', description: 'TMDB collection title', example: 'Blade Runner Collection' },
+  { name: 'movie.collection.tmdbId', description: 'TMDB collection ID', example: '422837' },
   { name: 'movie.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
 ];
 
@@ -147,6 +151,10 @@ function joinPath(directory: string, relativePath: string): string {
   if (!relativePath) return directory.replace(/[\\/]+$/, '');
   const separator = directory.includes('\\') && !directory.includes('/') ? '\\' : '/';
   return `${directory.replace(/[\\/]+$/, '')}${separator}${relativePath.replace(/[\\/]+/g, separator)}`;
+}
+
+function pathLeaf(value: string): string {
+  return value.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1) || value;
 }
 
 function fullSizeArtworkUrl(url: string): string {
@@ -224,6 +232,8 @@ export default function App() {
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
   const [releaseAliasText, setReleaseAliasText] = useState('');
   const [savedMatchDecisions, setSavedMatchDecisions] = useState<SavedMatchDecision[]>([]);
+  const [savedLibraryRoots, setSavedLibraryRoots] = useState<SavedLibraryRoot[]>([]);
+  const [savedBatchQueues, setSavedBatchQueues] = useState<SavedBatchQueue[]>([]);
   const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -538,7 +548,7 @@ export default function App() {
       title: episode.title.trim(),
     } satisfies Episode)) : matchedEpisodes;
     const detectedTags = parseReleaseTags(path, releaseAliases);
-    const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year) : undefined;
+    const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year, releaseAliases) : undefined;
     const baseTags = detectedTags ? {
       ...detectedTags,
       ...(activeMediaTab === 'movies' ? { edition: movieEdition?.edition, editionError: movieEdition?.error } : {}),
@@ -565,7 +575,7 @@ export default function App() {
     const effectiveShowYear = metadataOverride ? optionalMetadataNumber(metadataOverride.year) : show?.year;
     const effectiveTvdbId = metadataOverride?.providerId.trim() || show?.tvdbId;
     const showFolder = effectiveEpisodes.length && effectiveShowName && !folderFormatError ? formatShowFolder(showFolderTemplate, effectiveShowName, effectiveShowYear, effectiveTvdbId, effectiveEpisodes[0].season) : undefined;
-    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition, movieForPath.imdbId) : undefined;
+    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition, movieForPath.imdbId, movieForPath.collection) : undefined;
     const companions = companionScan.byVideo[path] ?? [];
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
@@ -577,7 +587,7 @@ export default function App() {
       - movieRoleSuffixBytes
       - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
-      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId), movieVideoRole) : undefined
+      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId, movieForPath.collection), movieVideoRole) : undefined
       : effectiveEpisodes.length && effectiveShowName && tags && !formatError ? formatEpisodeFilename(episodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
@@ -745,6 +755,8 @@ export default function App() {
       if (saved.removeEmptySourceParents !== undefined) setRemoveEmptySourceParents(saved.removeEmptySourceParents);
       if (saved.releaseAliasText !== undefined) setReleaseAliasText(saved.releaseAliasText);
       if (saved.savedMatchDecisions !== undefined) setSavedMatchDecisions(saved.savedMatchDecisions);
+      if (saved.savedLibraryRoots !== undefined) setSavedLibraryRoots(saved.savedLibraryRoots);
+      if (saved.savedBatchQueues !== undefined) setSavedBatchQueues(saved.savedBatchQueues);
       if (saved.showRules !== undefined) setShowRules(saved.showRules);
       if (saved.autoClearCompletedBatch !== undefined) setAutoClearCompletedBatch(saved.autoClearCompletedBatch);
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
@@ -834,13 +846,15 @@ export default function App() {
       removeEmptySourceParents,
       releaseAliasText,
       savedMatchDecisions,
+      savedLibraryRoots,
+      savedBatchQueues,
       showRules,
       renameLogFolder,
       showFolderTemplate,
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     if (!renameReport || !completionReportAutoClose) {
@@ -1456,12 +1470,38 @@ export default function App() {
   async function chooseBaseFolder(kind: 'TV' | 'Movie' | 'Log') {
     try {
       const selected = await window.mediaRenamer?.pickDestinationFolder(kind);
-      if (selected) (kind === 'TV' ? setTvBaseFolder : kind === 'Movie' ? setMovieBaseFolder : setRenameLogFolder)(selected);
+      if (selected) {
+        (kind === 'TV' ? setTvBaseFolder : kind === 'Movie' ? setMovieBaseFolder : setRenameLogFolder)(selected);
+        if (kind !== 'Log') {
+          const mediaKind: SavedLibraryRoot['kind'] = kind === 'TV' ? 'shows' : 'movies';
+          setSavedLibraryRoots((current) => [{ id: `${mediaKind}:${selected}`, kind: mediaKind, name: pathLeaf(selected), path: selected, updatedAt: Date.now() }, ...current.filter((root) => root.path !== selected || root.kind !== mediaKind)].slice(0, 100));
+        }
+      }
     } catch (reason) {
       const message = errorMessage(reason);
       setError(message);
       addDebug('error', `Could not choose ${kind} base folder`, message);
     }
+  }
+
+  function saveCurrentQueue() {
+    if (!paths.length) return;
+    const suggested = `${activeMediaTab === 'movies' ? 'Movie' : 'TV'} batch ${new Date().toLocaleDateString()}`;
+    const name = window.prompt('Name this reusable batch queue', suggested)?.trim();
+    if (!name) return;
+    setSavedBatchQueues((current) => [{ id: crypto.randomUUID(), name, mediaType: activeMediaTab, paths: [...paths], updatedAt: Date.now() }, ...current].slice(0, 100));
+    addDebug('success', `Saved batch queue “${name}”`, `${paths.length} source file${paths.length === 1 ? '' : 's'} can be loaded again from Preferences.`);
+  }
+
+  function loadSavedQueue(queue: SavedBatchQueue) {
+    clearBatch();
+    if (queue.mediaType !== activeMediaTab) switchMediaTab(queue.mediaType);
+    window.setTimeout(() => {
+      setBatchRenameCompleted(false);
+      setPaths(queue.paths);
+      addDebug('success', `Loaded batch queue “${queue.name}”`, `${queue.paths.length} saved source file${queue.paths.length === 1 ? '' : 's'} queued for matching.`);
+    }, 0);
+    setPreferencesOpen(false);
   }
 
   async function addDroppedItems(files: FileList) {
@@ -1701,7 +1741,7 @@ export default function App() {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     });
-    const edition = activeMediaTab === 'movies' && movie ? parseMovieEdition(path, movie.name, movie.year).edition : tags.edition;
+    const edition = activeMediaTab === 'movies' && movie ? parseMovieEdition(path, movie.name, movie.year, releaseAliases).edition : tags.edition;
     setMetadataDraft({
       name: activeMediaTab === 'movies' ? movie!.name : show!.name,
       year: String((activeMediaTab === 'movies' ? movie!.year : show!.year) ?? ''),
@@ -1928,7 +1968,7 @@ export default function App() {
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">{t('panel.matchReview')}</p><h2>{t('panel.importedFiles', { count: paths.length })}</h2></div>
-              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{t(moveFiles ? 'panel.moveFiles' : 'panel.inPlace')}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> {t('panel.batchMetadata')}{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> {t('panel.refreshMedia')}</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => batchRenameCompleted ? clearBatch() : setClearConfirmation(true)}><Trash2 size={15}/> {t('panel.clearAll')}</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> {t('panel.addFiles')}</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> {t('panel.addFolder')}</button></div>
+              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{t(moveFiles ? 'panel.moveFiles' : 'panel.inPlace')}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> {t('panel.batchMetadata')}{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length} onClick={saveCurrentQueue}><ListChecks size={15}/> Save queue</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> {t('panel.refreshMedia')}</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => batchRenameCompleted ? clearBatch() : setClearConfirmation(true)}><Trash2 size={15}/> {t('panel.clearAll')}</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> {t('panel.addFiles')}</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> {t('panel.addFolder')}</button></div>
             </div>
             {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
               <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
@@ -2231,7 +2271,8 @@ export default function App() {
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
           </div></section>
-          <section className={`preference-section release-alias-settings ${parsedReleaseAliases.errors.length ? 'invalid' : ''}`}><h3>Release-tag aliases</h3><p>Add personal filename vocabulary without replacing the built-in detector. Matches are case-insensitive, separator-tolerant, and require complete tokens.</p><label><span><strong>Aliases</strong><small><code>field = filename alias =&gt; output</code>; web origins may add <code>| shorthand</code>.</small></span><textarea value={releaseAliasText} onChange={(event) => setReleaseAliasText(event.target.value)} spellCheck={false} placeholder={'source = web download => WEB-DL\nvideoCodec = AVC => H.264\nflag = dual audio => Dual Audio\nwebOrigin = crunchy premium => Crunchyroll | CR'}/></label><small className="release-alias-fields">Fields: <code>source</code> <code>resolution</code> <code>videoCodec</code> <code>audioCodec</code> <code>channels</code> <code>flag</code> <code>webOrigin</code></small>{parsedReleaseAliases.errors.length ? <ul className="release-alias-errors">{parsedReleaseAliases.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <div className="release-alias-status"><Check size={13}/>{parsedReleaseAliases.aliases.length ? `${parsedReleaseAliases.aliases.length} custom alias${parsedReleaseAliases.aliases.length === 1 ? '' : 'es'} active` : 'Built-in vocabulary only'}</div>}{releaseAliasText && <button className="clear-overrides" onClick={() => setReleaseAliasText('')}>Clear custom aliases</button>}</section>
+          <section className={`preference-section release-alias-settings ${parsedReleaseAliases.errors.length ? 'invalid' : ''}`}><h3>Release-tag and edition aliases</h3><p>Add personal filename vocabulary without replacing the built-in detector. Matches are case-insensitive, separator-tolerant, and require complete tokens.</p><label><span><strong>Aliases</strong><small><code>field = filename alias =&gt; output</code>; web origins may add <code>| shorthand</code>.</small></span><textarea value={releaseAliasText} onChange={(event) => setReleaseAliasText(event.target.value)} spellCheck={false} placeholder={'source = web download => WEB-DL\nedition = mindbending => Mind Bending\nvideoCodec = AVC => H.264\nwebOrigin = crunchy premium => Crunchyroll | CR'}/></label><small className="release-alias-fields">Fields: <code>source</code> <code>resolution</code> <code>videoCodec</code> <code>audioCodec</code> <code>channels</code> <code>flag</code> <code>webOrigin</code> <code>edition</code></small>{parsedReleaseAliases.errors.length ? <ul className="release-alias-errors">{parsedReleaseAliases.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <div className="release-alias-status"><Check size={13}/>{parsedReleaseAliases.aliases.length ? `${parsedReleaseAliases.aliases.length} custom alias${parsedReleaseAliases.aliases.length === 1 ? '' : 'es'} active` : 'Built-in vocabulary only'}</div>}{releaseAliasText && <button className="clear-overrides" onClick={() => setReleaseAliasText('')}>Clear custom aliases</button>}</section>
+          <section className="preference-section"><h3>Reusable batch queues</h3><p>Reload a saved set of source files without changing anything on disk.</p>{savedBatchQueues.length ? savedBatchQueues.map((queue) => <div className="destination-row standalone" key={queue.id}><span><strong>{queue.name}</strong><small>{queue.mediaType === 'movies' ? 'Movies' : 'TV'} · {queue.paths.length} file{queue.paths.length === 1 ? '' : 's'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => loadSavedQueue(queue)}><FolderOpen size={14}/>Load</button><button className="icon-button" aria-label={`Delete ${queue.name}`} onClick={() => setSavedBatchQueues((current) => current.filter((item) => item.id !== queue.id))}><Trash2 size={14}/></button></span></div>) : <small>No saved queues. Use Save queue above the file list.</small>}</section>
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <section className="preference-section"><h3>Plex metadata sidecars</h3><p>Create Plex NFO metadata and local artwork as part of the same reversible rename operation.</p><label className="preference-toggle"><span><FileText size={17}/><span><strong>Export NFO files</strong><small>Write movie, series, and episode NFOs, including multi-episode records.</small></span></span><input type="checkbox" checked={exportNfo} onChange={(event) => setExportNfo(event.target.checked)}/></label><label className="preference-toggle"><span><FileImage size={17}/><span><strong>Download Plex artwork</strong><small>Save every available provider poster, background, logo, and episode thumbnail using Plex names.</small></span></span><input type="checkbox" checked={exportPlexArtwork} onChange={(event) => setExportPlexArtwork(event.target.checked)}/></label></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
@@ -2250,7 +2291,7 @@ export default function App() {
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired supplies Plex-oriented episode numbering and titles. Search and artwork continue to use TMDB.</small></span><select value="tvdb-aired" disabled aria-label="Show metadata agent"><option value="tvdb-aired">TVDB Aired</option></select></label></div></section>
             <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label>{showMatchDecisionId && <div className="destination-row standalone"><span><strong>Rule for {show?.name}</strong><small>{activeShowRule ? `Title matching ${activeShowRule.titleMatching ? 'on' : 'off'} · ${activeShowRule.confidenceThreshold}% confirmation` : 'Use the current matching settings whenever this show is selected.'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => setShowRules((current) => [...current.filter((rule) => rule.showId !== showMatchDecisionId), { showId: showMatchDecisionId, titleMatching, confidenceThreshold: matchConfidenceThreshold, updatedAt: Date.now() }])}>{activeShowRule ? 'Update rule' : 'Save rule'}</button>{activeShowRule && <button className="icon-button" aria-label={`Remove rule for ${show?.name}`} title="Use global matching settings" onClick={() => setShowRules((current) => current.filter((rule) => rule.showId !== showMatchDecisionId))}><X size={14}/></button>}</span></div>}</section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
-              <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
+              <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions">{savedLibraryRoots.some((root) => root.kind === 'shows') && <select aria-label="Saved TV library root" value={savedLibraryRoots.some((root) => root.kind === 'shows' && root.path === tvBaseFolder) ? tvBaseFolder : ''} onChange={(event) => setTvBaseFolder(event.target.value)}><option value="">Saved roots…</option>{savedLibraryRoots.filter((root) => root.kind === 'shows').map((root) => <option value={root.path} key={root.id}>{root.name}</option>)}</select>}<button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
               <label className="folder-template-field"><span><strong>Show folder pattern</strong><small>Use seasonFolder for “Season 5” and “Specials” automatically.</small></span><input value={showFolderTemplate} onChange={(event) => setShowFolderTemplate(event.target.value)} spellCheck={false}/></label>
               {!folderFormatError && <small className="format-help"><code>{'{{show.name}}'}</code><code>{'{{show.year}}'}</code><code>{'{{show.tvdbId}}'}</code><code>{'{{season}}'}</code><code>{'{{seasonPadded}}'}</code><code>{'{{seasonFolder}}'}</code><code>{'{{isSpecial}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {folderFormatError ? <small className="format-error">{folderFormatError}</small> : <><div className="format-preview"><span>Season</span><strong>{joinPath(tvBaseFolder || 'Source folder', formatShowFolder(showFolderTemplate, 'Star Trek: The Next Generation', 1987, '71470', 1))}</strong></div><div className="format-preview"><span>Specials</span><strong>{joinPath(tvBaseFolder || 'Source folder', formatShowFolder(showFolderTemplate, 'Star Trek: The Next Generation', 1987, '71470', 0))}</strong></div></>}
@@ -2265,9 +2306,9 @@ export default function App() {
           </div> : <div className="preference-media-panel" role="tabpanel" aria-label="Movies settings">
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Movies</strong><small>TMDB currently supplies movie search, artwork, and metadata.</small></span><select value="tmdb" disabled aria-label="Movie metadata agent"><option value="tmdb">TMDB</option></select></label></div></section>
             <section className={`preference-section destination-settings ${movieFolderFormatError ? 'invalid' : ''}`}><h3>Movie destination</h3><p>Configure the separate library destination that the movie workflow will use.</p>
-              <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Create the movie folder beside its source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Create the movie folder beside its source" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
-              <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie.name, movie.year, movie.tmdbId, movie.imdbId, and nested folders.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
-              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.edition}}'}</code><code>{'{{movie.tmdbId}}'}</code><code>{'{{movie.imdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              <div className="destination-row"><span><strong>Movie base folder</strong><small>{movieBaseFolder || 'Create the movie folder beside its source'}</small></span><span className="destination-actions">{savedLibraryRoots.some((root) => root.kind === 'movies') && <select aria-label="Saved movie library root" value={savedLibraryRoots.some((root) => root.kind === 'movies' && root.path === movieBaseFolder) ? movieBaseFolder : ''} onChange={(event) => setMovieBaseFolder(event.target.value)}><option value="">Saved roots…</option>{savedLibraryRoots.filter((root) => root.kind === 'movies').map((root) => <option value={root.path} key={root.id}>{root.name}</option>)}</select>}<button className="secondary" onClick={() => void chooseBaseFolder('Movie')}><FolderTree size={14}/>{movieBaseFolder ? 'Change' : 'Choose'}</button>{movieBaseFolder && <button className="icon-button" aria-label="Clear movie base folder" title="Create the movie folder beside its source" onClick={() => setMovieBaseFolder('')}><X size={14}/></button>}</span></div>
+              <label className="folder-template-field"><span><strong>Movie folder pattern</strong><small>Supports movie, collection, edition, and nested-folder fields.</small></span><input value={movieFolderTemplate} onChange={(event) => setMovieFolderTemplate(event.target.value)} spellCheck={false}/></label>
+              {!movieFolderFormatError && <small className="format-help"><code>{'{{movie.name}}'}</code><code>{'{{movie.year}}'}</code><code>{'{{movie.edition}}'}</code><code>{'{{movie.collection.name}}'}</code><code>{'{{movie.tmdbId}}'}</code><code>{'{{movie.imdbId}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {movieFolderFormatError ? <small className="format-error">{movieFolderFormatError}</small> : <div className="format-preview"><span>Output</span><strong>{joinPath(movieBaseFolder || 'Source folder', formatMovieFolder(movieFolderTemplate, 'Blade Runner: 2049', 2017, '335984'))}</strong></div>}
             </section>
             <section className={`preference-section format-editor ${movieFormatError ? 'invalid' : ''}`}>

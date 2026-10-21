@@ -3,6 +3,8 @@ import path from 'node:path';
 
 export type SavedMatchDecision = { showId: string; filenameKey: string; episodeIds: string[]; updatedAt: number };
 export type ShowRule = { showId: string; titleMatching: boolean; confidenceThreshold: number; updatedAt: number };
+export type SavedLibraryRoot = { id: string; kind: 'shows' | 'movies'; name: string; path: string; updatedAt: number };
+export type SavedBatchQueue = { id: string; name: string; mediaType: 'shows' | 'movies'; paths: string[]; updatedAt: number };
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
@@ -23,6 +25,8 @@ export type PersistedPreferences = {
   removeEmptySourceParents?: boolean;
   releaseAliasText?: string;
   savedMatchDecisions?: SavedMatchDecision[];
+  savedLibraryRoots?: SavedLibraryRoot[];
+  savedBatchQueues?: SavedBatchQueue[];
   showRules?: ShowRule[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
@@ -68,6 +72,31 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
         || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
       return [{ showId: item.showId, filenameKey: item.filenameKey, episodeIds: item.episodeIds as string[], updatedAt: item.updatedAt }];
     }).slice(0, 1000);
+  }
+  if (Array.isArray(source.savedLibraryRoots)) {
+    result.savedLibraryRoots = source.savedLibraryRoots.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.id !== 'string' || !item.id || item.id.length > 200
+        || (item.kind !== 'shows' && item.kind !== 'movies')
+        || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 200
+        || typeof item.path !== 'string' || !item.path || item.path.length > 4096
+        || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
+      return [{ id: item.id, kind: item.kind as SavedLibraryRoot['kind'], name: item.name.trim(), path: item.path, updatedAt: item.updatedAt }];
+    }).slice(0, 100);
+  }
+  if (Array.isArray(source.savedBatchQueues)) {
+    result.savedBatchQueues = source.savedBatchQueues.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.id !== 'string' || !item.id || item.id.length > 200
+        || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 200
+        || (item.mediaType !== 'shows' && item.mediaType !== 'movies')
+        || !Array.isArray(item.paths) || !item.paths.length || item.paths.length > 5000
+        || !item.paths.every((entry) => typeof entry === 'string' && entry.length > 0 && entry.length <= 4096)
+        || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
+      return [{ id: item.id, name: item.name.trim(), mediaType: item.mediaType as SavedBatchQueue['mediaType'], paths: [...new Set(item.paths as string[])], updatedAt: item.updatedAt }];
+    }).slice(0, 100);
   }
   if (Array.isArray(source.showRules)) {
     result.showRules = source.showRules.flatMap((value) => {

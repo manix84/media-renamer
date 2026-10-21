@@ -206,7 +206,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] opt-in Plex NFO export with available local artwork sidecars
 - [x] embedded-title and adjacent-file ordering evidence
 
-### Milestone 4 — movies and library workflows (started)
+### Milestone 4 — movies and library workflows (complete)
 
 - [x] per-file movie batch matching with automatic title/year inference (including chronological year-prefixed collections), independent TMDB results, exact TV-miniseries fallback, and manual row review
 - [x] direct movie lookup by TMDB or IMDb ID, with both identifiers available to filename and folder templates
@@ -216,9 +216,9 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] movie batch status filters and bulk retry controls
 - [x] FlexGet-compatible movie edition vocabulary, aliases, source-order joining, and title-safe suffix detection
 - [x] explicit arbitrary TV/anime editions with malformed/conflict validation
-- [ ] per-file edition editing and saved custom edition aliases
-- [ ] collection-aware folder and filename fields
-- [ ] saved library roots and repeatable batch queues
+- [x] per-file edition editing and saved custom edition aliases
+- [x] collection-aware folder and filename fields (`movie.collection.name` and `movie.collection.tmdbId`)
+- [x] saved library roots and repeatable batch queues
 
 ### Milestone 5 — editing and confirmation (complete)
 
