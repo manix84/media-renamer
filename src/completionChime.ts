@@ -20,17 +20,43 @@ const HALLOWEEN_CHIME: CompletionChimeTone[] = [
   { frequency: 523.25, start: .3, duration: .5, gain: .055, wave: 'sine' },
 ];
 
+function melody(
+  frequencies: number[],
+  { step = .12, duration = .22, gain = .065, wave = 'sine' as OscillatorType } = {},
+): CompletionChimeTone[] {
+  return frequencies.map((frequency, index) => ({
+    frequency,
+    start: index * step,
+    duration: index === frequencies.length - 1 ? duration + .12 : duration,
+    gain,
+    wave,
+  }));
+}
+
 const CHRISTMAS_CHIME: CompletionChimeTone[] = [
-  { frequency: 783.99, start: 0, duration: .3, gain: .07, wave: 'sine' },
-  { frequency: 659.25, start: .11, duration: .32, gain: .065, wave: 'sine' },
-  { frequency: 698.46, start: .22, duration: .34, gain: .065, wave: 'sine' },
-  { frequency: 1046.5, start: .36, duration: .5, gain: .055, wave: 'sine' },
+  ...melody([523.25, 493.88, 440, 392, 349.23, 392, 440, 349.23], {
+    step: .12,
+    duration: .19,
+    gain: .065,
+    wave: 'sine',
+  }),
 ];
 
+const SEASONAL_CHIMES: Partial<Record<ThemePalette, CompletionChimeTone[]>> = {
+  valentines: melody([523.25, 659.25, 783.99, 1046.5], { duration: .24 }),
+  pride: melody([523.25, 587.33, 659.25, 698.46, 783.99, 880], { step: .09, duration: .18 }),
+  bonfire: melody([220, 329.63, 440, 659.25], { duration: .25, wave: 'triangle' }),
+  'new-year': melody([392, 523.25, 659.25, 783.99, 1046.5], { step: .09, duration: .21 }),
+  spring: melody([659.25, 783.99, 880, 783.99], { duration: .24 }),
+  summer: melody([440, 554.37, 659.25, 880], { duration: .24 }),
+  autumn: melody([659.25, 523.25, 440, 392], { duration: .25, wave: 'triangle' }),
+  winter: melody([783.99, 659.25, 523.25], { step: .16, duration: .3 }),
+  halloween: HALLOWEEN_CHIME,
+  christmas: CHRISTMAS_CHIME,
+};
+
 export function completionChimeTones(palette: ThemePalette): CompletionChimeTone[] {
-  if (palette === 'halloween') return HALLOWEEN_CHIME;
-  if (palette === 'christmas') return CHRISTMAS_CHIME;
-  return STANDARD_CHIME;
+  return SEASONAL_CHIMES[palette] ?? STANDARD_CHIME;
 }
 
 export function prepareCompletionChime(palette: ThemePalette): { play: () => void; dispose: () => void } | undefined {

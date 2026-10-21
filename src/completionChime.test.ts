@@ -8,8 +8,19 @@ describe('completion chimes', () => {
 
   it('gives seasonal themes distinct chimes', () => {
     const standard = completionChimeTones('classic');
-    expect(completionChimeTones('halloween')).not.toEqual(standard);
-    expect(completionChimeTones('christmas')).not.toEqual(standard);
-    expect(completionChimeTones('christmas')).not.toEqual(completionChimeTones('halloween'));
+    const seasonalPalettes = [
+      'valentines', 'pride', 'bonfire', 'new-year', 'spring',
+      'summer', 'autumn', 'winter', 'halloween', 'christmas',
+    ] as const;
+    const seasonalChimes = seasonalPalettes.map((palette) => completionChimeTones(palette));
+
+    expect(seasonalChimes.every((chime) => JSON.stringify(chime) !== JSON.stringify(standard))).toBe(true);
+    expect(new Set(seasonalChimes.map((chime) => JSON.stringify(chime))).size).toBe(seasonalPalettes.length);
+  });
+
+  it('plays the requested Deck the Halls phrase for Christmas', () => {
+    expect(completionChimeTones('christmas').map((tone) => tone.frequency)).toEqual([
+      523.25, 493.88, 440, 392, 349.23, 392, 440, 349.23,
+    ]);
   });
 });

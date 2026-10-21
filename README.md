@@ -238,6 +238,8 @@ Milestones describe product capability rather than strict release boundaries. Wo
 
 ### Milestone 7 — versioning, developer tools, and personality (in progress)
 
+- [x] Give every seasonal theme a distinct completion chime, including a Deck the Halls phrase for Christmas.
+
 - [x] use the package/application version as the single build and runtime source, avoiding duplicated self-mutating version files
 - [x] display the current application version at the bottom of Preferences
 - [x] hidden, locally persisted developer mode for developer-only diagnostics
