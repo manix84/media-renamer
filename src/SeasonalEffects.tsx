@@ -3,8 +3,15 @@ import type { ThemePalette } from './theme';
 
 type Point = { x: number; y: number };
 type Snowflake = Point & { size: number; speed: number; drift: number; phase: number };
+type AmbientParticle = Snowflake & { rotation: number; spin: number; opacity: number; colour: string };
 type WebConfig = { rings: number; spokes: number; spacing: number };
 export type BatFlight = { entryEdge: number; exitEdge: number; start: Point; control1: Point; control2: Point; end: Point; phase: number; scale: number; flutter: number };
+
+const CANVAS_EFFECT_PALETTES: ThemePalette[] = ['valentines', 'bonfire', 'new-year', 'spring', 'summer', 'autumn', 'winter', 'halloween', 'christmas'];
+
+export function hasSeasonalCanvasEffects(palette: ThemePalette): boolean {
+  return CANVAS_EFFECT_PALETTES.includes(palette);
+}
 
 function edgePoint(edge: number, width: number, height: number, random: () => number): Point {
   const margin = 48;
@@ -103,11 +110,88 @@ function drawBatFlock(context: CanvasRenderingContext2D, progress: number, time:
   }
 }
 
+function particleColours(palette: ThemePalette): string[] {
+  if (palette === 'valentines') return ['#ff7096', '#ff9fba', '#d94f79'];
+  if (palette === 'bonfire') return ['#ffce55', '#ff8a24', '#ed4d20'];
+  if (palette === 'new-year') return ['#f7d76d', '#d6ad3c', '#fff2bd', '#8eb7ff'];
+  if (palette === 'spring') return ['#ffb7cf', '#ffd7e4', '#f59abb', '#ffffff'];
+  if (palette === 'summer') return ['#fff0a0', '#ffd35e', '#fff8ce'];
+  if (palette === 'autumn') return ['#d78236', '#b44b27', '#e2a23f', '#8d3f24'];
+  return ['#d9efff', '#a8d4f2', '#ffffff'];
+}
+
+function createAmbientParticles(palette: ThemePalette, width: number, height: number): AmbientParticle[] {
+  const colours = particleColours(palette);
+  const density = palette === 'bonfire' ? 38 : palette === 'new-year' ? 28 : palette === 'summer' ? 22 : 32;
+  return Array.from({ length: Math.max(density, Math.floor(width / 42)) }, (_, index) => ({
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: 2 + Math.random() * (palette === 'valentines' ? 5 : palette === 'autumn' ? 4 : 3),
+    speed: 7 + Math.random() * (palette === 'bonfire' ? 30 : 18),
+    drift: 4 + Math.random() * 13,
+    phase: index * .83 + Math.random() * Math.PI,
+    rotation: Math.random() * Math.PI * 2,
+    spin: (Math.random() - .5) * 1.4,
+    opacity: .28 + Math.random() * .42,
+    colour: colours[index % colours.length],
+  }));
+}
+
+function drawAmbientParticle(context: CanvasRenderingContext2D, particle: AmbientParticle, palette: ThemePalette) {
+  context.save();
+  context.translate(particle.x, particle.y);
+  context.rotate(particle.rotation);
+  context.globalAlpha = particle.opacity;
+  context.fillStyle = particle.colour;
+  context.strokeStyle = particle.colour;
+  if (palette === 'valentines') {
+    const size = particle.size;
+    context.beginPath();
+    context.moveTo(0, size * .8);
+    context.bezierCurveTo(-size * 1.6, -size * .15, -size * .75, -size * 1.3, 0, -size * .55);
+    context.bezierCurveTo(size * .75, -size * 1.3, size * 1.6, -size * .15, 0, size * .8);
+    context.fill();
+  } else if (palette === 'spring') {
+    context.beginPath(); context.ellipse(0, 0, particle.size * 1.5, particle.size * .62, 0, 0, Math.PI * 2); context.fill();
+  } else if (palette === 'autumn') {
+    context.beginPath(); context.ellipse(0, 0, particle.size * 1.45, particle.size * .72, 0, 0, Math.PI * 2); context.fill();
+    context.globalAlpha *= .7; context.lineWidth = .7; context.beginPath(); context.moveTo(-particle.size, 0); context.lineTo(particle.size, 0); context.stroke();
+  } else if (palette === 'winter') {
+    context.globalAlpha *= .7; context.lineWidth = 1;
+    for (let spoke = 0; spoke < 3; spoke += 1) { context.rotate(Math.PI / 3); context.beginPath(); context.moveTo(-particle.size, 0); context.lineTo(particle.size, 0); context.stroke(); }
+  } else if (palette === 'new-year') {
+    context.fillRect(-particle.size * .35, -particle.size, particle.size * .7, particle.size * 2);
+  } else {
+    context.beginPath(); context.arc(0, 0, particle.size, 0, Math.PI * 2); context.fill();
+  }
+  context.restore();
+}
+
+function drawFirework(context: CanvasRenderingContext2D, width: number, height: number, time: number, offset: number, colour: string) {
+  const cycle = ((time + offset) % 7200) / 1150;
+  if (cycle < 0 || cycle > 1) return;
+  const originX = width * (offset ? .72 : .27);
+  const originY = height * (offset ? .28 : .2);
+  const radius = 18 + cycle * 62;
+  context.save();
+  context.globalAlpha = Math.sin(cycle * Math.PI) * .42;
+  context.strokeStyle = colour;
+  context.lineWidth = 1.2;
+  for (let ray = 0; ray < 14; ray += 1) {
+    const angle = ray / 14 * Math.PI * 2;
+    context.beginPath();
+    context.moveTo(originX + Math.cos(angle) * radius * .55, originY + Math.sin(angle) * radius * .55);
+    context.lineTo(originX + Math.cos(angle) * radius, originY + Math.sin(angle) * radius);
+    context.stroke();
+  }
+  context.restore();
+}
+
 export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (palette !== 'halloween' && palette !== 'christmas') return;
+    if (!hasSeasonalCanvasEffects(palette)) return;
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
@@ -124,6 +208,7 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
     let batFlights: BatFlight[] = [];
     const webConfigs: [WebConfig, WebConfig] = [0, 1].map(() => ({ rings: 4 + Math.floor(Math.random() * 2), spokes: 6 + Math.floor(Math.random() * 2), spacing: 15 + Math.random() * 5 })) as [WebConfig, WebConfig];
     let snow: Snowflake[] = [];
+    let particles: AmbientParticle[] = [];
 
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -136,6 +221,7 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       if (palette === 'halloween' && batFlights.length === 0) batFlights = createBatFlights(width, height, 2 + Math.floor(Math.random() * 2));
       if (palette === 'christmas') snow = Array.from({ length: Math.max(35, Math.floor(width / 20)) }, (_, index) => ({ x: Math.random() * width, y: Math.random() * height, size: 1 + Math.random() * 2.4, speed: 12 + Math.random() * 25, drift: 5 + Math.random() * 12, phase: index * .7 }));
+      else if (palette !== 'halloween') particles = createAmbientParticles(palette, width, height);
     };
     const pointerMove = (event: PointerEvent) => { mouse = { x: event.clientX, y: event.clientY - 64 }; };
     const pointerLeave = () => { mouse = undefined; };
@@ -163,7 +249,7 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
         drawWeb(context, { x: 0, y: 0 }, { x: 1, y: 1 }, webConfigs[0], webMouse, webMouseStrength, time, reducedMotion);
         drawWeb(context, { x: width, y: 0 }, { x: -1, y: 1 }, webConfigs[1], webMouse, webMouseStrength, time, reducedMotion);
         if (!reducedMotion && time >= ambientStart && time <= ambientStart + ambientDuration) drawBatFlock(context, (time - ambientStart) / ambientDuration, time, batFlights, document.documentElement.dataset.theme === 'dark', mouse);
-      } else {
+      } else if (palette === 'christmas') {
         context.fillStyle = 'rgba(230, 244, 255, .72)';
         for (const flake of snow) {
           if (!reducedMotion) {
@@ -178,6 +264,22 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
             if (flake.y > height + 5) { flake.y = -5; flake.x = Math.random() * width; }
           }
           context.beginPath(); context.arc(flake.x, flake.y, flake.size, 0, Math.PI * 2); context.fill();
+        }
+      } else {
+        const rises = palette === 'valentines' || palette === 'bonfire' || palette === 'summer';
+        for (const particle of particles) {
+          if (!reducedMotion) {
+            particle.y += (rises ? -1 : 1) * particle.speed * delta;
+            particle.x += Math.sin(time / 900 + particle.phase) * particle.drift * delta;
+            particle.rotation += particle.spin * delta;
+            if (rises && particle.y < -12) { particle.y = height + 12; particle.x = palette === 'bonfire' ? width * (.35 + Math.random() * .3) : Math.random() * width; }
+            if (!rises && particle.y > height + 12) { particle.y = -12; particle.x = Math.random() * width; }
+          }
+          drawAmbientParticle(context, particle, palette);
+        }
+        if (!reducedMotion && (palette === 'new-year' || palette === 'bonfire')) {
+          drawFirework(context, width, height, time, 0, palette === 'new-year' ? '#f7d76d' : '#ff9b32');
+          drawFirework(context, width, height, time, 3600, palette === 'new-year' ? '#8eb7ff' : '#ef6040');
         }
       }
       if (!reducedMotion && palette === 'halloween' && time > ambientStart + ambientDuration) scheduleNext(time);
@@ -196,6 +298,6 @@ export function SeasonalEffects({ palette }: { palette: ThemePalette }) {
     };
   }, [palette]);
 
-  if (palette !== 'halloween' && palette !== 'christmas') return null;
+  if (!hasSeasonalCanvasEffects(palette)) return null;
   return <canvas ref={canvasRef} className="seasonal-effects" aria-hidden="true"/>;
 }

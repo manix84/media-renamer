@@ -245,6 +245,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] after the third version click, show and update the remaining-click count
 - [x] show Halloween only in October and Christmas only in December, with developer-mode preview and an automatic Classic fallback outside each season
 - [x] add Valentine’s, Pride, Bonfire Night, New Year, Spring, Summer, Autumn, and Winter themes, with event themes taking priority over broad seasons
+- [x] give seasonal themes distinct reduced-motion-aware ambience: hearts, petals, sunlight motes, leaves, embers, fireworks, ice crystals, bats, snow, and flowing Pride colours
 - [ ] replace seasonal-theme colour dots with appropriate emojis
 - [ ] add a hidden, non-disruptive Easter egg
 

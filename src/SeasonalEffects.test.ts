@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBatFlights } from './SeasonalEffects';
+import { createBatFlights, hasSeasonalCanvasEffects } from './SeasonalEffects';
 
 describe('Halloween bat flights', () => {
   it('enter and leave through different screen edges with curved interior routes', () => {
@@ -17,5 +17,13 @@ describe('Halloween bat flights', () => {
     expect(flight.control1.y).toBeGreaterThan(0);
     expect(flight.control2.x).toBeLessThan(1000);
     expect(flight.control2.y).toBeLessThan(700);
+  });
+});
+
+describe('seasonal canvas effects', () => {
+  it('covers particle themes while leaving Pride to its CSS colour flow', () => {
+    expect(['valentines', 'bonfire', 'new-year', 'spring', 'summer', 'autumn', 'winter', 'halloween', 'christmas'].every((palette) => hasSeasonalCanvasEffects(palette as Parameters<typeof hasSeasonalCanvasEffects>[0]))).toBe(true);
+    expect(hasSeasonalCanvasEffects('pride')).toBe(false);
+    expect(hasSeasonalCanvasEffects('classic')).toBe(false);
   });
 });
