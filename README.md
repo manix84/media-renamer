@@ -247,7 +247,71 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [ ] replace seasonal-theme colour dots with appropriate emojis
 - [ ] add a hidden, non-disruptive Easter egg
 
-### Milestone 8 — release readiness (planned)
+### Milestone 8 — private-by-design error reporting (planned)
+
+Error reporting must be entirely optional, disabled by default, and initiated for each report by the user. Nothing may be captured or transmitted in the background. The final review must show the exact public GitHub issue body and image that will be submitted, with no additional hidden payload.
+
+#### Consent and review
+
+- [ ] add an **Anonymous error reporting** preference, off by default, which exposes reporting tools without granting standing consent to submit reports
+- [ ] require an explicit final confirmation for every report and explain that the resulting GitHub issue and any screenshot will be public
+- [ ] provide an editable report composer for the title, problem description, expected behaviour, actual behaviour, and reproduction steps
+- [ ] allow every diagnostic section, history event, and attachment to be edited or removed before submission
+- [ ] show this guidance in the review screen: “The automatically collected information has already been anonymised. Removing additional details is completely fine, but it may make the problem more difficult to diagnose or reproduce.”
+- [ ] cancel without transmitting anything and delete all temporary report artifacts on cancellation, successful submission, application exit, or expiry
+
+#### Automatic reproduction history
+
+- [ ] maintain a bounded, memory-only structured action history separate from the human-readable debug console
+- [ ] record diagnostic actions rather than raw UI prose: mode changes, imports, batch classification, searches, match selections, confirmations, template or destination changes, preflight results, rename operations, stops, completions, and undo operations
+- [ ] automatically turn that history into ordered, editable reproduction steps in the report composer
+- [ ] record counts, workflow stages, result categories, provider names, and error codes without recording credentials, file contents, or unapproved raw paths
+- [ ] let the user rewrite, reorder, add, or delete generated steps without changing the retained local history
+
+#### Anonymous path and URI diagnostics
+
+- [ ] assign consistent random report-local tokens such as `<source-1>`, `<directory-2>`, and `<file-7>.mkv`; never derive tokens from reversible or guessable path hashes
+- [ ] retain diagnostically relevant structure: platform path style, absolute/relative state, directory depth, extension, total character and UTF-8 byte length, component lengths, and collision suffix effects
+- [ ] detect NFC/NFD or mixed Unicode normalization, non-ASCII and combining characters, invisible or control characters, reserved characters and names, trailing spaces or periods, repeated or mixed separators, percent-encoded sequences, dot segments, multiple extensions, case-only differences, and abnormal filename/path lengths
+- [ ] describe suspicious characters by position and escaped Unicode code point without including the surrounding private title by default
+- [ ] calculate both source and generated-destination diagnostics so path-length, normalization, portability, and collision failures remain reproducible
+- [ ] show each original path locally beside its anonymised representation and offer per-path controls for **Keep anonymous** (default), **Include suspicious fragment only**, **Include filename only**, or **Include complete path**
+- [ ] warn that filenames and complete paths may disclose usernames, media titles, and private folder names; include raw values only when the user deliberately approves them
+- [ ] ensure raw paths are not sent in hidden JSON, logs, image metadata, headers, or an auxiliary payload when the anonymised representation is selected
+
+#### Screenshot capture and redaction
+
+- [ ] make screenshots independently optional and off by default, even after reporting tools are enabled
+- [ ] capture only the Media Renamer window through Electron; never capture the desktop, another application, native file dialogs, or hidden windows
+- [ ] preview the captured image and provide remove, retake, crop, rectangle-redact, and undo-redaction controls
+- [ ] flatten redactions and strip image metadata before submission
+- [ ] store screenshots only in a private temporary directory and enforce image dimensions and payload-size limits
+
+#### Diagnostic allowlist and sanitisation
+
+- [ ] build reports from an explicit allowlist: application version/build channel, broad operating-system version, architecture, active media mode, workflow stage, aggregate counts, relevant boolean preferences, configured-provider status, sanitised error code/message/stack, approved debug events, and approved path diagnostics
+- [ ] never collect API keys, tokens, request headers, environment variables, hostnames, machine IDs, serial numbers, network addresses, file contents, rename-history files, GitHub credentials, or persistent user identifiers
+- [ ] redact home-directory usernames, absolute paths, secrets, URLs with credentials/query secrets, and provider tokens locally before the review is generated
+- [ ] add adversarial tests for Windows, POSIX, UNC, Unicode, control-character, overlong, credential-bearing, and malformed paths plus regression tests proving that rejected fields cannot cross the IPC boundary
+
+#### Anonymous GitHub delivery
+
+- [ ] do not ship a GitHub write token in the desktop application
+- [ ] submit the reviewed payload through a narrowly scoped relay authenticated as a dedicated GitHub App or bot so the issue does not require or disclose the reporter's GitHub identity
+- [ ] publish a concise privacy statement clarifying that the report contains no application-supplied identity while hosting and network providers may transiently observe connection metadata such as an IP address
+- [ ] validate the report schema server-side, reject unknown fields, strip attachment metadata again, limit body and image sizes, rate-limit abuse, and avoid retaining report bodies or screenshots after submission
+- [ ] format issues consistently with Problem, Expected behaviour, What happened, Reproduction steps, Application context, Relevant settings, Sanitised diagnostics, and Privacy confirmation sections
+- [ ] apply dedicated bot-authored labels such as `anonymous-report`, problem category, platform, and application version without adding a reporter identifier
+- [ ] implement a controlled GitHub-compatible image attachment path; keep text-only submission available when screenshots are omitted or attachment storage is unavailable
+
+#### Failure handling and verification
+
+- [ ] never retry a failed submission silently; offer **Try again**, **Save report locally**, **Copy Markdown**, and **Open GitHub manually**
+- [ ] make the local export contain exactly the reviewed `report.md`, optional flattened screenshot, and reviewed diagnostics JSON—nothing else
+- [ ] return and display the created issue URL after success
+- [ ] test cancellation, offline submission, relay rejection, rate limiting, oversized payloads, temporary-file cleanup, renderer compromise boundaries, Markdown injection, image metadata stripping, and final-preview parity
+
+### Milestone 9 — release readiness (planned)
 
 - [ ] signed and notarized macOS build
 - [ ] signed Windows build and packaged Linux build
@@ -272,6 +336,6 @@ Provider responses should be normalized immediately. API keys stay in the main p
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Continue movie and library workflows: custom edition aliases, collection-aware fields, saved roots, and repeatable queues.
-2. Add version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
+1. Complete Milestone 7: version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
+2. Build the local-only report model, structured reproduction history, path analyser, sanitiser, and editable preview before adding any network submission.
 3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.
