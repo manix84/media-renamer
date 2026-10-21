@@ -3,7 +3,7 @@ import { availablePaletteOrDefault, isPaletteAvailable } from './seasonalThemes'
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type ResolvedTheme = Exclude<ThemePreference, 'system'>;
-export type ThemePalette = 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+export type ThemePalette = 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
 
 const STORAGE_KEY = 'media-renamer-theme';
 const PALETTE_STORAGE_KEY = 'media-renamer-palette';
@@ -20,7 +20,7 @@ export function isThemePreference(value: unknown): value is ThemePreference {
 }
 
 export function isThemePalette(value: unknown): value is ThemePalette {
-  return value === 'classic' || value === 'ocean' || value === 'forest' || value === 'rose' || value === 'amber' || value === 'halloween' || value === 'christmas';
+  return value === 'classic' || value === 'ocean' || value === 'forest' || value === 'rose' || value === 'amber' || value === 'valentines' || value === 'pride' || value === 'bonfire' || value === 'new-year' || value === 'spring' || value === 'summer' || value === 'autumn' || value === 'winter' || value === 'halloween' || value === 'christmas';
 }
 
 export function resolveTheme(preference: ThemePreference, systemIsDark: boolean): ResolvedTheme {
@@ -39,7 +39,7 @@ function storedPreference(): ThemePreference {
 function storedPalette(): ThemePalette {
   try {
     const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
-    const palette = stored === 'winter' ? 'christmas' : isThemePalette(stored) ? stored : 'classic';
+    const palette = isThemePalette(stored) ? stored : 'classic';
     return availablePaletteOrDefault(palette, new Date(), false);
   } catch {
     return 'classic';

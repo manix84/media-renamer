@@ -48,7 +48,7 @@ declare global {
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
-        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
         tvBaseFolder?: string;
@@ -78,7 +78,7 @@ declare global {
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
-        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+        themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
         tvBaseFolder?: string;

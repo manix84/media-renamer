@@ -31,7 +31,7 @@ export type PersistedPreferences = {
   showRules?: ShowRule[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
-  themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'halloween' | 'christmas';
+  themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
   themePreference?: 'system' | 'light' | 'dark';
   titleMatching?: boolean;
   tvBaseFolder?: string;
@@ -61,7 +61,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.exportNfo === 'boolean') result.exportNfo = source.exportNfo;
   if (typeof source.exportPlexArtwork === 'boolean') result.exportPlexArtwork = source.exportPlexArtwork;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
-  if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
+  if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'valentines' || source.themePalette === 'pride' || source.themePalette === 'bonfire' || source.themePalette === 'new-year' || source.themePalette === 'spring' || source.themePalette === 'summer' || source.themePalette === 'autumn' || source.themePalette === 'winter' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
   if (Array.isArray(source.savedMatchDecisions)) {
     result.savedMatchDecisions = source.savedMatchDecisions.flatMap((value) => {

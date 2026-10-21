@@ -20,7 +20,7 @@ import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalT
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
-import { availablePalettes, isPaletteAvailable } from './seasonalThemes';
+import { availablePalettes, isPaletteAvailable, STANDARD_PALETTES } from './seasonalThemes';
 import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
@@ -2304,9 +2304,10 @@ export default function App() {
               <button key={value} className={preference === value ? 'active' : ''} aria-label={`${label} appearance`} aria-pressed={preference === value} onClick={() => setPreference(value)}><Icon size={15}/><span>{label}</span></button>
             ))}
           </div><div className="palette-heading"><strong>{t('prefs.colourTheme')}</strong><small>{t('prefs.colourHelp')}</small></div><div className="palette-switcher" role="group" aria-label="Colour theme">
-            {([['classic', 'Classic', '#7663dc'], ['ocean', 'Ocean', '#1688c9'], ['forest', 'Forest', '#27865b'], ['rose', 'Rose', '#c04f82'], ['amber', 'Amber', '#c47a16'], ['halloween', 'Halloween', '#e56b18'], ['christmas', 'Christmas', '#4f8fc9']] as Array<[ThemePalette, string, string]>).filter(([value]) => selectablePalettes.includes(value)).map(([value, label, colour]) => (
-              <button key={value} className={`${palette === value ? 'active' : ''} ${value === 'halloween' || value === 'christmas' ? 'seasonal' : ''}`.trim()} aria-pressed={palette === value} onClick={() => setPalette(value, developerMode)}><span className="palette-swatch" style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{(value === 'halloween' || value === 'christmas') && <small>Seasonal</small>}</button>
-            ))}
+            {([['classic', 'Classic', '#7663dc'], ['ocean', 'Ocean', '#1688c9'], ['forest', 'Forest', '#27865b'], ['rose', 'Rose', '#c04f82'], ['amber', 'Amber', '#c47a16'], ['valentines', 'Valentine’s', '#d94f79'], ['pride', 'Pride', '#d65a9d'], ['bonfire', 'Bonfire Night', '#f28c28'], ['new-year', 'New Year', '#d6ad3c'], ['spring', 'Spring', '#4fa66b'], ['summer', 'Summer', '#e5a91a'], ['autumn', 'Autumn', '#b6672b'], ['winter', 'Winter', '#6c9ecf'], ['halloween', 'Halloween', '#e56b18'], ['christmas', 'Christmas', '#4f8fc9']] as Array<[ThemePalette, string, string]>).filter(([value]) => selectablePalettes.includes(value)).map(([value, label, colour]) => {
+              const seasonal = !STANDARD_PALETTES.includes(value);
+              return <button key={value} className={`${palette === value ? 'active' : ''} ${seasonal ? 'seasonal' : ''}`.trim()} aria-pressed={palette === value} onClick={() => setPalette(value, developerMode)}><span className={`palette-swatch ${value === 'pride' ? 'pride-swatch' : ''}`.trim()} style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{seasonal && <small>Seasonal</small>}</button>;
+            })}
           </div></section>
           <section className="preference-section"><h3>{t('prefs.fileList')}</h3><p>{t('prefs.fileListHelp')}</p><div className="view-mode-switcher" role="group" aria-label="File list view">
             {([['detailed', 'Detailed', 'Match evidence and detected media tags'], ['summary', 'Summary', 'Current filename and proposed filename'], ['compact', 'Compact', 'Short rows for larger batches']] as const).map(([value, label, description]) => (

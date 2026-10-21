@@ -20,6 +20,14 @@ describe('theme preference', () => {
 
   it('accepts only supported colour palettes', () => {
     expect(isThemePalette('classic')).toBe(true);
+    expect(isThemePalette('valentines')).toBe(true);
+    expect(isThemePalette('pride')).toBe(true);
+    expect(isThemePalette('bonfire')).toBe(true);
+    expect(isThemePalette('new-year')).toBe(true);
+    expect(isThemePalette('spring')).toBe(true);
+    expect(isThemePalette('summer')).toBe(true);
+    expect(isThemePalette('autumn')).toBe(true);
+    expect(isThemePalette('winter')).toBe(true);
     expect(isThemePalette('christmas')).toBe(true);
     expect(isThemePalette('sepia')).toBe(false);
   });
