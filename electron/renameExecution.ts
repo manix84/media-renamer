@@ -38,7 +38,7 @@ const sourceJunkPatterns = [
   /^\[tgx\][ ._-]*downloaded[ ._-]+from[ ._-]+torrentgalaxy\.to[ ._-]*\.txt$/i,
   /^new[ ._-]+upcoming[ ._-]+releases[ ._-]+by[ ._-]+xclusive\.txt$/i,
   /^info\.txt$/i,
-  /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid(?:\.[a-z0-9-]{2,12})?(?:[ ._-]+www\.demonoid\.[a-z0-9-]{2,12})?|extratorrent\.[a-z0-9-]{2,12}|unlock\.[a-z0-9-]{2,12})(?:[ ._-]+copy)?[ ._-]*\.txt$/i,
+  /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid(?:\.[a-z0-9-]{2,12})?(?:[ ._-]+www\.demonoid\.[a-z0-9-]{2,12})?|extratorrent\.[a-z0-9-]{2,12}|uindex\.[a-z0-9-]{2,12}|unlock\.[a-z0-9-]{2,12})(?:[ ._-]+copy)?[ ._-]*\.txt$/i,
 ];
 
 async function exists(filePath: string): Promise<boolean> {

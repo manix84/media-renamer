@@ -166,6 +166,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent downloaded from Demonoid.com - Copy.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From ExtraTorrent.com.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From ExtraTorrent.cc.txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From     UIndex.org      .txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'AhaShare.com.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent_downloaded_from_Demonoid_-_www.demonoid.pw_.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'Torrent Downloaded From Unlock.org    .txt'), 'advert'),
@@ -192,10 +193,11 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(27);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(28);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG.txt'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Torrent Downloaded From     UIndex.org      .txt'));
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
