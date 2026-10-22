@@ -1,6 +1,7 @@
 import type { ThemePalette } from './theme';
 
 export type CompletionChimeTone = {
+  sound?: 'tone' | 'snap';
   frequency: number;
   start: number;
   duration: number;
@@ -32,6 +33,8 @@ const HALLOWEEN_CHIME: CompletionChimeTone[] = [
   { frequency: 293.66, start: .15, duration: .15, gain: .065, wave: 'triangle' },
   { frequency: 329.63, start: .3, duration: .15, gain: .065, wave: 'triangle' },
   { frequency: 349.23, start: .45, duration: .15, gain: .065, wave: 'triangle' },
+  { sound: 'snap', frequency: 0, start: .9, duration: .035, gain: .11, wave: 'square' },
+  { sound: 'snap', frequency: 0, start: 1.385, duration: .035, gain: .11, wave: 'square' },
 ];
 
 const CHRISTMAS_CHIME: CompletionChimeTone[] = [
@@ -80,10 +83,30 @@ export function prepareCompletionChime(palette: ThemePalette): { play: () => voi
         const tones = completionChimeTones(palette);
         const origin = context.currentTime + .025;
         for (const tone of tones) {
-          const oscillator = context.createOscillator();
           const envelope = context.createGain();
           const start = origin + tone.start;
           const end = start + tone.duration;
+          if (tone.sound === 'snap') {
+            const sampleCount = Math.ceil(context.sampleRate * tone.duration);
+            const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
+            const samples = buffer.getChannelData(0);
+            for (let index = 0; index < sampleCount; index += 1) {
+              const decay = 1 - index / sampleCount;
+              samples[index] = (Math.random() * 2 - 1) * decay * decay;
+            }
+            const source = context.createBufferSource();
+            const filter = context.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(1200, start);
+            envelope.gain.setValueAtTime(tone.gain, start);
+            envelope.gain.exponentialRampToValueAtTime(.0001, end);
+            source.buffer = buffer;
+            source.connect(filter).connect(envelope).connect(context.destination);
+            source.start(start);
+            source.stop(end);
+            continue;
+          }
+          const oscillator = context.createOscillator();
           oscillator.type = tone.wave;
           oscillator.frequency.setValueAtTime(tone.frequency, start);
           envelope.gain.setValueAtTime(.0001, start);

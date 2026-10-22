@@ -24,11 +24,17 @@ describe('completion chimes', () => {
     ]);
   });
 
-  it('plays the four-note Halloween phrase at 400 BPM', () => {
+  it('plays the four-note Halloween phrase at 400 BPM followed by rested finger snaps', () => {
     const tones = completionChimeTones('halloween');
+    const notes = tones.filter((tone) => tone.sound !== 'snap');
+    const snaps = tones.filter((tone) => tone.sound === 'snap');
 
-    expect(tones.map((tone) => tone.frequency)).toEqual([261.63, 293.66, 329.63, 349.23]);
-    expect(tones.map((tone) => tone.start)).toEqual([0, .15, .3, .45]);
-    expect(tones.map((tone) => tone.duration)).toEqual([.15, .15, .15, .15]);
+    expect(notes.map((tone) => tone.frequency)).toEqual([261.63, 293.66, 329.63, 349.23]);
+    expect(notes.map((tone) => tone.start)).toEqual([0, .15, .3, .45]);
+    expect(notes.map((tone) => tone.duration)).toEqual([.15, .15, .15, .15]);
+    expect(snaps.map((snap) => snap.start)).toEqual([.9, 1.385]);
+    expect(snaps.every((snap) => snap.duration === .035)).toBe(true);
+    expect(snaps[0].start - (notes.at(-1)!.start + notes.at(-1)!.duration)).toBeCloseTo(.3);
+    expect(snaps[1].start - (snaps[0].start + snaps[0].duration)).toBeCloseTo(.45);
   });
 });
