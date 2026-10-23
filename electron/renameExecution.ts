@@ -38,6 +38,10 @@ const sourceJunkPatterns = [
   /^\[tgx\][ ._-]*downloaded[ ._-]+from[ ._-]+torrentgalaxy\.to[ ._-]*\.txt$/i,
   /^new[ ._-]+upcoming[ ._-]+releases[ ._-]+by[ ._-]+xclusive\.txt$/i,
   /^info\.txt$/i,
+  /^encoded[ ._-]+by[ ._-]+joybell[ ._-]*\(\s*utr\s*\)\.txt$/i,
+  /^folder\.png$/i,
+  /^how[ ._-]+to[ ._-]+play[ ._-]+hevc[ ._-]*\(\s*this[ ._-]+file\s*\)\.txt$/i,
+  /^ninite[ ._-]+k-lite[ ._-]+codecs[ ._-]+unattended[ ._-]+silent[ ._-]+installer[ ._-]+and[ ._-]+updater\.website$/i,
   /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid(?:\.[a-z0-9-]{2,12})?(?:[ ._-]+www\.demonoid\.[a-z0-9-]{2,12})?|extratorrent\.[a-z0-9-]{2,12}|uindex\.[a-z0-9-]{2,12}|unlock\.[a-z0-9-]{2,12})(?:[ ._-]+copy)?[ ._-]*\.txt$/i,
 ];
 

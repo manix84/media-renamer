@@ -178,6 +178,10 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(nestedDirectory, '[TGx]Downloaded from torrentgalaxy.to .txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'NEW upcoming releases by Xclusive.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'info.txt'), 'advert'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'Encoded by JoyBell (UTR).txt'), 'release credit'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'folder.png'), 'release artwork'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'How to play HEVC (THIS FILE).txt'), 'codec instructions'),
+      fs.promises.writeFile(path.join(nestedDirectory, 'Ninite K-Lite Codecs Unattended Silent Installer and Updater.website'), 'installer shortcut'),
       fs.promises.writeFile(path.join(subtitlesDirectory, 'English.srt'), 'subtitle'),
       fs.promises.writeFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'extra video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
@@ -186,6 +190,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'keep'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'folder.jpg'), 'keep'),
     ]);
 
     const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, {
@@ -193,11 +198,15 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(28);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(32);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG.txt'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Torrent Downloaded From     UIndex.org      .txt'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Encoded by JoyBell (UTR).txt'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'folder.png'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'How to play HEVC (THIS FILE).txt'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Ninite K-Lite Codecs Unattended Silent Installer and Updater.website'));
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
@@ -206,6 +215,7 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'folder.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie.srt'), 'utf8')).resolves.toContain('Subtitle');
     await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
     await expect(fs.promises.readFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'utf8')).resolves.toBe('extra video');
