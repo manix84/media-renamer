@@ -8,6 +8,7 @@ import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
 import { requestedEpisodeSeasons, seasonCompatibleShow } from './core/showSelection';
+import { loadShowEpisodesWithFallback } from './core/showEpisodeLoading';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { appendMovieVideoSuffix, classifyMovieVideoRoles, movieVideoSuffix } from './core/movieVideoRole';
 import { classifyMediaBatch, classifyMediaFile } from './core/mediaClassification';
@@ -299,6 +300,7 @@ export default function App() {
   const [activeSearchResult, setActiveSearchResult] = useState(-1);
   const [searching, setSearching] = useState(false);
   const [show, setShow] = useState<ShowDetails>();
+  const [activeShowMetadataAgent, setActiveShowMetadataAgent] = useState<ShowMetadataAgent>(showMetadataAgent);
   const [movieMatches, setMovieMatches] = useState<Record<string, MovieFileMatch>>({});
   const [forcedMoviePaths, setForcedMoviePaths] = useState<Set<string>>(() => new Set());
   const [movieBatchFilter, setMovieBatchFilter] = useState<MovieBatchFilter>('all');
@@ -1369,7 +1371,15 @@ export default function App() {
         if (resolved) addDebug('info', 'Resolved missing TVDB cross-reference', `${resolved.name}${resolved.year ? ` (${resolved.year})` : ''} · TVDB ${resolved.id}.`);
       }
       if (episodeAgent === 'tvdb-aired' && !tvdbId) throw new Error(`Could not safely resolve a TVDB series for ${details.name}. Choose the TMDB agent or search by tvdb-ID.`);
-      const loadedEpisodes = await window.mediaRenamer?.getShowEpisodes({ agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) }) ?? [];
+      const episodeLoad = await loadShowEpisodesWithFallback(
+        { agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) },
+        async (request) => await window.mediaRenamer?.getShowEpisodes(request) ?? [],
+      );
+      const loadedEpisodes = episodeLoad.episodes;
+      const resolvedEpisodeAgent = episodeLoad.agent;
+      if (episodeLoad.fallbackReason) {
+        addDebug('warning', `Using TMDB episodes for ${details.name}`, `${episodeLoad.fallbackReason} The stale TVDB cross-reference was omitted.`);
+      }
       if (seasonSequence.current === sequence) {
         const sortedEpisodes = loadedEpisodes.slice().sort((left, right) => left.season - right.season || left.number - right.number);
         const seasonNumbers = [...new Set(sortedEpisodes.map((episode) => episode.season))];
@@ -1377,13 +1387,14 @@ export default function App() {
           const existing = details.seasons.find((season) => season.number === number);
           return { number, name: existing?.name ?? (number === 0 ? 'Specials' : `Season ${number}`), episodeCount: sortedEpisodes.filter((episode) => episode.season === number).length, airDate: existing?.airDate };
         });
-        setShow({ ...details, tvdbId, seasons });
+        setShow({ ...details, tvdbId: episodeLoad.tvdbId, seasons });
+        setActiveShowMetadataAgent(resolvedEpisodeAgent);
         setEpisodes(sortedEpisodes);
         const missingSeasons = requestedEpisodeSeasons(paths).filter((season) => !seasonNumbers.includes(season));
         if (missingSeasons.length) {
           setError(`${details.name} does not contain season ${missingSeasons.join(', ')} required by the imported filenames. Choose a different show result or episode order.`);
         }
-        addDebug('success', `Loaded ${details.name}`, `${sortedEpisodes.length} ${episodeAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'} episodes across ${seasons.length} seasons.`);
+        addDebug('success', `Loaded ${details.name}`, `${sortedEpisodes.length} ${resolvedEpisodeAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'} episodes across ${seasons.length} seasons.`);
       }
     } catch (reason) {
       if (seasonSequence.current === sequence) {
@@ -1967,7 +1978,7 @@ export default function App() {
               <p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE BATCH' : t('hero.activeShow')}</p>
               {activeTitle?.logoUrl && <img className="show-logo" src={activeTitle.logoUrl} alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`} title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}/>}
               {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
-              <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} matched · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} deferred to TV` : ''}${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
+              <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} matched · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} deferred to TV` : ''}${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${activeShowMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
             </div>
           </div>
           {activeMediaTab === 'shows' ? <div className="show-search">
