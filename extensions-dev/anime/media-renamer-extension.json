@@ -1,0 +1,41 @@
+{
+  "apiVersion": 1,
+  "id": "media-renamer.anime",
+  "name": "Anime libraries",
+  "version": "1.0.0",
+  "description": "Routes Japanese animated movies and shows into dedicated Plex libraries.",
+  "settings": [
+    { "key": "showBaseFolder", "type": "directory", "label": "Anime shows folder", "description": "Used instead of the standard TV folder when a show is detected as anime.", "pickerKind": "TV" },
+    { "key": "movieBaseFolder", "type": "directory", "label": "Anime movies folder", "description": "Used instead of the standard movie folder when a movie is detected as anime.", "pickerKind": "Movie" }
+  ],
+  "match": { "genreIds": [16] },
+  "anyOf": [
+    { "originalLanguages": ["ja"] },
+    { "originCountries": ["JP"] }
+  ],
+  "badges": [{ "label": "Anime" }],
+  "destinations": {
+    "show": { "settingKey": "showBaseFolder", "label": "Anime show" },
+    "movie": { "settingKey": "movieBaseFolder", "label": "Anime movie" }
+  },
+  "mediaSettingsTabs": [
+    {
+      "id": "anime-shows",
+      "label": "Anime Shows",
+      "mediaKind": "show",
+      "note": "These settings apply to anime detected in the Shows sorting page.",
+      "baseFolderSettingKey": "showBaseFolder",
+      "folderTemplateSettingKey": "showFolderTemplate",
+      "fileTemplateSettingKey": "episodeTemplate"
+    },
+    {
+      "id": "anime-movies",
+      "label": "Anime Movies",
+      "mediaKind": "movie",
+      "note": "These settings apply to anime detected in the Movies sorting page.",
+      "baseFolderSettingKey": "movieBaseFolder",
+      "folderTemplateSettingKey": "movieFolderTemplate",
+      "fileTemplateSettingKey": "movieTemplate"
+    }
+  ]
+}

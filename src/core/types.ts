@@ -1,6 +1,12 @@
 export type Source = 'BluRay' | 'DVD' | 'WEB-DL' | 'WEBRip' | 'HDTV' | 'DVDRip' | 'TVRip' | 'Unknown';
 export type ShowMetadataAgent = 'tvdb-aired' | 'tmdb-aired';
 
+export interface MediaClassificationMetadata {
+  genreIds?: number[];
+  originalLanguage?: string;
+  originCountries?: string[];
+}
+
 export interface Episode {
   id: string;
   season: number;
@@ -13,7 +19,7 @@ export interface Episode {
   imageUrl?: string;
 }
 
-export interface ShowSearchResult {
+export interface ShowSearchResult extends MediaClassificationMetadata {
   id: string;
   tvdbId?: string;
   name: string;
@@ -38,7 +44,7 @@ export interface ShowDetails extends ShowSearchResult {
   seasons: SeasonSummary[];
 }
 
-export interface MovieSearchResult {
+export interface MovieSearchResult extends MediaClassificationMetadata {
   id: string;
   mediaType?: 'movie' | 'tv';
   imdbId?: string;
@@ -60,6 +66,8 @@ export interface MovieCollection {
 }
 
 export type MovieDetails = MovieSearchResult;
+
+export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string> }>;
 
 export interface SavedLibraryRoot {
   id: string;

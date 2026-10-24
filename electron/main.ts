@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,7 @@ import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
 import { MetadataCache } from './metadataCache.js';
+import { discoverExtensions, inspectExtensionPackage, installExtension, uninstallExtension } from './extensions.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -46,6 +47,20 @@ function preferencesFilePath(): string {
   return path.join(app.getPath('userData'), 'preferences.json');
 }
 
+function installedExtensionsDirectory(): string {
+  return path.join(app.getPath('userData'), 'extensions');
+}
+
+function extensionSources(): Array<{ directory: string; source: 'installed' | 'preinstalled' | 'development' }> {
+  const preinstalled = app.isPackaged ? path.join(process.resourcesPath, 'extensions') : path.join(app.getAppPath(), 'extensions-preinstalled');
+  const development = (process.env.MEDIA_RENAMER_DEV_EXTENSIONS ?? path.join(app.getAppPath(), 'extensions-dev')).split(path.delimiter).filter(Boolean);
+  return [
+    { directory: preinstalled, source: 'preinstalled' },
+    ...(!app.isPackaged ? development.map((directory) => ({ directory: path.resolve(directory), source: 'development' as const })) : []),
+    { directory: installedExtensionsDirectory(), source: 'installed' },
+  ];
+}
+
 function metadataCache(): MetadataCache {
   return metadataStore ??= new MetadataCache(path.join(app.getPath('userData'), 'metadata-cache.json'));
 }
@@ -53,7 +68,8 @@ function metadataCache(): MetadataCache {
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 2;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
-const DETAILS_CACHE_VERSION = 2;
+// v3 adds genre, original-language, and origin-country fields used by extensions.
+const DETAILS_CACHE_VERSION = 3;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_VERSION = 4;
 
@@ -240,6 +256,37 @@ ipcMain.handle('preferences:set', async (_event, value: unknown) => {
     await writePreferences(preferencesFilePath(), persistedPreferences);
   });
   await preferenceWrite;
+});
+ipcMain.handle('extensions:list', () => discoverExtensions(extensionSources()));
+ipcMain.handle('extensions:install', async () => {
+  const result = await dialog.showOpenDialog({ title: 'Install Media Renamer extension', message: 'Choose a folder containing media-renamer-extension.json', properties: ['openDirectory'] });
+  if (result.canceled || !result.filePaths[0]) return undefined;
+  const sourceDirectory = result.filePaths[0];
+  const candidate = await inspectExtensionPackage(sourceDirectory);
+  const existing = (await discoverExtensions([{ directory: installedExtensionsDirectory(), source: 'installed' }])).find((extension) => extension.id === candidate.id);
+  if (existing) {
+    const confirmation = await dialog.showMessageBox({
+      type: 'warning',
+      buttons: ['Replace extension', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: `Replace ${existing.name}?`,
+      message: `${existing.name} v${existing.version} is already installed.`,
+      detail: `Replace it with v${candidate.version}? Saved extension settings will be kept.`,
+    });
+    if (confirmation.response !== 0) return undefined;
+  }
+  const manifest = await installExtension(sourceDirectory, installedExtensionsDirectory());
+  return manifest;
+});
+ipcMain.handle('extensions:uninstall', async (_event, id: unknown) => {
+  const extensionId = textArgument(id, 'extension ID');
+  await uninstallExtension(extensionId, installedExtensionsDirectory());
+});
+ipcMain.handle('extensions:open-directory', async () => {
+  await fs.promises.mkdir(installedExtensionsDirectory(), { recursive: true });
+  const error = await shell.openPath(installedExtensionsDirectory());
+  if (error) throw new Error(error);
 });
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('metadata:stage-sidecars', (_event, assets: unknown) => stageGeneratedAssets(assets, path.join(app.getPath('temp'), 'media-renamer-sidecars')));

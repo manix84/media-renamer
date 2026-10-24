@@ -17,7 +17,7 @@ import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/ma
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
-import type { CompanionScan, Episode, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -26,13 +26,15 @@ import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
 import { alternateLibraryRoots } from './core/libraryRoots';
+import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
 type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceJunkFiles?: string[]; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
-type PreferenceMediaTab = 'shows' | 'movies';
+type MediaTab = 'shows' | 'movies';
+type PreferenceMediaTab = MediaTab | `extension:${string}:${string}`;
 type RenameReport = { result: RenameOperationRecord; moved: boolean };
 
 const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
@@ -201,7 +203,7 @@ function ReferenceVariables({ fields }: { fields: Array<{ label: string; fields:
   </>;
 }
 
-function TemplateReferencePanel({ tab, onClose }: { tab: PreferenceMediaTab; onClose: () => void }) {
+function TemplateReferencePanel({ tab, onClose }: { tab: MediaTab; onClose: () => void }) {
   const shows = tab === 'shows';
   const filenameFields = shows ? TEMPLATE_FIELDS : MOVIE_TEMPLATE_FIELDS;
   const folderFields = shows ? SHOW_FOLDER_FIELDS : MOVIE_FOLDER_FIELDS;
@@ -237,6 +239,9 @@ export default function App() {
   const [savedMatchDecisions, setSavedMatchDecisions] = useState<SavedMatchDecision[]>([]);
   const [savedLibraryRoots, setSavedLibraryRoots] = useState<SavedLibraryRoot[]>([]);
   const [savedBatchQueues, setSavedBatchQueues] = useState<SavedBatchQueue[]>([]);
+  const [extensionPreferences, setExtensionPreferences] = useState<ExtensionPreferences>({});
+  const [installedExtensions, setInstalledExtensions] = useState<InstalledExtension[]>([]);
+  const [extensionOperation, setExtensionOperation] = useState(false);
   const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -251,7 +256,7 @@ export default function App() {
   const [exportPlexArtwork, setExportPlexArtwork] = useState(false);
   const [renameLogFolder, setRenameLogFolder] = useState('');
   const [batchRenameCompleted, setBatchRenameCompleted] = useState(false);
-  const [activeMediaTab, setActiveMediaTab] = useState<PreferenceMediaTab>('shows');
+  const [activeMediaTab, setActiveMediaTab] = useState<MediaTab>('shows');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [appVersion, setAppVersion] = useState(__APP_VERSION__);
   const [developerMode, setDeveloperMode] = useState(false);
@@ -377,6 +382,14 @@ export default function App() {
   const fileDropDepth = useRef(0);
   const alternateShowRoots = alternateLibraryRoots(savedLibraryRoots, 'shows', tvBaseFolder);
   const alternateMovieRoots = alternateLibraryRoots(savedLibraryRoots, 'movies', movieBaseFolder);
+  const extensionMediaTabs = installedExtensions.flatMap((extension) => extensionPreferences[extension.id]?.enabled
+    ? (extension.mediaSettingsTabs ?? []).map((tab) => ({ extension, tab, preferenceKey: `extension:${extension.id}:${tab.id}` as PreferenceMediaTab }))
+    : []);
+  const selectedExtensionMediaTab = extensionMediaTabs.find((item) => item.preferenceKey === preferenceMediaTab);
+
+  useEffect(() => {
+    if (preferenceMediaTab.startsWith('extension:') && !selectedExtensionMediaTab) setPreferenceMediaTab('shows');
+  }, [preferenceMediaTab, selectedExtensionMediaTab]);
 
   useEffect(() => {
     if (activeSearchResult < 0) return;
@@ -413,6 +426,18 @@ export default function App() {
   const addDebug = useCallback((level: DebugLevel, message: string, detail?: string) => {
     window.mediaRenamer?.appendDebug({ level, message, detail });
   }, []);
+
+  const refreshExtensions = useCallback(async () => {
+    try {
+      setInstalledExtensions(await window.mediaRenamer?.listExtensions() ?? []);
+    } catch (reason) {
+      addDebug('warning', 'Could not load extensions', errorMessage(reason));
+    }
+  }, [addDebug]);
+
+  useEffect(() => {
+    void refreshExtensions();
+  }, [refreshExtensions]);
 
   const inspectMedia = useCallback(async (targets: string[]) => {
     if (!window.mediaRenamer?.probeMedia || !targets.length) return;
@@ -585,8 +610,23 @@ export default function App() {
     const effectiveShowName = metadataOverride?.name.trim() || show?.name;
     const effectiveShowYear = metadataOverride ? optionalMetadataNumber(metadataOverride.year) : show?.year;
     const effectiveTvdbId = metadataOverride?.providerId.trim() || show?.tvdbId;
-    const showFolder = effectiveEpisodes.length && effectiveShowName && !folderFormatError ? formatShowFolder(showFolderTemplate, effectiveShowName, effectiveShowYear, effectiveTvdbId, effectiveEpisodes[0].season) : undefined;
-    const movieFolder = movieForPath && !movieFolderFormatError ? formatMovieFolder(movieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition, movieForPath.imdbId, movieForPath.collection) : undefined;
+    const extensionContext: ExtensionMediaContext | undefined = activeMediaTab === 'movies' && movieForPath
+      ? { kind: 'movie', id: movieForPath.id, name: movieForPath.name, year: movieForPath.year, genreIds: movieForPath.genreIds, originalLanguage: movieForPath.originalLanguage, originCountries: movieForPath.originCountries }
+      : activeMediaTab === 'shows' && show
+        ? { kind: 'show', id: show.id, name: effectiveShowName ?? show.name, year: effectiveShowYear, genreIds: show.genreIds, originalLanguage: show.originalLanguage, originCountries: show.originCountries }
+        : undefined;
+    const extensionMediaSettings = resolveExtensionMediaSettings(extensionContext, extensionPreferences, installedExtensions);
+    const extensionDestination = resolveExtensionDestination(extensionContext, extensionPreferences, installedExtensions);
+    const effectiveShowFolderTemplate = extensionMediaSettings?.mediaKind === 'show' ? extensionMediaSettings.folderTemplate ?? showFolderTemplate : showFolderTemplate;
+    const effectiveEpisodeTemplate = extensionMediaSettings?.mediaKind === 'show' ? extensionMediaSettings.fileTemplate ?? episodeTemplate : episodeTemplate;
+    const effectiveMovieFolderTemplate = extensionMediaSettings?.mediaKind === 'movie' ? extensionMediaSettings.folderTemplate ?? movieFolderTemplate : movieFolderTemplate;
+    const effectiveMovieTemplate = extensionMediaSettings?.mediaKind === 'movie' ? extensionMediaSettings.fileTemplate ?? movieTemplate : movieTemplate;
+    const effectiveShowFolderError = showFolderTemplateError(effectiveShowFolderTemplate);
+    const effectiveEpisodeError = templateError(effectiveEpisodeTemplate);
+    const effectiveMovieFolderError = movieFolderTemplateError(effectiveMovieFolderTemplate);
+    const effectiveMovieError = movieTemplateError(effectiveMovieTemplate);
+    const showFolder = effectiveEpisodes.length && effectiveShowName && !effectiveShowFolderError ? formatShowFolder(effectiveShowFolderTemplate, effectiveShowName, effectiveShowYear, effectiveTvdbId, effectiveEpisodes[0].season) : undefined;
+    const movieFolder = movieForPath && !effectiveMovieFolderError ? formatMovieFolder(effectiveMovieFolderTemplate, movieForPath.name, movieForPath.year, movieForPath.id, tags?.edition, movieForPath.imdbId, movieForPath.collection) : undefined;
     const companions = companionScan.byVideo[path] ?? [];
     const encoder = new TextEncoder();
     const extensionBytes = encoder.encode(extension).length;
@@ -598,23 +638,23 @@ export default function App() {
       - movieRoleSuffixBytes
       - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
-      ? movieForPath && tags && !movieFormatError ? appendMovieVideoSuffix(formatMovieFilename(movieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId, movieForPath.collection), movieVideoRole) : undefined
-      : effectiveEpisodes.length && effectiveShowName && tags && !formatError ? formatEpisodeFilename(episodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
+      ? movieForPath && tags && !effectiveMovieError ? appendMovieVideoSuffix(formatMovieFilename(effectiveMovieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId, movieForPath.collection), movieVideoRole) : undefined
+      : effectiveEpisodes.length && effectiveShowName && tags && !effectiveEpisodeError ? formatEpisodeFilename(effectiveEpisodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
       targetName,
-      targetDirectory: moveFiles && activeMediaTab === 'movies' && movieFolder !== undefined ? destinationDirectoryForSource(path, movieBaseFolder, movieFolder) : moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, tvBaseFolder, showFolder) : undefined,
+      targetDirectory: moveFiles && activeMediaTab === 'movies' && movieFolder !== undefined ? destinationDirectoryForSource(path, extensionMediaSettings?.baseFolder ?? extensionDestination?.baseFolder ?? movieBaseFolder, movieFolder) : moveFiles && showFolder !== undefined ? destinationDirectoryForSource(path, extensionMediaSettings?.baseFolder ?? extensionDestination?.baseFolder ?? tvBaseFolder, showFolder) : undefined,
       configurationError: activeMediaTab === 'movies' && deferredMoviePaths.has(path)
         ? 'This filename contains TV episode numbering. Open it in TV mode or remove it from the movie batch.'
         : activeMediaTab === 'movies' && movieVideoRoles[path]?.kind === 'sample'
           ? 'This appears to be a sample video and will not be renamed. Remove it from the batch before continuing.'
-        : tags?.editionError ?? (moveFiles && activeMediaTab === 'movies' && movieFolderFormatError ? `Fix the movie folder pattern: ${movieFolderFormatError}` : moveFiles && activeMediaTab === 'shows' && folderFormatError ? `Fix the show folder pattern: ${folderFormatError}` : undefined),
+        : tags?.editionError ?? (activeMediaTab === 'movies' ? effectiveMovieError : effectiveEpisodeError) ?? (moveFiles && activeMediaTab === 'movies' && effectiveMovieFolderError ? `Fix the movie folder pattern: ${effectiveMovieFolderError}` : moveFiles && activeMediaTab === 'shows' && effectiveShowFolderError ? `Fix the show folder pattern: ${effectiveShowFolderError}` : undefined),
       companionError: ambiguousCompanionsByVideo.get(path)?.length ? `${ambiguousCompanionsByVideo.get(path)!.length} companion file${ambiguousCompanionsByVideo.get(path)!.length === 1 ? '' : 's'} could belong to more than one imported video.` : undefined,
       companions,
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, folderFormatError, formatError, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -758,6 +798,7 @@ export default function App() {
     void window.mediaRenamer.loadPreferences().then((saved) => {
       if (!active) return;
       if (saved.episodeTemplate !== undefined) setEpisodeTemplate(saved.episodeTemplate === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved.episodeTemplate === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved.episodeTemplate);
+      if (saved.extensions !== undefined) setExtensionPreferences(saved.extensions);
       if (saved.fileViewMode !== undefined) setFileViewMode(saved.fileViewMode);
       if (saved.matchConfidenceThreshold !== undefined) setMatchConfidenceThreshold(saved.matchConfidenceThreshold);
       if (saved.movieBaseFolder !== undefined) setMovieBaseFolder(saved.movieBaseFolder);
@@ -851,6 +892,7 @@ export default function App() {
       exportNfo,
       exportPlexArtwork,
       episodeTemplate,
+      extensions: extensionPreferences,
       fileViewMode,
       matchConfidenceThreshold,
       movieBaseFolder,
@@ -867,7 +909,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     void window.mediaRenamer?.getAppVersion().then((version) => {
@@ -1540,6 +1582,59 @@ export default function App() {
     }
   }
 
+  async function chooseExtensionFolder(extensionId: string, settingKey: string, pickerKind: 'TV' | 'Movie') {
+    try {
+      const selected = await window.mediaRenamer?.pickDestinationFolder(pickerKind);
+      if (!selected) return;
+      setExtensionPreferences((current) => ({
+        ...current,
+        [extensionId]: {
+          enabled: current[extensionId]?.enabled ?? false,
+          settings: { ...(current[extensionId]?.settings ?? {}), [settingKey]: selected },
+        },
+      }));
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not choose extension destination', message);
+    }
+  }
+
+  async function addExtension() {
+    if (!window.mediaRenamer?.installExtension) return;
+    setExtensionOperation(true);
+    try {
+      const extension = await window.mediaRenamer.installExtension();
+      if (!extension) return;
+      await refreshExtensions();
+      addDebug('success', `Installed ${extension.name}`, `${extension.id} v${extension.version}`);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not install extension', message);
+    } finally {
+      setExtensionOperation(false);
+    }
+  }
+
+  async function removeExtension(extension: InstalledExtension) {
+    if (!extension.canUninstall || !window.mediaRenamer?.uninstallExtension) return;
+    if (!window.confirm(`Uninstall ${extension.name}? Its saved settings will also be removed.`)) return;
+    setExtensionOperation(true);
+    try {
+      await window.mediaRenamer.uninstallExtension(extension.id);
+      setExtensionPreferences((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== extension.id)));
+      await refreshExtensions();
+      addDebug('success', `Uninstalled ${extension.name}`);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not uninstall extension', message);
+    } finally {
+      setExtensionOperation(false);
+    }
+  }
+
   function saveCurrentQueue() {
     if (!paths.length) return;
     const suggested = `${activeMediaTab === 'movies' ? 'Movie' : 'TV'} batch ${new Date().toLocaleDateString()}`;
@@ -1915,7 +2010,7 @@ export default function App() {
     window.addEventListener('pointerup', stop, { once: true });
   }
 
-  function switchMediaTab(tab: PreferenceMediaTab) {
+  function switchMediaTab(tab: MediaTab) {
     if (tab === activeMediaTab) return;
     searchSequence.current += 1;
     autoSelectResult.current = false;
@@ -2076,6 +2171,16 @@ export default function App() {
                 const movieVideoRole = movieVideoRoles[path];
                 const roleTag = movieVideoRole?.kind === 'multipart' ? `Part ${movieVideoRole.part}` : movieVideoRole?.kind === 'extra' ? movieVideoRole.extraType === 'behindthescenes' ? 'Behind the scenes' : movieVideoRole.extraType[0].toUpperCase() + movieVideoRole.extraType.slice(1) : movieVideoRole?.kind === 'sample' ? 'Sample' : undefined;
                 const detailTags = tags ? [roleTag, tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
+                const extensionTitle = activeMediaTab === 'movies' ? movieFileMatch?.movie : show;
+                const extensionBadges = resolveExtensionBadges(extensionTitle ? {
+                  kind: activeMediaTab === 'movies' ? 'movie' : 'show',
+                  id: extensionTitle.id,
+                  name: extensionTitle.name,
+                  year: extensionTitle.year,
+                  genreIds: extensionTitle.genreIds,
+                  originalLanguage: extensionTitle.originalLanguage,
+                  originCountries: extensionTitle.originCountries,
+                } : undefined, extensionPreferences, installedExtensions);
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const unchanged = unchangedPathSet.has(path);
@@ -2098,7 +2203,7 @@ export default function App() {
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
                       {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
-                      <span className="detail-tags">{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : <small>No release metadata</small>}</span>
+                      <span className="detail-tags">{extensionBadges.map((badge) => <small className="extension-badge" key={`${badge.extensionId}:${badge.label}`}>{badge.label}</small>)}{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : extensionBadges.length === 0 ? <small>No release metadata</small> : null}</span>
                     </div>}
                     {plannedCompanions.length > 0 && (fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
                       {plannedCompanions.map((companion) => <div key={companion.sourcePath}>
@@ -2309,7 +2414,7 @@ export default function App() {
 
       {preferencesOpen && <div className="preferences-layer">
         <button className="preferences-backdrop" aria-label={t('prefs.close')} onClick={() => { setPreferencesOpen(false); setTemplateReferenceOpen(false); }}/>
-        {templateReferenceOpen && <TemplateReferencePanel tab={preferenceMediaTab} onClose={() => setTemplateReferenceOpen(false)}/>}
+        {templateReferenceOpen && <TemplateReferencePanel tab={preferenceMediaTab === 'movies' || selectedExtensionMediaTab?.tab.mediaKind === 'movie' ? 'movies' : 'shows'} onClose={() => setTemplateReferenceOpen(false)}/>}
         <aside className="preferences-panel" aria-label={t('prefs.title')}>
           <div className="preferences-heading"><div><p className="eyebrow">{t('prefs.settings')}</p><h2>{t('prefs.title')}</h2></div><button className="icon-button" aria-label={t('prefs.close')} onClick={() => { setPreferencesOpen(false); setTemplateReferenceOpen(false); }}><X size={18}/></button></div>
           <section className="preference-section language-settings"><h3>{t('prefs.language')}</h3><p>{t('prefs.languageHelp')}</p><label><span>{t('prefs.systemLanguage')}</span><select value={languagePreference} onChange={(event) => setLanguagePreference(event.target.value as LanguagePreference)}>{LANGUAGE_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.value === 'system' ? `${t('common.automatic')} — ${LANGUAGE_OPTIONS.find((candidate) => candidate.value === language)?.label ?? 'English'}` : option.label}</option>)}</select></label></section>
@@ -2332,6 +2437,15 @@ export default function App() {
           <section className="preference-section"><h3>Reusable batch queues</h3><p>Reload a saved set of source files without changing anything on disk.</p>{savedBatchQueues.length ? savedBatchQueues.map((queue) => <div className="destination-row standalone" key={queue.id}><span><strong>{queue.name}</strong><small>{queue.mediaType === 'movies' ? 'Movies' : 'TV'} · {queue.paths.length} file{queue.paths.length === 1 ? '' : 's'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => loadSavedQueue(queue)}><FolderOpen size={14}/>Load</button><button className="icon-button" aria-label={`Delete ${queue.name}`} onClick={() => setSavedBatchQueues((current) => current.filter((item) => item.id !== queue.id))}><Trash2 size={14}/></button></span></div>) : <small>No saved queues. Use Save queue above the file list.</small>}</section>
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
           <section className="preference-section"><h3>Plex metadata sidecars</h3><p>Create Plex NFO metadata and local artwork as part of the same reversible rename operation.</p><label className="preference-toggle"><span><FileText size={17}/><span><strong>Export NFO files</strong><small>Write movie, series, and episode NFOs, including multi-episode records.</small></span></span><input type="checkbox" checked={exportNfo} onChange={(event) => setExportNfo(event.target.checked)}/></label><label className="preference-toggle"><span><FileImage size={17}/><span><strong>Download Plex artwork</strong><small>Save every available provider poster, background, logo, and episode thumbnail using Plex names.</small></span></span><input type="checkbox" checked={exportPlexArtwork} onChange={(event) => setExportPlexArtwork(event.target.checked)}/></label></section>
+          <section className="preference-section extension-settings"><div className="extension-heading"><span><h3>Extensions</h3><p>Install optional packages that classify matched media and choose different destinations without changing the core renamer.</p></span><span className="destination-actions"><button className="secondary" disabled={extensionOperation || !window.mediaRenamer?.installExtension} onClick={() => void addExtension()}><FolderPlus size={14}/>Install extension</button><button className="icon-button" aria-label="Open extensions folder" title="Open extensions folder" disabled={!window.mediaRenamer?.openExtensionsDirectory} onClick={() => void window.mediaRenamer?.openExtensionsDirectory()}><FolderOpen size={15}/></button></span></div>{installedExtensions.length ? installedExtensions.map((extension) => {
+            const extensionPreference = extensionPreferences[extension.id] ?? { enabled: false, settings: {} };
+            const sourceLabel = extension.source === 'development' ? 'Development' : extension.source === 'preinstalled' ? 'Preinstalled' : 'Installed';
+            const mediaTabSettingKeys = new Set((extension.mediaSettingsTabs ?? []).map((tab) => tab.baseFolderSettingKey));
+            return <div className="extension-card" key={extension.id}><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>{extension.name} <small className="extension-source">{sourceLabel}</small></strong><small>{extension.description} · v{extension.version}</small></span></span><input type="checkbox" checked={extensionPreference.enabled} onChange={(event) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { enabled: event.target.checked, settings: current[extension.id]?.settings ?? {} } }))}/></label>{extension.settings.filter((setting) => !mediaTabSettingKeys.has(setting.key)).map((setting) => {
+              const value = extensionPreference.settings[setting.key] ?? '';
+              return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{value || setting.description}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseExtensionFolder(extension.id, setting.key, setting.pickerKind)}><FolderTree size={14}/>{value ? 'Change' : 'Choose'}</button>{value && <button className="icon-button" aria-label={`Clear ${setting.label}`} onClick={() => setExtensionPreferences((current) => ({ ...current, [extension.id]: { enabled: current[extension.id]?.enabled ?? false, settings: Object.fromEntries(Object.entries(current[extension.id]?.settings ?? {}).filter(([key]) => key !== setting.key)) } }))}><X size={14}/></button>}</span></div>;
+            })}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</div>;
+          }) : <div className="extension-empty"><Sparkles size={18}/><span><strong>No extensions installed</strong><small>Media Renamer works normally without extensions. Install only the packages you want.</small></span></div>}<small>Extensions run only after metadata is matched. Invalid or incompatible packages are ignored, and normal TV or movie destinations remain available.</small></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
@@ -2343,8 +2457,36 @@ export default function App() {
           <div className="preference-media-tabs" role="tablist" aria-label="Media settings">
             <button role="tab" aria-selected={preferenceMediaTab === 'shows'} className={preferenceMediaTab === 'shows' ? 'active' : ''} onClick={() => setPreferenceMediaTab('shows')}><Tv size={15}/> {t('prefs.shows')}</button>
             <button role="tab" aria-selected={preferenceMediaTab === 'movies'} className={preferenceMediaTab === 'movies' ? 'active' : ''} onClick={() => setPreferenceMediaTab('movies')}><Film size={15}/> {t('prefs.movies')}</button>
+            {extensionMediaTabs.map(({ extension, tab, preferenceKey }) => <button key={preferenceKey} role="tab" aria-selected={preferenceMediaTab === preferenceKey} className={preferenceMediaTab === preferenceKey ? 'active extension-tab' : 'extension-tab'} onClick={() => setPreferenceMediaTab(preferenceKey)}><Sparkles size={15}/> {tab.label}<small>{extension.name}</small></button>)}
           </div>
-          {preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
+          {selectedExtensionMediaTab ? (() => {
+            const { extension, tab } = selectedExtensionMediaTab;
+            const stored = extensionPreferences[extension.id]?.settings ?? {};
+            const parentBaseFolder = tab.mediaKind === 'show' ? tvBaseFolder : movieBaseFolder;
+            const parentFolderTemplate = tab.mediaKind === 'show' ? showFolderTemplate : movieFolderTemplate;
+            const parentFileTemplate = tab.mediaKind === 'show' ? episodeTemplate : movieTemplate;
+            const baseFolder = stored[tab.baseFolderSettingKey] ?? parentBaseFolder;
+            const folderTemplate = stored[tab.folderTemplateSettingKey] ?? parentFolderTemplate;
+            const fileTemplate = stored[tab.fileTemplateSettingKey] ?? parentFileTemplate;
+            const folderError = tab.mediaKind === 'show' ? showFolderTemplateError(folderTemplate) : movieFolderTemplateError(folderTemplate);
+            const fileError = tab.mediaKind === 'show' ? templateError(fileTemplate) : movieTemplateError(fileTemplate);
+            const setSetting = (key: string, value: string) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { enabled: current[extension.id]?.enabled ?? true, settings: { ...(current[extension.id]?.settings ?? {}), [key]: value } } }));
+            const clearSetting = (key: string) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { enabled: current[extension.id]?.enabled ?? true, settings: Object.fromEntries(Object.entries(current[extension.id]?.settings ?? {}).filter(([candidate]) => candidate !== key)) } }));
+            return <div className="preference-media-panel extension-media-panel" role="tabpanel" aria-label={`${tab.label} settings`}>
+              <section className="preference-section extension-inheritance-note"><Sparkles size={18}/><span><strong>{tab.note}</strong><small>Each value inherits from {tab.mediaKind === 'show' ? 'Shows' : 'Movies'} until you customize it here. Clear an override to resume inheriting future changes.</small></span></section>
+              <section className={`preference-section destination-settings ${folderError ? 'invalid' : ''}`}><div className="format-heading"><span><h3>{tab.mediaKind === 'show' ? 'Show' : 'Movie'} destination</h3><p>Inherited values are shown until this extension supplies its own override.</p></span></div>
+                <div className="destination-row"><span><strong>{tab.mediaKind === 'show' ? 'TV' : 'Movie'} base folder</strong><small>{baseFolder || (tab.mediaKind === 'show' ? 'Create the show folder beside each source' : 'Create the movie folder beside its source')}{stored[tab.baseFolderSettingKey] === undefined ? ' · Inherited' : ' · Customized'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseExtensionFolder(extension.id, tab.baseFolderSettingKey, tab.mediaKind === 'show' ? 'TV' : 'Movie')}><FolderTree size={14}/>{stored[tab.baseFolderSettingKey] === undefined ? 'Customize' : 'Change'}</button>{stored[tab.baseFolderSettingKey] !== undefined && <button className="icon-button" aria-label="Restore inherited base folder" title="Restore inherited value" onClick={() => clearSetting(tab.baseFolderSettingKey)}><RotateCcw size={14}/></button>}</span></div>
+                <label className="folder-template-field"><span><strong>{tab.mediaKind === 'show' ? 'Show' : 'Movie'} folder pattern</strong><small>{stored[tab.folderTemplateSettingKey] === undefined ? `Inherited from ${tab.mediaKind === 'show' ? 'Shows' : 'Movies'}` : 'Customized for this extension'}</small></span><input value={folderTemplate} onChange={(event) => setSetting(tab.folderTemplateSettingKey, event.target.value)} spellCheck={false}/></label>
+                {stored[tab.folderTemplateSettingKey] !== undefined && <button className="clear-overrides" onClick={() => clearSetting(tab.folderTemplateSettingKey)}><RotateCcw size={13}/>Use inherited folder pattern</button>}
+                {folderError ? <small className="format-error">{folderError}</small> : <div className="format-preview"><span>Output</span><strong>{tab.mediaKind === 'show' ? joinPath(baseFolder || 'Source folder', formatShowFolder(folderTemplate, 'Example Anime', 2026, '12345', 1)) : joinPath(baseFolder || 'Source folder', formatMovieFolder(folderTemplate, 'Example Anime Movie', 2026, '12345'))}</strong></div>}
+              </section>
+              <section className={`preference-section format-editor ${fileError ? 'invalid' : ''}`}>
+                <div className="format-heading"><span><h3>{tab.mediaKind === 'show' ? 'Episode' : 'Movie'} filename template</h3><p>{stored[tab.fileTemplateSettingKey] === undefined ? `Inherited from ${tab.mediaKind === 'show' ? 'Shows' : 'Movies'}.` : 'Customized for this extension.'}</p></span>{stored[tab.fileTemplateSettingKey] !== undefined && <button onClick={() => clearSetting(tab.fileTemplateSettingKey)}>Use inherited</button>}</div>
+                <TemplateEditor value={fileTemplate} onChange={(value) => setSetting(tab.fileTemplateSettingKey, value)}/>
+                {fileError ? <small className="format-error">{fileError}</small> : <small className="format-help"><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Open template reference</button></small>}
+              </section>
+            </div>;
+          })() : preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
             <section className="preference-section"><h3>Metadata agent</h3><p>Provider switching will be available when additional agents are ready.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired supplies Plex-oriented episode numbering and titles. Search and artwork continue to use TMDB.</small></span><select value="tvdb-aired" disabled aria-label="Show metadata agent"><option value="tvdb-aired">TVDB Aired</option></select></label></div></section>
             <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label>{showMatchDecisionId && <div className="destination-row standalone"><span><strong>Rule for {show?.name}</strong><small>{activeShowRule ? `Title matching ${activeShowRule.titleMatching ? 'on' : 'off'} · ${activeShowRule.confidenceThreshold}% confirmation` : 'Use the current matching settings whenever this show is selected.'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => setShowRules((current) => [...current.filter((rule) => rule.showId !== showMatchDecisionId), { showId: showMatchDecisionId, titleMatching, confidenceThreshold: matchConfidenceThreshold, updatedAt: Date.now() }])}>{activeShowRule ? 'Update rule' : 'Save rule'}</button>{activeShowRule && <button className="icon-button" aria-label={`Remove rule for ${show?.name}`} title="Use global matching settings" onClick={() => setShowRules((current) => current.filter((rule) => rule.showId !== showMatchDecisionId))}><X size={14}/></button>}</span></div>}</section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>

@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 
-import type { CompanionScan, Episode, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult } from './core/types';
+import type { CompanionScan, Episode, ExtensionPreferences, MediaTechnicalTags, MovieDetails, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult } from './core/types';
 import type { DebugEntry, DebugLevel } from './DebugConsole';
+import type { InstalledExtension } from './extensions/types';
 
 type RenameOperationRecord = {
   operation: {
@@ -23,6 +24,10 @@ declare global {
     mediaRenamer?: {
       platform: string;
       getAppVersion(): Promise<string>;
+      listExtensions(): Promise<InstalledExtension[]>;
+      installExtension(): Promise<InstalledExtension | undefined>;
+      uninstallExtension(id: string): Promise<void>;
+      openExtensionsDirectory(): Promise<void>;
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
@@ -34,6 +39,7 @@ declare global {
         exportNfo?: boolean;
         exportPlexArtwork?: boolean;
         episodeTemplate?: string;
+        extensions?: ExtensionPreferences;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
         matchConfidenceThreshold?: number;
@@ -64,6 +70,7 @@ declare global {
         exportNfo?: boolean;
         exportPlexArtwork?: boolean;
         episodeTemplate?: string;
+        extensions?: ExtensionPreferences;
         fileViewMode?: 'detailed' | 'summary' | 'compact';
         languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
         matchConfidenceThreshold?: number;

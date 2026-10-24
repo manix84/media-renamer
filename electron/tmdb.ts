@@ -12,6 +12,9 @@ export interface TmdbShowSearchResult {
   posterUrl?: string;
   logoUrl?: string;
   backgroundUrl?: string;
+  genreIds?: number[];
+  originalLanguage?: string;
+  originCountries?: string[];
 }
 
 export interface TmdbSeasonSummary {
@@ -49,7 +52,12 @@ export interface TmdbMovieSearchResult {
   logoUrl?: string;
   backgroundUrl?: string;
   collection?: { id: string; name: string };
+  genreIds?: number[];
+  originalLanguage?: string;
+  originCountries?: string[];
 }
+
+type RawGenre = { id: number; name?: string };
 
 type RawShow = {
   id: number;
@@ -58,6 +66,10 @@ type RawShow = {
   overview?: string;
   poster_path?: string | null;
   backdrop_path?: string | null;
+  genre_ids?: number[];
+  genres?: RawGenre[];
+  original_language?: string | null;
+  origin_country?: string[];
 };
 
 type RawMovie = {
@@ -69,6 +81,10 @@ type RawMovie = {
   backdrop_path?: string | null;
   runtime?: number | null;
   belongs_to_collection?: { id: number; name: string } | null;
+  genre_ids?: number[];
+  genres?: RawGenre[];
+  original_language?: string | null;
+  production_countries?: Array<{ iso_3166_1: string }>;
 };
 
 type RawExternalIds = { tvdb_id?: number | null; imdb_id?: string | null };
@@ -97,6 +113,11 @@ function optionalDate(value?: string | null): string | undefined {
   return value || undefined;
 }
 
+function genreIds(value: { genre_ids?: number[]; genres?: RawGenre[] }): number[] | undefined {
+  const ids = [...new Set([...(value.genre_ids ?? []), ...(value.genres ?? []).map((genre) => genre.id)])].filter(Number.isFinite);
+  return ids.length ? ids : undefined;
+}
+
 export function normalizeShow(show: RawShow): TmdbShowSearchResult {
   const year = show.first_air_date ? Number(show.first_air_date.slice(0, 4)) : undefined;
   return {
@@ -106,6 +127,9 @@ export function normalizeShow(show: RawShow): TmdbShowSearchResult {
     overview: show.overview ?? '',
     posterUrl: show.poster_path ? `${IMAGE_ROOT}${show.poster_path}` : undefined,
     backgroundUrl: show.backdrop_path ? `${BACKDROP_ROOT}${show.backdrop_path}` : undefined,
+    genreIds: genreIds(show),
+    originalLanguage: show.original_language || undefined,
+    originCountries: show.origin_country?.length ? [...new Set(show.origin_country)] : undefined,
   };
 }
 
@@ -121,6 +145,9 @@ export function normalizeMovie(movie: RawMovie): TmdbMovieSearchResult {
     backgroundUrl: movie.backdrop_path ? `${BACKDROP_ROOT}${movie.backdrop_path}` : undefined,
     ...(movie.runtime && movie.runtime > 0 ? { runtimeMinutes: movie.runtime } : {}),
     ...(movie.belongs_to_collection ? { collection: { id: String(movie.belongs_to_collection.id), name: movie.belongs_to_collection.name } } : {}),
+    genreIds: genreIds(movie),
+    originalLanguage: movie.original_language || undefined,
+    originCountries: movie.production_countries?.length ? [...new Set(movie.production_countries.map((country) => country.iso_3166_1))] : undefined,
   };
 }
 

@@ -336,6 +336,8 @@ Electron preload exposes a deliberately small IPC surface to the renderer.
 
 Provider responses should be normalized immediately. API keys stay in the main process, paths are validated before filesystem operations, and renderer code never receives unrestricted Node access.
 
+Optional features use the [installable extension system](extensions/README.md). Media Renamer runs normally without extensions; users can install packages after release, administrators can provide preinstalled packages, and developers can load local packages without copying them. The Anime library router is the first development example. Extensions remain disabled by default and cannot bypass the rename planner, preflight checks, execution log, or undo support.
+
 ## Next implementation slice
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:

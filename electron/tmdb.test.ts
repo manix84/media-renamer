@@ -3,8 +3,8 @@ import { normalizeMovie, normalizeShow, TmdbClient } from './tmdb.js';
 
 describe('TMDB adapter', () => {
   it('normalizes provider-specific show fields', () => {
-    expect(normalizeShow({ id: 42, name: 'Example', first_air_date: '1999-01-25', overview: 'A show', poster_path: '/poster.jpg' })).toEqual({
-      id: '42', name: 'Example', year: 1999, overview: 'A show', posterUrl: 'https://image.tmdb.org/t/p/w342/poster.jpg',
+    expect(normalizeShow({ id: 42, name: 'Example', first_air_date: '1999-01-25', overview: 'A show', poster_path: '/poster.jpg', genre_ids: [16], original_language: 'ja', origin_country: ['JP'] })).toEqual({
+      id: '42', name: 'Example', year: 1999, overview: 'A show', posterUrl: 'https://image.tmdb.org/t/p/w342/poster.jpg', genreIds: [16], originalLanguage: 'ja', originCountries: ['JP'],
     });
   });
 
@@ -12,6 +12,7 @@ describe('TMDB adapter', () => {
     expect(normalizeMovie({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', overview: 'A movie', poster_path: '/movie.jpg' })).toMatchObject({
       id: '335984', name: 'Blade Runner 2049', year: 2017, posterUrl: 'https://image.tmdb.org/t/p/w342/movie.jpg',
     });
+    expect(normalizeMovie({ id: 1, title: 'Anime', genres: [{ id: 16 }], original_language: 'ja', production_countries: [{ iso_3166_1: 'JP' }] })).toMatchObject({ genreIds: [16], originalLanguage: 'ja', originCountries: ['JP'] });
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04' }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 335984, title: 'Blade Runner 2049', release_date: '2017-10-04', runtime: 164, belongs_to_collection: { id: 422837, name: 'Blade Runner Collection' }, external_ids: { imdb_id: 'tt1856101' }, images: { logos: [{ file_path: '/logo.png', iso_639_1: 'en' }] } }), { status: 200 }));

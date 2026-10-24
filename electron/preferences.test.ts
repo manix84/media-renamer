@@ -12,7 +12,7 @@ describe('persistent preferences', () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'media-renamer-preferences-'));
     temporaryDirectories.push(root);
     const filePath = path.join(root, 'preferences.json');
-    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', releaseAliasText: 'videoCodec = AVC => H.264', savedLibraryRoots: [{ id: 'shows:/Media/TV', kind: 'shows' as const, name: 'TV', path: '/Media/TV', updatedAt: 3456 }], savedBatchQueues: [{ id: 'queue-1', name: 'Weekly imports', mediaType: 'shows' as const, paths: ['/Downloads/a.mkv'], updatedAt: 4567 }], savedMatchDecisions: [{ showId: 'tvdb:11', filenameKey: 'episode 03', episodeIds: ['episode-3'], updatedAt: 1234 }], showRules: [{ showId: 'tvdb:11', titleMatching: false, confidenceThreshold: 91, updatedAt: 2345 }], matchConfidenceThreshold: 76, clearSourceJunk: true, removeEmptySourceParents: true, autoClearCompletedBatch: true, completionChime: true, completionReport: false, completionReportAutoClose: false, createExternalRenameLog: true, developerMode: true, exportNfo: true, exportPlexArtwork: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, languagePreference: 'fr' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false };
+    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', releaseAliasText: 'videoCodec = AVC => H.264', extensions: { 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Media/Anime Shows', movieBaseFolder: '/Media/Anime Movies' } } }, savedLibraryRoots: [{ id: 'shows:/Media/TV', kind: 'shows' as const, name: 'TV', path: '/Media/TV', updatedAt: 3456 }], savedBatchQueues: [{ id: 'queue-1', name: 'Weekly imports', mediaType: 'shows' as const, paths: ['/Downloads/a.mkv'], updatedAt: 4567 }], savedMatchDecisions: [{ showId: 'tvdb:11', filenameKey: 'episode 03', episodeIds: ['episode-3'], updatedAt: 1234 }], showRules: [{ showId: 'tvdb:11', titleMatching: false, confidenceThreshold: 91, updatedAt: 2345 }], matchConfidenceThreshold: 76, clearSourceJunk: true, removeEmptySourceParents: true, autoClearCompletedBatch: true, completionChime: true, completionReport: false, completionReportAutoClose: false, createExternalRenameLog: true, developerMode: true, exportNfo: true, exportPlexArtwork: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, languagePreference: 'fr' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false };
     await writePreferences(filePath, preferences);
     await expect(readPreferences(filePath)).resolves.toEqual(preferences);
   });
@@ -25,6 +25,13 @@ describe('persistent preferences', () => {
     const preferences = normalizePreferences({});
     expect(preferences.exportNfo).toBeUndefined();
     expect(preferences.exportPlexArtwork).toBeUndefined();
+  });
+
+  it('sanitizes extension IDs, setting keys, and values', () => {
+    expect(normalizePreferences({ extensions: {
+      'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime', invalid_value: 12 } },
+      'bad id': { enabled: true, settings: {} },
+    } }).extensions).toEqual({ 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime' } } });
   });
 
   it('recovers from a malformed settings file', async () => {

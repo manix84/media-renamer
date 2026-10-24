@@ -5,6 +5,7 @@ export type SavedMatchDecision = { showId: string; filenameKey: string; episodeI
 export type ShowRule = { showId: string; titleMatching: boolean; confidenceThreshold: number; updatedAt: number };
 export type SavedLibraryRoot = { id: string; kind: 'shows' | 'movies'; name: string; path: string; updatedAt: number };
 export type SavedBatchQueue = { id: string; name: string; mediaType: 'shows' | 'movies'; paths: string[]; updatedAt: number };
+export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string> }>;
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
@@ -17,6 +18,7 @@ export type PersistedPreferences = {
   exportNfo?: boolean;
   exportPlexArtwork?: boolean;
   episodeTemplate?: string;
+  extensions?: ExtensionPreferences;
   fileViewMode?: 'detailed' | 'summary' | 'compact';
   languagePreference?: 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt-BR' | 'ja' | 'ko' | 'zh-CN';
   matchConfidenceThreshold?: number;
@@ -63,6 +65,16 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'valentines' || source.themePalette === 'pride' || source.themePalette === 'bonfire' || source.themePalette === 'new-year' || source.themePalette === 'spring' || source.themePalette === 'summer' || source.themePalette === 'autumn' || source.themePalette === 'winter' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
+  if (source.extensions && typeof source.extensions === 'object' && !Array.isArray(source.extensions)) {
+    result.extensions = Object.fromEntries(Object.entries(source.extensions as Record<string, unknown>).slice(0, 100).flatMap(([id, value]) => {
+      if (!/^[a-z0-9][a-z0-9.-]{0,199}$/i.test(id) || !value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.enabled !== 'boolean' || !item.settings || typeof item.settings !== 'object' || Array.isArray(item.settings)) return [];
+      const settings = Object.fromEntries(Object.entries(item.settings as Record<string, unknown>).slice(0, 100)
+        .flatMap(([key, entry]): Array<[string, string]> => /^[a-z0-9][a-z0-9.-]{0,199}$/i.test(key) && typeof entry === 'string' && entry.length <= 32_768 ? [[key, entry]] : []));
+      return [[id, { enabled: item.enabled, settings }]];
+    }));
+  }
   if (Array.isArray(source.savedMatchDecisions)) {
     result.savedMatchDecisions = source.savedMatchDecisions.flatMap((value) => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
