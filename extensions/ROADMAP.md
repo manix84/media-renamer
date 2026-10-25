@@ -8,6 +8,7 @@ This backlog captures the extension use cases Media Renamer intends to support. 
 - [x] Development, preinstalled, and user-installed package sources.
 - [x] Metadata classification, badges, directory settings, and show/movie routing.
 - [x] Extension-contributed media settings tabs with inherited destination, folder, and filename templates.
+- [x] Editable extension-owned default folder and filename templates.
 - [ ] Additional match fields: studios, networks, certifications, genres by stable provider namespace, collections, subtitle languages, and explicit HDR metadata. Editions, audio languages, resolution, codec, source, flags, release group, and media kind are supported.
 - [ ] Host-rendered colours, icons, filters, and review explanations. Badges with semantic tones and informational warnings are supported.
 - [ ] Declarative routing for documentaries, concerts, stand-up, sport, children’s media, home videos, foreign-language media, 4K/HDR/remux libraries, and other user-defined categories.

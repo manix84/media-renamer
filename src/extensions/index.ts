@@ -80,8 +80,8 @@ export function resolveExtensionMediaSettings(
       tabId: tab.id,
       mediaKind: tab.mediaKind,
       baseFolder: preference.settings[tab.baseFolderSettingKey]?.trim() || undefined,
-      folderTemplate: preference.settings[tab.folderTemplateSettingKey]?.trim() || undefined,
-      fileTemplate: preference.settings[tab.fileTemplateSettingKey]?.trim() || undefined,
+      folderTemplate: preference.settings[tab.folderTemplateSettingKey]?.trim() || tab.defaultFolderTemplate,
+      fileTemplate: preference.settings[tab.fileTemplateSettingKey]?.trim() || tab.defaultFileTemplate,
     };
   }
   return undefined;

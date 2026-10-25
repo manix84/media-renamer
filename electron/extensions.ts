@@ -33,7 +33,7 @@ export interface InstalledExtensionManifest {
   badges?: Array<{ label: string; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   destinations?: Partial<Record<'show' | 'movie', { settingKey: string; label: string }>>;
-  mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string }>;
+  mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string; defaultFolderTemplate?: string; defaultFileTemplate?: string }>;
   source: ExtensionSource;
   canUninstall: boolean;
 }
@@ -130,6 +130,8 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
         baseFolderSettingKey,
         folderTemplateSettingKey: shortText(tab.folderTemplateSettingKey, 'folder template setting key', 200),
         fileTemplateSettingKey: shortText(tab.fileTemplateSettingKey, 'file template setting key', 200),
+        ...(tab.defaultFolderTemplate === undefined ? {} : { defaultFolderTemplate: shortText(tab.defaultFolderTemplate, 'default folder template', 5000) }),
+        ...(tab.defaultFileTemplate === undefined ? {} : { defaultFileTemplate: shortText(tab.defaultFileTemplate, 'default file template', 5000) }),
       };
     })
     : (() => { throw new Error('Extension media settings tabs are invalid.'); })();

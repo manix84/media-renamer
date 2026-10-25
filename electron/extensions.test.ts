@@ -39,8 +39,8 @@ describe('extension packages', () => {
   });
 
   it('accepts host-rendered media settings tabs', () => {
-    const manifest = normalizeExtensionManifest({ ...validManifest, mediaSettingsTabs: [{ id: 'example-shows', label: 'Example Shows', mediaKind: 'show', note: 'Used in Shows.', baseFolderSettingKey: 'showFolder', folderTemplateSettingKey: 'showFolderTemplate', fileTemplateSettingKey: 'episodeTemplate' }] }, 'installed');
-    expect(manifest.mediaSettingsTabs?.[0]).toMatchObject({ id: 'example-shows', mediaKind: 'show', baseFolderSettingKey: 'showFolder' });
+    const manifest = normalizeExtensionManifest({ ...validManifest, mediaSettingsTabs: [{ id: 'example-shows', label: 'Example Shows', mediaKind: 'show', note: 'Used in Shows.', baseFolderSettingKey: 'showFolder', folderTemplateSettingKey: 'showFolderTemplate', fileTemplateSettingKey: 'episodeTemplate', defaultFolderTemplate: '{{show.name}}/{{seasonFolder}}', defaultFileTemplate: '{{show.name}} - {{episode.range}}' }] }, 'installed');
+    expect(manifest.mediaSettingsTabs?.[0]).toMatchObject({ id: 'example-shows', mediaKind: 'show', baseFolderSettingKey: 'showFolder', defaultFileTemplate: '{{show.name}} - {{episode.range}}' });
   });
 
   it('accepts bounded technical matching, badge tones, and warnings', () => {

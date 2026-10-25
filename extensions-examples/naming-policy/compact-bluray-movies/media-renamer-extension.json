@@ -1,0 +1,25 @@
+{
+  "apiVersion": 1,
+  "id": "example.compact-bluray-movies",
+  "name": "Compact Blu-ray movie names",
+  "version": "1.0.0",
+  "description": "Applies compact, editable naming defaults to Blu-ray movies.",
+  "settings": [
+    { "key": "movieBaseFolder", "type": "directory", "label": "Blu-ray movie folder", "description": "Destination for matching Blu-ray movies.", "pickerKind": "Movie" }
+  ],
+  "match": { "mediaKinds": ["movie"], "sources": ["BluRay"] },
+  "badges": [{ "label": "Naming policy", "tone": "neutral" }],
+  "mediaSettingsTabs": [
+    {
+      "id": "bluray-movies",
+      "label": "Blu-ray Movies",
+      "mediaKind": "movie",
+      "note": "Compact defaults for movies identified as Blu-ray releases.",
+      "baseFolderSettingKey": "movieBaseFolder",
+      "folderTemplateSettingKey": "movieFolderTemplate",
+      "fileTemplateSettingKey": "movieTemplate",
+      "defaultFolderTemplate": "{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#movie.edition}} {edition-{{movie.edition}}}{{/movie.edition}}",
+      "defaultFileTemplate": "{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#technical}} [{{technical}}]{{/technical}}{{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}"
+    }
+  ]
+}

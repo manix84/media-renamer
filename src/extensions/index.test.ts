@@ -76,6 +76,17 @@ describe('extension destination runtime', () => {
     expect(resolveExtensionMediaSettings(context, customized, extensions)).toMatchObject({ folderTemplate: '{{show.name}}/{{seasonFolder}}', fileTemplate: '{{show.name}} - {{episode.range}}' });
   });
 
+  it('uses extension template defaults until the user customizes them', () => {
+    const extension = {
+      ...animeExtension,
+      mediaSettingsTabs: [{ ...animeExtension.mediaSettingsTabs![0], defaultFolderTemplate: '{{show.name}}/{{seasonFolder}}', defaultFileTemplate: '{{show.name}} - {{episode.range}} - {{title}}' }],
+    };
+    const context: ExtensionMediaContext = { kind: 'show', id: '1', name: 'Anime', genreIds: [16], originalLanguage: 'ja' };
+    expect(resolveExtensionMediaSettings(context, enabled, [extension])).toMatchObject({ folderTemplate: '{{show.name}}/{{seasonFolder}}', fileTemplate: '{{show.name}} - {{episode.range}} - {{title}}' });
+    const customized = { [animeExtension.id]: { enabled: true, settings: { episodeTemplate: '{{show.name}} - {{episode.range}}' } } };
+    expect(resolveExtensionMediaSettings(context, customized, [extension])?.fileTemplate).toBe('{{show.name}} - {{episode.range}}');
+  });
+
   it('ignores incompatible extension API versions', () => {
     expect(resolveExtensionDestination({ kind: 'show', id: '1', name: 'Example', genreIds: [16], originalLanguage: 'ja' }, enabled, [{ ...animeExtension, apiVersion: 2 } as unknown as InstalledExtension])).toBeUndefined();
   });

@@ -101,6 +101,8 @@ The example means: genre 16 **and** either Japanese original language **or** Jap
 
 `mediaSettingsTabs` adds a Preferences tab beside Shows and Movies. Its base folder, folder template, and filename template inherit live from the declared `mediaKind` until the user edits that field. Only customized values are stored; clearing an override resumes inheritance. The base-folder key must reference a declared directory setting, while the two template keys become extension-owned preference values.
 
+A tab may declare `defaultFolderTemplate` and `defaultFileTemplate`. These become editable extension defaults instead of inheriting the main media template. Clearing a user override returns to the extension default. Templates still run entirely through Media Renamer's validated formatter and filesystem-safety rules.
+
 ### 5. Run it during development
 
 Put the package in:

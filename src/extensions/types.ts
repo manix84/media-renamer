@@ -66,6 +66,8 @@ export interface ExtensionManifest {
     baseFolderSettingKey: string;
     folderTemplateSettingKey: string;
     fileTemplateSettingKey: string;
+    defaultFolderTemplate?: string;
+    defaultFileTemplate?: string;
   }>;
 }
 
