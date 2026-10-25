@@ -52,6 +52,23 @@ export interface ExtensionCapability {
   origins: string[];
 }
 
+export interface ExtensionMetadataAdapter {
+  id: string;
+  label: string;
+  capability: 'network.metadata';
+  transport: 'graphql-json';
+  origin: string;
+  endpointPath: string;
+  operations: Array<{
+    id: string;
+    label: string;
+    kind: 'search' | 'details' | 'cross-reference';
+    mediaKinds: ExtensionMediaKind[];
+    query: string;
+    inputs: Array<{ name: string; type: 'string'; required: boolean; maximumLength: number }>;
+  }>;
+}
+
 export interface ExtensionManifest {
   apiVersion: typeof EXTENSION_API_VERSION;
   id: string;
@@ -64,6 +81,7 @@ export interface ExtensionManifest {
   badges?: Array<{ label: string; tone?: ExtensionContributionTone }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   capabilities?: ExtensionCapability[];
+  metadataAdapters?: ExtensionMetadataAdapter[];
   destinations?: Partial<Record<ExtensionMediaKind, { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{
     id: string;

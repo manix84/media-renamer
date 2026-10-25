@@ -1,0 +1,45 @@
+{
+  "apiVersion": 1,
+  "id": "example.metadata.anilist",
+  "name": "AniList metadata adapter example",
+  "version": "0.1.0",
+  "description": "Demonstrates a host-mediated anime-title search contract.",
+  "settings": [],
+  "match": {
+    "mediaKinds": ["show", "movie"]
+  },
+  "capabilities": [
+    {
+      "id": "network.metadata",
+      "reason": "Search AniList for anime titles selected by the user.",
+      "origins": ["https://graphql.anilist.co"]
+    }
+  ],
+  "metadataAdapters": [
+    {
+      "id": "anilist",
+      "label": "AniList",
+      "capability": "network.metadata",
+      "transport": "graphql-json",
+      "origin": "https://graphql.anilist.co",
+      "endpointPath": "/",
+      "operations": [
+        {
+          "id": "anime.search",
+          "label": "Search anime",
+          "kind": "search",
+          "mediaKinds": ["show", "movie"],
+          "query": "query ($query: String) { Media(search: $query, type: ANIME) { id title { romaji english native } synonyms format seasonYear } }",
+          "inputs": [
+            {
+              "name": "query",
+              "type": "string",
+              "required": true,
+              "maximumLength": 200
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

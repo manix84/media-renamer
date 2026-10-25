@@ -18,6 +18,7 @@ This backlog captures the extension use cases Media Renamer intends to support. 
 - [x] Declarative capability requests with explicit per-extension user grants.
 - [x] Internal bounded JSON metadata-network broker with HTTPS origin allowlists, redirect checks, private-address rejection, timeouts, size limits, and rate limits.
 - [x] Internal host-owned encrypted credential vault with per-extension isolation, atomic owner-only storage, and fail-closed encryption availability.
+- [x] Declarative GraphQL metadata-adapter contract with fixed documents and typed, bounded operation inputs.
 - [ ] Pin validated DNS resolution in the production transport before exposing metadata networking to extensions.
 - [ ] Capability-scoped metadata adapters for AniList, MyAnimeList, IMDb, OMDb, Fanart.tv, MusicBrainz, TheAudioDB, and private/self-hosted services.
 - [ ] Provider fallback and cross-reference mappings.

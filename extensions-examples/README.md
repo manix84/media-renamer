@@ -10,6 +10,7 @@ Every example README uses one of these labels:
 
 - **Runnable** — supported by the current extension API and contains `media-renamer-extension.json`.
 - **Design example** — documents a planned, security-reviewed host capability. It cannot be installed and must not use the installable manifest filename.
+- **Contract example** — illustrates a supported declaration whose live privileged execution is not exposed yet. It uses a filename such as `manifest.example.json`, never the installable manifest filename.
 
 ## Extension types
 
@@ -18,7 +19,7 @@ Every example README uses one of these labels:
 | Library routing | Classification, badges, settings, and alternate library roots | [`library-routing/documentary-libraries`](library-routing/documentary-libraries/) | 1 |
 | Presentation and review | Warnings, colours, filters, and explanations | `presentation-review` | 1 |
 | Filename and folder policy | Specialized templates and numbering policies | `naming-policy` | 1–2 |
-| Metadata adapter | Provider search, details, artwork, and cross-references | `metadata-adapter` | 2 |
+| Metadata adapter | Provider search, details, artwork, and cross-references | [`metadata-adapter/anilist`](metadata-adapter/anilist/) | 2 |
 | Matching strategy | Absolute/date/event numbering and source-specific parsing | `matching-strategy` | 2 |
 | Companion handler | Subtitle, chapter, font, audio, and sidecar association | `companion-handler` | 3 |
 | Extras classifier | Featurettes, trailers, deleted scenes, and other Plex extras | `extras-classifier` | 3 |

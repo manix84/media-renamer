@@ -150,6 +150,7 @@ npm run check
 | `destinations` | No | Show/movie routing via declared directory settings |
 | `mediaSettingsTabs` | No | Host-rendered media configuration tabs with inherited values |
 | `capabilities` | No | Privileged host capabilities requested by the package; every capability remains denied until the user grants it |
+| `metadataAdapters` | No | Declarative GraphQL metadata providers and bounded operations tied to a declared `network.metadata` origin |
 
 Unknown, malformed, oversized, or incompatible packages are ignored during discovery. They remain on disk so their author can repair them.
 
@@ -165,8 +166,11 @@ Version 1 deliberately exposes a small declarative API:
 | `settings` | Extension → host | Requests host-rendered directory pickers |
 | `destinations.show` | Extension → host | Selects an enabled extension's show library root |
 | `destinations.movie` | Extension → host | Selects an enabled extension's movie library root |
+| `metadataAdapters` | Extension → host | Declares fixed, validated provider operations; live execution remains host-controlled and currently disabled |
 
 Packages may declare the `network.metadata` capability with a user-facing reason and an exact list of HTTPS origins. Preferences show each request separately and keep it denied until the user explicitly grants it. Installing or enabling an extension does not grant it automatically.
+
+`metadataAdapters` currently describes host-owned GraphQL JSON operations. Each adapter names one origin already present in its capability, one fixed endpoint path, and one or more fixed GraphQL documents. Every operation declares its purpose (`search`, `details`, or `cross-reference`), applicable media kinds, and accepted string inputs with required flags and maximum lengths. At runtime the host rejects unknown, missing, incorrectly typed, or oversized inputs before it creates the request. Adapter declarations cannot provide headers, credentials, methods, arbitrary URLs, or executable code.
 
 The main-process metadata network broker is implemented as an internal security foundation. It accepts only bounded GET/POST JSON requests to granted origins, resolves and rejects local/private addresses, revalidates redirects, enforces response and request size limits, applies timeouts and per-extension rate limits, and never accepts extension-provided headers. It is deliberately **not exposed to extensions yet**: production exposure waits for a transport that pins the validated DNS result, preventing a provider from changing its address between validation and connection.
 

@@ -33,6 +33,22 @@ export interface InstalledExtensionManifest {
   badges?: Array<{ label: string; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   capabilities?: Array<{ id: 'network.metadata'; reason: string; origins: string[] }>;
+  metadataAdapters?: Array<{
+    id: string;
+    label: string;
+    capability: 'network.metadata';
+    transport: 'graphql-json';
+    origin: string;
+    endpointPath: string;
+    operations: Array<{
+      id: string;
+      label: string;
+      kind: 'search' | 'details' | 'cross-reference';
+      mediaKinds: Array<'show' | 'movie'>;
+      query: string;
+      inputs: Array<{ name: string; type: 'string'; required: boolean; maximumLength: number }>;
+    }>;
+  }>;
   destinations?: Partial<Record<'show' | 'movie', { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string; defaultFolderTemplate?: string; defaultFileTemplate?: string }>;
   source: ExtensionSource;
@@ -80,6 +96,12 @@ function networkOrigin(value: unknown): string {
   try { parsed = new URL(value); } catch { throw new Error('Extension network origin is invalid.'); }
   if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) throw new Error('Extension network origins must be exact HTTPS origins.');
   return parsed.origin;
+}
+
+function identifier(value: unknown, name: string): string {
+  const result = shortText(value, name, 200);
+  if (!/^[a-z0-9][a-z0-9.-]*$/i.test(result)) throw new Error(`Extension ${name} is invalid.`);
+  return result;
 }
 
 export function normalizeExtensionManifest(value: unknown, source: ExtensionSource): InstalledExtensionManifest {
@@ -131,6 +153,52 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     })
     : (() => { throw new Error('Extension capabilities are invalid.'); })();
   if (capabilities && new Set(capabilities.map((capability) => capability.id)).size !== capabilities.length) throw new Error('Extension capability IDs must be unique.');
+  const metadataAdapters: InstalledExtensionManifest['metadataAdapters'] = item.metadataAdapters === undefined ? undefined : Array.isArray(item.metadataAdapters) && item.metadataAdapters.length <= 10
+    ? item.metadataAdapters.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension metadata adapter is invalid.');
+      const adapter = entry as Record<string, unknown>;
+      if (adapter.capability !== 'network.metadata' || adapter.transport !== 'graphql-json') throw new Error('Extension metadata adapter is invalid.');
+      const origin = networkOrigin(adapter.origin);
+      if (!capabilities?.some((capability) => capability.id === 'network.metadata' && capability.origins.includes(origin))) throw new Error('Extension metadata adapter origin must be declared by its capability.');
+      if (typeof adapter.endpointPath !== 'string' || !/^\/(?!\/)[^?#]{0,499}$/.test(adapter.endpointPath)) throw new Error('Extension metadata adapter endpoint is invalid.');
+      if (!Array.isArray(adapter.operations) || !adapter.operations.length || adapter.operations.length > 20) throw new Error('Extension metadata adapter operations are invalid.');
+      const operations = adapter.operations.map((rawOperation) => {
+        if (!rawOperation || typeof rawOperation !== 'object' || Array.isArray(rawOperation)) throw new Error('Extension metadata adapter operation is invalid.');
+        const operation = rawOperation as Record<string, unknown>;
+        if (!['search', 'details', 'cross-reference'].includes(String(operation.kind))) throw new Error('Extension metadata adapter operation is invalid.');
+        const mediaKinds = stringList(operation.mediaKinds, /^(show|movie)$/, 2);
+        if (!mediaKinds?.length || typeof operation.query !== 'string' || !operation.query.trim() || operation.query.length > 20_000) throw new Error('Extension metadata adapter operation is invalid.');
+        if (!Array.isArray(operation.inputs) || operation.inputs.length > 20) throw new Error('Extension metadata adapter inputs are invalid.');
+        const inputs = operation.inputs.map((rawInput) => {
+          if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) throw new Error('Extension metadata adapter input is invalid.');
+          const input = rawInput as Record<string, unknown>;
+          const name = identifier(input.name, 'metadata input name');
+          if (input.type !== 'string' || typeof input.required !== 'boolean' || !Number.isInteger(input.maximumLength) || Number(input.maximumLength) < 1 || Number(input.maximumLength) > 2_000) throw new Error('Extension metadata adapter input is invalid.');
+          return { name, type: 'string' as const, required: input.required, maximumLength: Number(input.maximumLength) };
+        });
+        if (new Set(inputs.map((input) => input.name)).size !== inputs.length) throw new Error('Extension metadata adapter input names must be unique.');
+        return {
+          id: identifier(operation.id, 'metadata operation ID'),
+          label: shortText(operation.label, 'metadata operation label', 200),
+          kind: operation.kind as 'search' | 'details' | 'cross-reference',
+          mediaKinds: mediaKinds as Array<'show' | 'movie'>,
+          query: operation.query.trim(),
+          inputs,
+        };
+      });
+      if (new Set(operations.map((operation) => operation.id)).size !== operations.length) throw new Error('Extension metadata adapter operation IDs must be unique.');
+      return {
+        id: identifier(adapter.id, 'metadata adapter ID'),
+        label: shortText(adapter.label, 'metadata adapter label', 200),
+        capability: 'network.metadata' as const,
+        transport: 'graphql-json' as const,
+        origin,
+        endpointPath: adapter.endpointPath,
+        operations,
+      };
+    })
+    : (() => { throw new Error('Extension metadata adapters are invalid.'); })();
+  if (metadataAdapters && new Set(metadataAdapters.map((adapter) => adapter.id)).size !== metadataAdapters.length) throw new Error('Extension metadata adapter IDs must be unique.');
   const anyOf = item.anyOf === undefined ? undefined : Array.isArray(item.anyOf) && item.anyOf.length <= 20 ? item.anyOf.map(matchClause) : (() => { throw new Error('Extension alternative rules are invalid.'); })();
   const mediaSettingsTabs = item.mediaSettingsTabs === undefined ? undefined : Array.isArray(item.mediaSettingsTabs) && item.mediaSettingsTabs.length <= 10
     ? item.mediaSettingsTabs.map((entry) => {
@@ -166,6 +234,7 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     ...(badges?.length ? { badges } : {}),
     ...(warnings?.length ? { warnings } : {}),
     ...(capabilities?.length ? { capabilities } : {}),
+    ...(metadataAdapters?.length ? { metadataAdapters } : {}),
     ...(destinations && Object.keys(destinations).length ? { destinations } : {}),
     ...(mediaSettingsTabs?.length ? { mediaSettingsTabs } : {}),
     source,

@@ -68,6 +68,18 @@ describe('extension packages', () => {
     expect(() => normalizeExtensionManifest({ ...validManifest, capabilities: [{ id: 'shell.execute', reason: 'Unsafe.', origins: ['https://example.com'] }] }, 'installed')).toThrow('capability');
   });
 
+  it('validates declarative metadata adapters against their network capability', () => {
+    const adapter = {
+      id: 'anilist', label: 'AniList', capability: 'network.metadata', transport: 'graphql-json', origin: 'https://graphql.anilist.co', endpointPath: '/',
+      operations: [{ id: 'anime.search', label: 'Search anime', kind: 'search', mediaKinds: ['show', 'movie'], query: 'query ($query: String) { Media(search: $query) { id } }', inputs: [{ name: 'query', type: 'string', required: true, maximumLength: 200 }] }],
+    };
+    const capabilities = [{ id: 'network.metadata', reason: 'Search AniList.', origins: ['https://graphql.anilist.co'] }];
+    expect(normalizeExtensionManifest({ ...validManifest, capabilities, metadataAdapters: [adapter] }, 'installed').metadataAdapters?.[0]).toMatchObject({ id: 'anilist', transport: 'graphql-json' });
+    expect(() => normalizeExtensionManifest({ ...validManifest, metadataAdapters: [adapter] }, 'installed')).toThrow('must be declared');
+    expect(() => normalizeExtensionManifest({ ...validManifest, capabilities, metadataAdapters: [{ ...adapter, origin: 'https://example.com' }] }, 'installed')).toThrow('must be declared');
+    expect(() => normalizeExtensionManifest({ ...validManifest, capabilities, metadataAdapters: [{ ...adapter, operations: [{ ...adapter.operations[0], inputs: [{ name: 'query', type: 'string', required: true, maximumLength: 20_000 }] }] }] }, 'installed')).toThrow('input is invalid');
+  });
+
   it('installs, discovers, and uninstalls a package', async () => {
     const source = await temporaryDirectory();
     const installed = await temporaryDirectory();
