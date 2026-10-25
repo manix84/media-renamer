@@ -170,6 +170,8 @@ Packages may declare the `network.metadata` capability with a user-facing reason
 
 The main-process metadata network broker is implemented as an internal security foundation. It accepts only bounded GET/POST JSON requests to granted origins, resolves and rejects local/private addresses, revalidates redirects, enforces response and request size limits, applies timeouts and per-extension rate limits, and never accepts extension-provided headers. It is deliberately **not exposed to extensions yet**: production exposure waits for a transport that pins the validated DNS result, preventing a provider from changing its address between validation and connection.
 
+The host-owned credential vault is also implemented as an internal foundation. Secrets are sealed by an injected operating-system encryption provider, stored outside packages and preferences, isolated by extension ID, written atomically with owner-only file permissions, and bounded to 16 KiB each. Listing returns credential names only. If secure OS encryption is unavailable, storage and retrieval fail closed. No renderer or extension API can retrieve raw stored credentials; future adapters will reference a credential name and the host will apply it to an approved provider request.
+
 There is currently **no command for arbitrary JavaScript, shell commands, direct filesystem access, raw Electron IPC, silent rename execution, or arbitrary network proxying**. Installation does not grant any of those abilities.
 
 ## Secure external command API design
@@ -198,6 +200,7 @@ Planned broker commands include `media.inspect-summary`, `batch.add`, `batch.pre
 - The host renders all UI and owns every destination decision.
 - Privileged capabilities are independently declared, validated, displayed, and denied by default.
 - Metadata network requests pass through a bounded host broker; extensions never receive raw network primitives.
+- Provider credentials are OS-sealed in a host-owned vault; manifests, preferences, logs, and renderer state never contain their plaintext values.
 - Extensions cannot bypass rename planning, collision handling, preflight checks, operation logs, or undo.
 - Disabling or removing a package restores the normal core behavior.
 
