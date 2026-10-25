@@ -1,0 +1,37 @@
+{
+  "apiVersion": 1,
+  "id": "example.documentary-libraries",
+  "name": "Documentary libraries",
+  "version": "1.0.0",
+  "description": "Routes documentary shows and movies into dedicated library roots.",
+  "settings": [
+    { "key": "showBaseFolder", "type": "directory", "label": "Documentary shows folder", "description": "Used for shows identified as documentaries.", "pickerKind": "TV" },
+    { "key": "movieBaseFolder", "type": "directory", "label": "Documentary movies folder", "description": "Used for movies identified as documentaries.", "pickerKind": "Movie" }
+  ],
+  "match": { "genreIds": [99] },
+  "badges": [{ "label": "Documentary" }],
+  "destinations": {
+    "show": { "settingKey": "showBaseFolder", "label": "Documentary show" },
+    "movie": { "settingKey": "movieBaseFolder", "label": "Documentary movie" }
+  },
+  "mediaSettingsTabs": [
+    {
+      "id": "documentary-shows",
+      "label": "Documentary Shows",
+      "mediaKind": "show",
+      "note": "Settings for shows identified as documentaries.",
+      "baseFolderSettingKey": "showBaseFolder",
+      "folderTemplateSettingKey": "showFolderTemplate",
+      "fileTemplateSettingKey": "episodeTemplate"
+    },
+    {
+      "id": "documentary-movies",
+      "label": "Documentary Movies",
+      "mediaKind": "movie",
+      "note": "Settings for movies identified as documentaries.",
+      "baseFolderSettingKey": "movieBaseFolder",
+      "folderTemplateSettingKey": "movieFolderTemplate",
+      "fileTemplateSettingKey": "movieTemplate"
+    }
+  ]
+}
