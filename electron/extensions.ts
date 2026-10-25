@@ -6,6 +6,21 @@ const MAX_PACKAGE_FILES = 200;
 const MAX_PACKAGE_BYTES = 10 * 1024 * 1024;
 
 export type ExtensionSource = 'installed' | 'preinstalled' | 'development';
+interface ExtensionMatchClause {
+  mediaKinds?: Array<'show' | 'movie'>;
+  genreIds?: number[];
+  originalLanguages?: string[];
+  originCountries?: string[];
+  resolutions?: string[];
+  sources?: string[];
+  videoCodecs?: string[];
+  audioCodecs?: string[];
+  channels?: string[];
+  audioLanguages?: string[];
+  flags?: string[];
+  releaseGroups?: string[];
+  editions?: string[];
+}
 export interface InstalledExtensionManifest {
   apiVersion: 1;
   id: string;
@@ -13,9 +28,10 @@ export interface InstalledExtensionManifest {
   version: string;
   description: string;
   settings: Array<{ key: string; type: 'directory'; label: string; description: string; pickerKind: 'TV' | 'Movie' }>;
-  match: { genreIds?: number[]; originalLanguages?: string[]; originCountries?: string[] };
-  anyOf?: Array<{ genreIds?: number[]; originalLanguages?: string[]; originCountries?: string[] }>;
-  badges?: Array<{ label: string }>;
+  match: ExtensionMatchClause;
+  anyOf?: ExtensionMatchClause[];
+  badges?: Array<{ label: string; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }>;
+  warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   destinations?: Partial<Record<'show' | 'movie', { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string }>;
   source: ExtensionSource;
@@ -39,9 +55,19 @@ function matchClause(value: unknown): InstalledExtensionManifest['match'] {
   const genreIds = source.genreIds === undefined ? undefined : Array.isArray(source.genreIds) && source.genreIds.length <= 50 && source.genreIds.every((id) => Number.isInteger(id) && Number(id) > 0) ? [...new Set(source.genreIds as number[])] : null;
   if (genreIds === null) throw new Error('Extension genre rule is invalid.');
   const result = {
+    ...(stringList(source.mediaKinds, /^(show|movie)$/, 2)?.length ? { mediaKinds: stringList(source.mediaKinds, /^(show|movie)$/, 2) as Array<'show' | 'movie'> } : {}),
     ...(genreIds?.length ? { genreIds } : {}),
     ...(stringList(source.originalLanguages, /^[a-z]{2,3}$/i, 50)?.length ? { originalLanguages: stringList(source.originalLanguages, /^[a-z]{2,3}$/i, 50) } : {}),
     ...(stringList(source.originCountries, /^[a-z]{2}$/i, 50)?.length ? { originCountries: stringList(source.originCountries, /^[a-z]{2}$/i, 50) } : {}),
+    ...(stringList(source.resolutions, /^[\w .+-]{1,40}$/, 50)?.length ? { resolutions: stringList(source.resolutions, /^[\w .+-]{1,40}$/, 50) } : {}),
+    ...(stringList(source.sources, /^[\w .+-]{1,40}$/, 50)?.length ? { sources: stringList(source.sources, /^[\w .+-]{1,40}$/, 50) } : {}),
+    ...(stringList(source.videoCodecs, /^[\w .+-]{1,40}$/, 50)?.length ? { videoCodecs: stringList(source.videoCodecs, /^[\w .+-]{1,40}$/, 50) } : {}),
+    ...(stringList(source.audioCodecs, /^[\w .+-]{1,40}$/, 50)?.length ? { audioCodecs: stringList(source.audioCodecs, /^[\w .+-]{1,40}$/, 50) } : {}),
+    ...(stringList(source.channels, /^[\w .+-]{1,40}$/, 50)?.length ? { channels: stringList(source.channels, /^[\w .+-]{1,40}$/, 50) } : {}),
+    ...(stringList(source.audioLanguages, /^[\w .+-]{1,80}$/, 50)?.length ? { audioLanguages: stringList(source.audioLanguages, /^[\w .+-]{1,80}$/, 50) } : {}),
+    ...(stringList(source.flags, /^[\w .+:'()-]{1,80}$/, 50)?.length ? { flags: stringList(source.flags, /^[\w .+:'()-]{1,80}$/, 50) } : {}),
+    ...(stringList(source.releaseGroups, /^[\w .+-]{1,80}$/, 50)?.length ? { releaseGroups: stringList(source.releaseGroups, /^[\w .+-]{1,80}$/, 50) } : {}),
+    ...(stringList(source.editions, /^[\w .+:'()-]{1,100}$/, 50)?.length ? { editions: stringList(source.editions, /^[\w .+:'()-]{1,100}$/, 50) } : {}),
   };
   if (!Object.keys(result).length) throw new Error('Extension match rule must contain at least one condition.');
   return result;
@@ -72,8 +98,21 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     })) as InstalledExtensionManifest['destinations']
     : undefined;
   const badges = item.badges === undefined ? undefined : Array.isArray(item.badges) && item.badges.length <= 20
-    ? item.badges.map((entry) => ({ label: shortText((entry as Record<string, unknown>)?.label, 'badge label', 40) }))
+    ? item.badges.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension badge is invalid.');
+      const badge = entry as Record<string, unknown>;
+      if (badge.tone !== undefined && !['neutral', 'info', 'success', 'warning', 'danger'].includes(String(badge.tone))) throw new Error('Extension badge tone is invalid.');
+      return { label: shortText(badge.label, 'badge label', 40), ...(badge.tone ? { tone: badge.tone as 'neutral' | 'info' | 'success' | 'warning' | 'danger' } : {}) };
+    })
     : (() => { throw new Error('Extension badges are invalid.'); })();
+  const warnings = item.warnings === undefined ? undefined : Array.isArray(item.warnings) && item.warnings.length <= 20
+    ? item.warnings.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension warning is invalid.');
+      const warning = entry as Record<string, unknown>;
+      if (!['info', 'warning', 'danger'].includes(String(warning.tone))) throw new Error('Extension warning tone is invalid.');
+      return { message: shortText(warning.message, 'warning message', 300), tone: warning.tone as 'info' | 'warning' | 'danger' };
+    })
+    : (() => { throw new Error('Extension warnings are invalid.'); })();
   const anyOf = item.anyOf === undefined ? undefined : Array.isArray(item.anyOf) && item.anyOf.length <= 20 ? item.anyOf.map(matchClause) : (() => { throw new Error('Extension alternative rules are invalid.'); })();
   const mediaSettingsTabs = item.mediaSettingsTabs === undefined ? undefined : Array.isArray(item.mediaSettingsTabs) && item.mediaSettingsTabs.length <= 10
     ? item.mediaSettingsTabs.map((entry) => {
@@ -105,6 +144,7 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     match: matchClause(item.match),
     ...(anyOf?.length ? { anyOf } : {}),
     ...(badges?.length ? { badges } : {}),
+    ...(warnings?.length ? { warnings } : {}),
     ...(destinations && Object.keys(destinations).length ? { destinations } : {}),
     ...(mediaSettingsTabs?.length ? { mediaSettingsTabs } : {}),
     source,

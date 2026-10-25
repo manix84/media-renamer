@@ -9,6 +9,15 @@ export interface ExtensionMediaContext extends MediaClassificationMetadata {
   id: string;
   name: string;
   year?: number;
+  resolution?: string;
+  source?: string;
+  videoCodec?: string;
+  audioCodec?: string;
+  channels?: string;
+  audioLanguages?: string[];
+  flags?: string[];
+  releaseGroup?: string;
+  edition?: string;
 }
 
 export interface ExtensionDirectorySetting {
@@ -20,10 +29,22 @@ export interface ExtensionDirectorySetting {
 }
 
 export interface ExtensionMatchClause {
+  mediaKinds?: ExtensionMediaKind[];
   genreIds?: number[];
   originalLanguages?: string[];
   originCountries?: string[];
+  resolutions?: string[];
+  sources?: string[];
+  videoCodecs?: string[];
+  audioCodecs?: string[];
+  channels?: string[];
+  audioLanguages?: string[];
+  flags?: string[];
+  releaseGroups?: string[];
+  editions?: string[];
 }
+
+export type ExtensionContributionTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 export interface ExtensionManifest {
   apiVersion: typeof EXTENSION_API_VERSION;
@@ -34,7 +55,8 @@ export interface ExtensionManifest {
   settings: ExtensionDirectorySetting[];
   match: ExtensionMatchClause;
   anyOf?: ExtensionMatchClause[];
-  badges?: Array<{ label: string }>;
+  badges?: Array<{ label: string; tone?: ExtensionContributionTone }>;
+  warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   destinations?: Partial<Record<ExtensionMediaKind, { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{
     id: string;

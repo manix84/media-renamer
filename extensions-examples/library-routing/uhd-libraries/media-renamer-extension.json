@@ -1,0 +1,17 @@
+{
+  "apiVersion": 1,
+  "id": "example.uhd-libraries",
+  "name": "UHD libraries",
+  "version": "1.0.0",
+  "description": "Routes 2160p shows and movies into dedicated UHD library roots.",
+  "settings": [
+    { "key": "showBaseFolder", "type": "directory", "label": "UHD shows folder", "description": "Used for 2160p shows.", "pickerKind": "TV" },
+    { "key": "movieBaseFolder", "type": "directory", "label": "UHD movies folder", "description": "Used for 2160p movies.", "pickerKind": "Movie" }
+  ],
+  "match": { "resolutions": ["2160p"] },
+  "badges": [{ "label": "UHD", "tone": "success" }],
+  "destinations": {
+    "show": { "settingKey": "showBaseFolder", "label": "UHD show" },
+    "movie": { "settingKey": "movieBaseFolder", "label": "UHD movie" }
+  }
+}

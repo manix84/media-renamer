@@ -88,13 +88,16 @@ Packages are limited to 200 regular files and 10 MiB. Symbolic links are rejecte
 - `genreIds` are provider genre IDs.
 - `originalLanguages` use two- or three-letter language codes.
 - `originCountries` use two-letter country codes.
+- Technical clauses may use `resolutions`, `sources`, `videoCodecs`, `audioCodecs`, `channels`, `audioLanguages`, `flags`, `releaseGroups`, and `editions`.
+- `mediaKinds` restricts a clause to `show`, `movie`, or both.
+- Technical string comparisons are case-insensitive exact matches. Audio languages may use the detected full name, three-letter code, or two-letter code.
 - Matching runs only after trusted provider metadata has been selected.
 
 The example means: genre 16 **and** either Japanese original language **or** Japanese origin country.
 
 ### 4. Add settings, badges, and destinations
 
-`settings` currently supports host-rendered `directory` controls. A destination references a declared setting by key. `show` and `movie` destinations are independent. `badges` are displayed on matching media rows only while the extension is enabled.
+`settings` currently supports host-rendered `directory` controls. A destination references a declared setting by key. `show` and `movie` destinations are independent. `badges` are displayed on matching media rows only while the extension is enabled and may use `neutral`, `info`, `success`, `warning`, or `danger` semantic tones. `warnings` use `info`, `warning`, or `danger`; they are informational and cannot block a rename.
 
 `mediaSettingsTabs` adds a Preferences tab beside Shows and Movies. Its base folder, folder template, and filename template inherit live from the declared `mediaKind` until the user edits that field. Only customized values are stored; clearing an override resumes inheritance. The base-folder key must reference a declared directory setting, while the two template keys become extension-owned preference values.
 
@@ -141,6 +144,7 @@ npm run check
 | `match` | Yes | Required metadata clause |
 | `anyOf` | No | Alternative additional clauses |
 | `badges` | No | Labels displayed on matching rows |
+| `warnings` | No | Informational host-rendered messages for matching rows |
 | `destinations` | No | Show/movie routing via declared directory settings |
 | `mediaSettingsTabs` | No | Host-rendered media configuration tabs with inherited values |
 

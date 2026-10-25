@@ -6,4 +6,4 @@ Library-routing extensions use normalized provider metadata to classify a matche
 
 Good uses include documentaries, concerts, stand-up, sport, children’s media, foreign-language media, home videos, and dedicated 4K/HDR/remux libraries. Only metadata fields supported by the current manifest may be used.
 
-The [`documentary-libraries`](documentary-libraries/) example routes TMDB documentary genre `99` into separate show and movie folders.
+The [`documentary-libraries`](documentary-libraries/) example routes TMDB documentary genre `99` into separate show and movie folders. [`uhd-libraries`](uhd-libraries/) demonstrates routing from normalized technical metadata instead of provider genres.

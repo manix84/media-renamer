@@ -1,0 +1,11 @@
+{
+  "apiVersion": 1,
+  "id": "example.ai-upscale-warning",
+  "name": "AI-upscale warning",
+  "version": "1.0.0",
+  "description": "Highlights media identified as AI-upscaled for optional review.",
+  "settings": [],
+  "match": { "flags": ["AI Upscale"] },
+  "badges": [{ "label": "AI Upscale", "tone": "warning" }],
+  "warnings": [{ "message": "This release appears to be AI-upscaled; review its quality before renaming.", "tone": "warning" }]
+}

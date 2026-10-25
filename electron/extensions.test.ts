@@ -43,6 +43,24 @@ describe('extension packages', () => {
     expect(manifest.mediaSettingsTabs?.[0]).toMatchObject({ id: 'example-shows', mediaKind: 'show', baseFolderSettingKey: 'showFolder' });
   });
 
+  it('accepts bounded technical matching, badge tones, and warnings', () => {
+    const manifest = normalizeExtensionManifest({
+      ...validManifest,
+      match: { mediaKinds: ['movie'], resolutions: ['2160p'], sources: ['BluRay'], videoCodecs: ['H.265'], audioLanguages: ['eng'], flags: ['AI Upscale'], editions: ["Director's Cut"] },
+      badges: [{ label: 'Review', tone: 'warning' }],
+      warnings: [{ message: 'Review this source.', tone: 'warning' }],
+    }, 'installed');
+    expect(manifest.match).toMatchObject({ mediaKinds: ['movie'], resolutions: ['2160p'], audioLanguages: ['eng'] });
+    expect(manifest.badges).toEqual([{ label: 'Review', tone: 'warning' }]);
+    expect(manifest.warnings).toEqual([{ message: 'Review this source.', tone: 'warning' }]);
+  });
+
+  it('rejects unknown contribution tones and unbounded match values', () => {
+    expect(() => normalizeExtensionManifest({ ...validManifest, badges: [{ label: 'Bad', tone: 'purple' }] }, 'installed')).toThrow('badge tone');
+    expect(() => normalizeExtensionManifest({ ...validManifest, warnings: [{ message: 'Bad', tone: 'block' }] }, 'installed')).toThrow('warning tone');
+    expect(() => normalizeExtensionManifest({ ...validManifest, match: { resolutions: ['x'.repeat(41)] } }, 'installed')).toThrow('matching rule');
+  });
+
   it('installs, discovers, and uninstalls a package', async () => {
     const source = await temporaryDirectory();
     const installed = await temporaryDirectory();

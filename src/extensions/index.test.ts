@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, type ExtensionMediaContext, type InstalledExtension } from './index';
+import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, resolveExtensionWarnings, type ExtensionMediaContext, type InstalledExtension } from './index';
 
 const animeExtension: InstalledExtension = {
   apiVersion: 1,
@@ -37,7 +37,7 @@ describe('extension destination runtime', () => {
   it('recognizes Million Arthur from normalized metadata', () => {
     const context: ExtensionMediaContext = { kind: 'show', id: '83451', name: 'Million Arthur', genreIds: [10759, 16, 10765], originalLanguage: 'ja', originCountries: ['JP'] };
     expect(resolveExtensionDestination(context, enabled, extensions)).toEqual({ baseFolder: '/Anime Shows', extensionId: animeExtension.id, label: 'Anime show' });
-    expect(resolveExtensionBadges(context, enabled, extensions)).toEqual([{ extensionId: animeExtension.id, label: 'Anime' }]);
+    expect(resolveExtensionBadges(context, enabled, extensions)).toEqual([{ extensionId: animeExtension.id, label: 'Anime', tone: 'info' }]);
   });
 
   it('does not treat all animation or all Japanese media as anime', () => {
@@ -50,7 +50,23 @@ describe('extension destination runtime', () => {
     expect(resolveExtensionDestination(context, { [animeExtension.id]: { enabled: false, settings: { showBaseFolder: '/Anime' } } }, extensions)).toBeUndefined();
     expect(resolveExtensionDestination(context, { [animeExtension.id]: { enabled: true, settings: {} } }, extensions)).toBeUndefined();
     expect(resolveExtensionBadges(context, { [animeExtension.id]: { enabled: false, settings: {} } }, extensions)).toEqual([]);
-    expect(resolveExtensionBadges(context, { [animeExtension.id]: { enabled: true, settings: {} } }, extensions)).toEqual([{ extensionId: animeExtension.id, label: 'Anime' }]);
+    expect(resolveExtensionBadges(context, { [animeExtension.id]: { enabled: true, settings: {} } }, extensions)).toEqual([{ extensionId: animeExtension.id, label: 'Anime', tone: 'info' }]);
+  });
+
+  it('matches normalized technical metadata and returns host-rendered warnings', () => {
+    const qualityExtension: InstalledExtension = {
+      ...animeExtension,
+      id: 'example.quality',
+      match: { mediaKinds: ['movie'], resolutions: ['2160p'], flags: ['AI Upscale'], audioLanguages: ['eng'] },
+      anyOf: undefined,
+      badges: [{ label: 'Upscale', tone: 'warning' }],
+      warnings: [{ message: 'Review this AI-upscaled source before moving it.', tone: 'warning' }],
+    };
+    const qualityPreferences = { [qualityExtension.id]: { enabled: true, settings: {} } };
+    const context: ExtensionMediaContext = { kind: 'movie', id: '1', name: 'Example', resolution: '2160P', flags: ['AI Upscale'], audioLanguages: ['English', 'eng'] };
+    expect(resolveExtensionBadges(context, qualityPreferences, [qualityExtension])).toEqual([{ extensionId: qualityExtension.id, label: 'Upscale', tone: 'warning' }]);
+    expect(resolveExtensionWarnings(context, qualityPreferences, [qualityExtension])).toEqual([{ extensionId: qualityExtension.id, message: 'Review this AI-upscaled source before moving it.', tone: 'warning' }]);
+    expect(resolveExtensionWarnings({ ...context, kind: 'show' }, qualityPreferences, [qualityExtension])).toEqual([]);
   });
 
   it('returns only explicitly customized media settings so the host can inherit the rest', () => {

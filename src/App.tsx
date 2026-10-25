@@ -26,7 +26,7 @@ import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
 import { alternateLibraryRoots } from './core/libraryRoots';
-import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
+import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, resolveExtensionWarnings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
 type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceJunkFiles?: string[]; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
@@ -611,9 +611,9 @@ export default function App() {
     const effectiveShowYear = metadataOverride ? optionalMetadataNumber(metadataOverride.year) : show?.year;
     const effectiveTvdbId = metadataOverride?.providerId.trim() || show?.tvdbId;
     const extensionContext: ExtensionMediaContext | undefined = activeMediaTab === 'movies' && movieForPath
-      ? { kind: 'movie', id: movieForPath.id, name: movieForPath.name, year: movieForPath.year, genreIds: movieForPath.genreIds, originalLanguage: movieForPath.originalLanguage, originCountries: movieForPath.originCountries }
+      ? { kind: 'movie', id: movieForPath.id, name: movieForPath.name, year: movieForPath.year, genreIds: movieForPath.genreIds, originalLanguage: movieForPath.originalLanguage, originCountries: movieForPath.originCountries, resolution: tags?.resolution, source: tags?.source, videoCodec: tags?.videoCodec, audioCodec: tags?.audioCodec, channels: tags?.channels, audioLanguages: tags?.audioLanguages?.flatMap((language) => [language.name, language.code3, language.code2].filter((value): value is string => Boolean(value))), flags: tags?.flags, releaseGroup: tags?.group, edition: tags?.edition }
       : activeMediaTab === 'shows' && show
-        ? { kind: 'show', id: show.id, name: effectiveShowName ?? show.name, year: effectiveShowYear, genreIds: show.genreIds, originalLanguage: show.originalLanguage, originCountries: show.originCountries }
+        ? { kind: 'show', id: show.id, name: effectiveShowName ?? show.name, year: effectiveShowYear, genreIds: show.genreIds, originalLanguage: show.originalLanguage, originCountries: show.originCountries, resolution: tags?.resolution, source: tags?.source, videoCodec: tags?.videoCodec, audioCodec: tags?.audioCodec, channels: tags?.channels, audioLanguages: tags?.audioLanguages?.flatMap((language) => [language.name, language.code3, language.code2].filter((value): value is string => Boolean(value))), flags: tags?.flags, releaseGroup: tags?.group, edition: tags?.edition }
         : undefined;
     const extensionMediaSettings = resolveExtensionMediaSettings(extensionContext, extensionPreferences, installedExtensions);
     const extensionDestination = resolveExtensionDestination(extensionContext, extensionPreferences, installedExtensions);
@@ -2172,7 +2172,7 @@ export default function App() {
                 const roleTag = movieVideoRole?.kind === 'multipart' ? `Part ${movieVideoRole.part}` : movieVideoRole?.kind === 'extra' ? movieVideoRole.extraType === 'behindthescenes' ? 'Behind the scenes' : movieVideoRole.extraType[0].toUpperCase() + movieVideoRole.extraType.slice(1) : movieVideoRole?.kind === 'sample' ? 'Sample' : undefined;
                 const detailTags = tags ? [roleTag, tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
                 const extensionTitle = activeMediaTab === 'movies' ? movieFileMatch?.movie : show;
-                const extensionBadges = resolveExtensionBadges(extensionTitle ? {
+                const extensionContext: ExtensionMediaContext | undefined = extensionTitle ? {
                   kind: activeMediaTab === 'movies' ? 'movie' : 'show',
                   id: extensionTitle.id,
                   name: extensionTitle.name,
@@ -2180,7 +2180,18 @@ export default function App() {
                   genreIds: extensionTitle.genreIds,
                   originalLanguage: extensionTitle.originalLanguage,
                   originCountries: extensionTitle.originCountries,
-                } : undefined, extensionPreferences, installedExtensions);
+                  resolution: tags?.resolution,
+                  source: tags?.source,
+                  videoCodec: tags?.videoCodec,
+                  audioCodec: tags?.audioCodec,
+                  channels: tags?.channels,
+                  audioLanguages: tags?.audioLanguages?.flatMap((language) => [language.name, language.code3, language.code2].filter((value): value is string => Boolean(value))),
+                  flags: tags?.flags,
+                  releaseGroup: tags?.group,
+                  edition: tags?.edition,
+                } : undefined;
+                const extensionBadges = resolveExtensionBadges(extensionContext, extensionPreferences, installedExtensions);
+                const extensionWarnings = resolveExtensionWarnings(extensionContext, extensionPreferences, installedExtensions);
                 const planIssues = planIssuesByPath.get(path) ?? [];
                 const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
                 const unchanged = unchangedPathSet.has(path);
@@ -2203,7 +2214,8 @@ export default function App() {
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
                       {planIssues.length ? <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span> : item?.match?.reasons.length ? <span className="match-reasons">Matched by {item.match.reasons.join(' + ')}</span> : <span className="match-reasons">No match evidence</span>}
-                      <span className="detail-tags">{extensionBadges.map((badge) => <small className="extension-badge" key={`${badge.extensionId}:${badge.label}`}>{badge.label}</small>)}{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : extensionBadges.length === 0 ? <small>No release metadata</small> : null}</span>
+                      <span className="detail-tags">{extensionBadges.map((badge) => <small className={`extension-badge ${badge.tone}`} key={`${badge.extensionId}:${badge.label}`}>{badge.label}</small>)}{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : extensionBadges.length === 0 ? <small>No release metadata</small> : null}</span>
+                      {extensionWarnings.map((warning) => <span className={`extension-warning ${warning.tone}`} key={`${warning.extensionId}:${warning.message}`}><TriangleAlert size={12}/>{warning.message}</span>)}
                     </div>}
                     {plannedCompanions.length > 0 && (fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
                       {plannedCompanions.map((companion) => <div key={companion.sourcePath}>

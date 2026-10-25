@@ -1,7 +1,7 @@
 # Presentation and review example
 
-**Status: Design example — Stage 1.**
+**Status: Runnable in API v1.**
 
-This extension type will contribute host-rendered badges, warnings, colours, filters, and match explanations. A proposed “Missing preferred language” extension could request a warning when neither embedded audio nor associated subtitles contain a user-selected language.
+This extension type contributes host-rendered badges and informational warnings. The [`ai-upscale-warning`](ai-upscale-warning/) example marks files carrying the existing `AI Upscale` release flag. Colours, icons, filters, negative conditions such as “missing a language”, and richer explanations remain planned.
 
-The host must choose icons and accessible colours, escape all text, bound the number of contributions, and keep warnings informational unless a separately declared review policy blocks execution.
+The host chooses accessible tones, escapes all text, bounds contributions, and keeps warnings informational. A warning cannot block execution unless a future, separately permissioned policy capability explicitly supports it.

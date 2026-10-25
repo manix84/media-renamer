@@ -2,10 +2,22 @@ import type { ExtensionPreferences } from '../core/types';
 import { EXTENSION_API_VERSION, type ExtensionManifest, type ExtensionMatchClause, type ExtensionMediaContext, type InstalledExtension } from './types';
 
 function matchesClause(context: ExtensionMediaContext, clause: ExtensionMatchClause): boolean {
+  const contains = (values: string[] | undefined, candidate: string | undefined) => !values?.length || Boolean(candidate && values.some((value) => value.toLowerCase() === candidate.toLowerCase()));
+  const overlaps = (values: string[] | undefined, candidates: string[] | undefined) => !values?.length || Boolean(candidates?.some((candidate) => values.some((value) => value.toLowerCase() === candidate.toLowerCase())));
+  if (clause.mediaKinds?.length && !clause.mediaKinds.includes(context.kind)) return false;
   if (clause.genreIds?.length && !clause.genreIds.every((id) => context.genreIds?.includes(id))) return false;
-  if (clause.originalLanguages?.length && !clause.originalLanguages.some((language) => language.toLowerCase() === context.originalLanguage?.toLowerCase())) return false;
+  if (!contains(clause.originalLanguages, context.originalLanguage)) return false;
   if (clause.originCountries?.length && !clause.originCountries.some((country) => context.originCountries?.some((candidate) => candidate.toUpperCase() === country.toUpperCase()))) return false;
-  return Boolean(clause.genreIds?.length || clause.originalLanguages?.length || clause.originCountries?.length);
+  if (!contains(clause.resolutions, context.resolution)) return false;
+  if (!contains(clause.sources, context.source)) return false;
+  if (!contains(clause.videoCodecs, context.videoCodec)) return false;
+  if (!contains(clause.audioCodecs, context.audioCodec)) return false;
+  if (!contains(clause.channels, context.channels)) return false;
+  if (!overlaps(clause.audioLanguages, context.audioLanguages)) return false;
+  if (!overlaps(clause.flags, context.flags)) return false;
+  if (!contains(clause.releaseGroups, context.releaseGroup)) return false;
+  if (!contains(clause.editions, context.edition)) return false;
+  return Object.values(clause).some((value) => Array.isArray(value) && value.length > 0);
 }
 
 function matchesExtension(extension: ExtensionManifest, context: ExtensionMediaContext): boolean {
@@ -18,10 +30,21 @@ export function resolveExtensionBadges(
   context: ExtensionMediaContext | undefined,
   preferences: ExtensionPreferences,
   extensions: readonly InstalledExtension[],
-): Array<{ extensionId: string; label: string }> {
+): Array<{ extensionId: string; label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }> {
   if (!context) return [];
   return extensions.flatMap((extension) => preferences[extension.id]?.enabled && matchesExtension(extension, context)
-    ? (extension.badges ?? []).map((badge) => ({ extensionId: extension.id, label: badge.label }))
+    ? (extension.badges ?? []).map((badge) => ({ extensionId: extension.id, label: badge.label, tone: badge.tone ?? 'info' }))
+    : []);
+}
+
+export function resolveExtensionWarnings(
+  context: ExtensionMediaContext | undefined,
+  preferences: ExtensionPreferences,
+  extensions: readonly InstalledExtension[],
+): Array<{ extensionId: string; message: string; tone: 'info' | 'warning' | 'danger' }> {
+  if (!context) return [];
+  return extensions.flatMap((extension) => preferences[extension.id]?.enabled && matchesExtension(extension, context)
+    ? (extension.warnings ?? []).map((warning) => ({ extensionId: extension.id, message: warning.message, tone: warning.tone }))
     : []);
 }
 

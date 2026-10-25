@@ -398,6 +398,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .detail-tags { min-width: 0; display: flex; gap: 4px; overflow: hidden; }
 .detail-tags small { flex: 0 0 auto; padding: 2px 5px; border-radius: 4px; background: #202633; color: #8995aa; font-size: 8px; }
 .detail-tags small.extension-badge { border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 16%, transparent); color: color-mix(in srgb, var(--accent) 72%, #fff); font-weight: 750; letter-spacing: .02em; }
+.detail-tags small.extension-badge.success { border-color: #35aa78; background: #183c30; color: #8de0bd; }
+.detail-tags small.extension-badge.warning { border-color: #b6812c; background: #40331c; color: #f0c66f; }
+.detail-tags small.extension-badge.danger { border-color: #bd5861; background: #431f26; color: #f2a4aa; }
+.detail-tags small.extension-badge.neutral { border-color: #657087; background: #282e3a; color: #b8c0d0; }
+.extension-warning { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font-weight: 650; }
+.extension-warning.info { color: #70a9dd; }
+.extension-warning.warning { color: #d9a64d; }
+.extension-warning.danger { color: #e47780; }
 .companion-files { margin-top: 9px; padding: 7px 9px; display: grid; gap: 6px; border: 1px solid #293141; border-radius: 7px; background: #0d121b; }
 .companion-files > div { min-width: 0; display: grid; grid-template-columns: 14px minmax(0, 1fr) 12px minmax(0, 1fr); align-items: center; gap: 6px; color: #68758a; font-size: 8px; }
 .companion-files svg { color: #8175d6; } .companion-files span, .companion-files strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .companion-files strong { color: #aeb8c9; font-weight: 500; }
