@@ -32,6 +32,7 @@ export interface InstalledExtensionManifest {
   anyOf?: ExtensionMatchClause[];
   badges?: Array<{ label: string; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
+  capabilities?: Array<{ id: 'network.metadata'; reason: string; origins: string[] }>;
   destinations?: Partial<Record<'show' | 'movie', { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string; defaultFolderTemplate?: string; defaultFileTemplate?: string }>;
   source: ExtensionSource;
@@ -71,6 +72,14 @@ function matchClause(value: unknown): InstalledExtensionManifest['match'] {
   };
   if (!Object.keys(result).length) throw new Error('Extension match rule must contain at least one condition.');
   return result;
+}
+
+function networkOrigin(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 500) throw new Error('Extension network origin is invalid.');
+  let parsed: URL;
+  try { parsed = new URL(value); } catch { throw new Error('Extension network origin is invalid.'); }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) throw new Error('Extension network origins must be exact HTTPS origins.');
+  return parsed.origin;
 }
 
 export function normalizeExtensionManifest(value: unknown, source: ExtensionSource): InstalledExtensionManifest {
@@ -113,6 +122,15 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
       return { message: shortText(warning.message, 'warning message', 300), tone: warning.tone as 'info' | 'warning' | 'danger' };
     })
     : (() => { throw new Error('Extension warnings are invalid.'); })();
+  const capabilities = item.capabilities === undefined ? undefined : Array.isArray(item.capabilities) && item.capabilities.length <= 20
+    ? item.capabilities.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension capability is invalid.');
+      const capability = entry as Record<string, unknown>;
+      if (capability.id !== 'network.metadata' || !Array.isArray(capability.origins) || !capability.origins.length || capability.origins.length > 20) throw new Error('Extension capability is invalid.');
+      return { id: 'network.metadata' as const, reason: shortText(capability.reason, 'capability reason', 300), origins: [...new Set(capability.origins.map(networkOrigin))] };
+    })
+    : (() => { throw new Error('Extension capabilities are invalid.'); })();
+  if (capabilities && new Set(capabilities.map((capability) => capability.id)).size !== capabilities.length) throw new Error('Extension capability IDs must be unique.');
   const anyOf = item.anyOf === undefined ? undefined : Array.isArray(item.anyOf) && item.anyOf.length <= 20 ? item.anyOf.map(matchClause) : (() => { throw new Error('Extension alternative rules are invalid.'); })();
   const mediaSettingsTabs = item.mediaSettingsTabs === undefined ? undefined : Array.isArray(item.mediaSettingsTabs) && item.mediaSettingsTabs.length <= 10
     ? item.mediaSettingsTabs.map((entry) => {
@@ -147,6 +165,7 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     ...(anyOf?.length ? { anyOf } : {}),
     ...(badges?.length ? { badges } : {}),
     ...(warnings?.length ? { warnings } : {}),
+    ...(capabilities?.length ? { capabilities } : {}),
     ...(destinations && Object.keys(destinations).length ? { destinations } : {}),
     ...(mediaSettingsTabs?.length ? { mediaSettingsTabs } : {}),
     source,

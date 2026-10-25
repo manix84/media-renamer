@@ -46,6 +46,12 @@ export interface ExtensionMatchClause {
 
 export type ExtensionContributionTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
+export interface ExtensionCapability {
+  id: 'network.metadata';
+  reason: string;
+  origins: string[];
+}
+
 export interface ExtensionManifest {
   apiVersion: typeof EXTENSION_API_VERSION;
   id: string;
@@ -57,6 +63,7 @@ export interface ExtensionManifest {
   anyOf?: ExtensionMatchClause[];
   badges?: Array<{ label: string; tone?: ExtensionContributionTone }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
+  capabilities?: ExtensionCapability[];
   destinations?: Partial<Record<ExtensionMediaKind, { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{
     id: string;

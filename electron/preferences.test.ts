@@ -29,9 +29,9 @@ describe('persistent preferences', () => {
 
   it('sanitizes extension IDs, setting keys, and values', () => {
     expect(normalizePreferences({ extensions: {
-      'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime', invalid_value: 12 } },
+      'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime', invalid_value: 12 }, grantedCapabilities: ['network.metadata', 'network.metadata', 'bad capability', 42] },
       'bad id': { enabled: true, settings: {} },
-    } }).extensions).toEqual({ 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime' } } });
+    } }).extensions).toEqual({ 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime' }, grantedCapabilities: ['network.metadata'] } });
   });
 
   it('recovers from a malformed settings file', async () => {

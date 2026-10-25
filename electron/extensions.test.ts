@@ -61,6 +61,13 @@ describe('extension packages', () => {
     expect(() => normalizeExtensionManifest({ ...validManifest, match: { resolutions: ['x'.repeat(41)] } }, 'installed')).toThrow('matching rule');
   });
 
+  it('normalizes exact HTTPS metadata-network capability origins', () => {
+    const manifest = normalizeExtensionManifest({ ...validManifest, capabilities: [{ id: 'network.metadata', reason: 'Search an approved metadata provider.', origins: ['https://graphql.anilist.co', 'https://graphql.anilist.co/'] }] }, 'installed');
+    expect(manifest.capabilities).toEqual([{ id: 'network.metadata', reason: 'Search an approved metadata provider.', origins: ['https://graphql.anilist.co'] }]);
+    expect(() => normalizeExtensionManifest({ ...validManifest, capabilities: [{ id: 'network.metadata', reason: 'Unsafe.', origins: ['http://localhost:8080'] }] }, 'installed')).toThrow('exact HTTPS origins');
+    expect(() => normalizeExtensionManifest({ ...validManifest, capabilities: [{ id: 'shell.execute', reason: 'Unsafe.', origins: ['https://example.com'] }] }, 'installed')).toThrow('capability');
+  });
+
   it('installs, discovers, and uninstalls a package', async () => {
     const source = await temporaryDirectory();
     const installed = await temporaryDirectory();

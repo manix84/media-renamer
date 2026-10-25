@@ -5,7 +5,7 @@ export type SavedMatchDecision = { showId: string; filenameKey: string; episodeI
 export type ShowRule = { showId: string; titleMatching: boolean; confidenceThreshold: number; updatedAt: number };
 export type SavedLibraryRoot = { id: string; kind: 'shows' | 'movies'; name: string; path: string; updatedAt: number };
 export type SavedBatchQueue = { id: string; name: string; mediaType: 'shows' | 'movies'; paths: string[]; updatedAt: number };
-export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string> }>;
+export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string>; grantedCapabilities?: string[] }>;
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
@@ -72,7 +72,10 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
       if (typeof item.enabled !== 'boolean' || !item.settings || typeof item.settings !== 'object' || Array.isArray(item.settings)) return [];
       const settings = Object.fromEntries(Object.entries(item.settings as Record<string, unknown>).slice(0, 100)
         .flatMap(([key, entry]): Array<[string, string]> => /^[a-z0-9][a-z0-9.-]{0,199}$/i.test(key) && typeof entry === 'string' && entry.length <= 32_768 ? [[key, entry]] : []));
-      return [[id, { enabled: item.enabled, settings }]];
+      const grantedCapabilities = Array.isArray(item.grantedCapabilities)
+        ? [...new Set(item.grantedCapabilities.filter((entry): entry is string => typeof entry === 'string' && /^[a-z][a-z0-9.-]{0,99}$/i.test(entry)))].slice(0, 50)
+        : undefined;
+      return [[id, { enabled: item.enabled, settings, ...(grantedCapabilities?.length ? { grantedCapabilities } : {}) }]];
     }));
   }
   if (Array.isArray(source.savedMatchDecisions)) {

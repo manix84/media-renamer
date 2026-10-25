@@ -67,7 +67,7 @@ export interface MovieCollection {
 
 export type MovieDetails = MovieSearchResult;
 
-export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string> }>;
+export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string>; grantedCapabilities?: string[] }>;
 
 export interface SavedLibraryRoot {
   id: string;

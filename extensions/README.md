@@ -149,6 +149,7 @@ npm run check
 | `warnings` | No | Informational host-rendered messages for matching rows |
 | `destinations` | No | Show/movie routing via declared directory settings |
 | `mediaSettingsTabs` | No | Host-rendered media configuration tabs with inherited values |
+| `capabilities` | No | Privileged host capabilities requested by the package; every capability remains denied until the user grants it |
 
 Unknown, malformed, oversized, or incompatible packages are ignored during discovery. They remain on disk so their author can repair them.
 
@@ -165,7 +166,11 @@ Version 1 deliberately exposes a small declarative API:
 | `destinations.show` | Extension → host | Selects an enabled extension's show library root |
 | `destinations.movie` | Extension → host | Selects an enabled extension's movie library root |
 
-There is currently **no command for arbitrary JavaScript, shell commands, network access, direct filesystem access, raw Electron IPC, or silent rename execution**. Installation does not grant any of those abilities.
+Packages may declare the `network.metadata` capability with a user-facing reason and an exact list of HTTPS origins. Preferences show each request separately and keep it denied until the user explicitly grants it. Installing or enabling an extension does not grant it automatically.
+
+The main-process metadata network broker is implemented as an internal security foundation. It accepts only bounded GET/POST JSON requests to granted origins, resolves and rejects local/private addresses, revalidates redirects, enforces response and request size limits, applies timeouts and per-extension rate limits, and never accepts extension-provided headers. It is deliberately **not exposed to extensions yet**: production exposure waits for a transport that pins the validated DNS result, preventing a provider from changing its address between validation and connection.
+
+There is currently **no command for arbitrary JavaScript, shell commands, direct filesystem access, raw Electron IPC, silent rename execution, or arbitrary network proxying**. Installation does not grant any of those abilities.
 
 ## Secure external command API design
 
@@ -191,6 +196,8 @@ Planned broker commands include `media.inspect-summary`, `batch.add`, `batch.pre
 - IDs, text lengths, arrays, language/country codes, setting references, package size, and file count are bounded.
 - Symlinks are rejected during installation.
 - The host renders all UI and owns every destination decision.
+- Privileged capabilities are independently declared, validated, displayed, and denied by default.
+- Metadata network requests pass through a bounded host broker; extensions never receive raw network primitives.
 - Extensions cannot bypass rename planning, collision handling, preflight checks, operation logs, or undo.
 - Disabling or removing a package restores the normal core behavior.
 

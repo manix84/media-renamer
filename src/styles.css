@@ -156,6 +156,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .extension-empty strong { color: var(--text); }
 .extension-card { display: grid; gap: 8px; padding: 8px; border: 1px solid #303747; border-radius: 10px; background: #121721; }
 .extension-card .preference-toggle { margin: 0; }
+.extension-capability { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 28%, #303747); border-radius: 9px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.extension-capability > span { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
+.extension-capability > span > span { display: grid; gap: 2px; min-width: 0; }
+.extension-capability small, .extension-capability code { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.extension-capability input { flex: 0 0 auto; }
 .preference-section h3 { margin: 0 0 4px; font-size: 13px; } .preference-section > p, .format-heading p { margin: 0; color: #778196; font-size: 10px; line-height: 1.45; }
 .language-settings label { margin-top: 13px; display: grid; grid-template-columns: minmax(0, 1fr) 210px; align-items: center; gap: 12px; }
 .language-settings label span { font-size: 11px; font-weight: 650; }
