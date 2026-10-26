@@ -320,7 +320,7 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 
 - [x] automated unsigned Linux, Windows, and macOS packages with tag-driven GitHub Releases
 - [ ] signed and notarized macOS build
-- [ ] signed Windows build and packaged Linux build
+- [ ] signed Windows build
 - [ ] update channel with release notes and safe migrations
 - [ ] in-app provider setup and first-run validation
 - [ ] keyboard, screen-reader, contrast, and reduced-motion audit
