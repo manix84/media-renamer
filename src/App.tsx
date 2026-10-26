@@ -379,6 +379,7 @@ export default function App() {
   const reportedSavedDecisionConflicts = useRef(new Set<string>());
   const matchRowElements = useRef(new Map<string, HTMLElement>());
   const removalTimers = useRef<Record<string, number>>({});
+  const recoveredRename = useRef(false);
   const fileDropDepth = useRef(0);
   const alternateShowRoots = alternateLibraryRoots(savedLibraryRoots, 'shows', tvBaseFolder);
   const alternateMovieRoots = alternateLibraryRoots(savedLibraryRoots, 'movies', movieBaseFolder);
@@ -1030,7 +1031,36 @@ export default function App() {
     return () => { active = false; };
   }, [addDebug, preflightAttempt, renameGroups]);
 
-  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total })), []);
+  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total, groupCompleted: progress.groupCompleted, groupTotal: progress.groupTotal, groupIndex: progress.groupIndex, groupsTotal: progress.groupsTotal })), []);
+
+  useEffect(() => {
+    let active = true;
+    window.mediaRenamer?.getRenameStatus?.().then((status) => {
+      if (!active || !status.running) return;
+      recoveredRename.current = true;
+      setActiveMediaTab(status.mediaKind);
+      setRenaming(true);
+      setRenameControl(status.control);
+      setRenameStartedAt(status.startedAt);
+      setRenameClock(Date.now());
+      setWork({ operation: status.progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: status.progress.completed, total: status.progress.total, groupCompleted: status.progress.groupCompleted, groupTotal: status.progress.groupTotal, groupIndex: status.progress.groupIndex, groupsTotal: status.progress.groupsTotal });
+      setRenameConfirmationOpen(true);
+    }).catch((reason) => { if (active) addDebug('warning', 'Could not recover active rename progress', errorMessage(reason)); });
+    const unsubscribe = window.mediaRenamer?.onRenameFinished?.((finished) => {
+      if (!recoveredRename.current) return;
+      recoveredRename.current = false;
+      setRenaming(false);
+      setRenameControl(undefined);
+      setRenameStartedAt(undefined);
+      setWork(undefined);
+      setRenameConfirmationOpen(false);
+      if (finished.result) {
+        setLastRename(finished.result);
+        if (completionReport) setRenameReport({ result: finished.result, moved: finished.moved ?? false });
+      } else if (finished.error) setError(finished.error);
+    });
+    return () => { active = false; unsubscribe?.(); };
+  }, [addDebug, completionReport]);
 
   useEffect(() => {
     if (!renaming || renameStartedAt === undefined) return;
@@ -1734,6 +1764,8 @@ export default function App() {
         removeEmptySourceParents: moveFiles && removeEmptySourceParents,
         createExternalLog: createExternalRenameLog,
         externalLogDirectory: createExternalRenameLog ? preferredLogDirectory : undefined,
+        mediaKind: activeMediaTab,
+        moveFiles,
       });
       const removedDirectoryCount = result.operation.removedSourceDirectories?.length ?? 0;
       const removedJunkCount = result.operation.removedSourceJunkFiles?.length ?? 0;
@@ -2153,9 +2185,10 @@ export default function App() {
             </aside></>}
             <div className={`panel-status-stack ${work || paths.length > 0 ? 'has-status' : ''}`}>
               <div className={`status-reveal ${work ? 'visible' : ''}`} aria-hidden={!work}>
-                <div className="status-reveal-inner"><div className="work-status" role={work ? 'status' : undefined} aria-live={work ? 'polite' : undefined}>
+                <div className="status-reveal-inner"><div className={`work-status ${renaming ? 'recoverable' : ''}`}>
                   <LoaderCircle className="spin" size={18}/>
-                  <span><strong>{work?.operation === 'Scanning' || !work ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work?.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
+                  <span role={work ? 'status' : undefined} aria-live={work ? 'polite' : undefined}><strong>{work?.operation === 'Scanning' || !work ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work?.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
+                  {renaming && <button className="secondary resume-progress" onClick={() => setRenameConfirmationOpen(true)}>View progress</button>}
                   {(work?.total ?? 0) > 0 && <SmoothProgress value={work?.completed ?? 0} max={work?.total ?? 1}/>}
                 </div></div>
               </div>
@@ -2361,8 +2394,8 @@ export default function App() {
         <button className="confirmation-backdrop" aria-label="Cancel rename" disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}/>
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
-          <h2 id="rename-title">Rename {executableGroups.length} {activeMediaTab === 'movies' ? 'movie' : 'episode'}{executableGroups.length === 1 ? '' : 's'}?</h2>
-          <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty source and companion folders will be removed after the move.' : ''}</p>
+          <h2 id="rename-title">{renaming ? activeMediaTab === 'movies' ? `Sorting ${work?.groupsTotal ?? executableGroups.length} movie${(work?.groupsTotal ?? executableGroups.length) === 1 ? '' : 's'}` : 'Rename in progress' : `Rename ${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'}?`}</h2>
+          <p id="rename-description">{renaming && work ? `${Math.max(0, work.total - work.completed)} of ${work.total} files remain. You can leave this view and return while the operation continues.` : <>This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty source and companion folders will be removed after the move.' : ''}</>}</p>
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
             <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : activeMediaTab === 'movies' && work.groupsTotal ? `Sorting movie ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : `Renaming ${renameCompleted} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
             <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal} label="Overall file progress"/>

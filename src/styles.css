@@ -336,6 +336,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .variable-row { min-height: 38px; padding: 7px 9px; display: grid; grid-template-columns: 142px minmax(0, 1fr) auto; align-items: center; gap: 8px; border-top: 1px solid #252c39; }
 .variable-row:first-child { border-top: 0; } .variable-row span { color: #8993a6; font-size: 9px; } .variable-row samp { color: #667186; font: 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: nowrap; }
 .work-status { margin: 0 12px 12px; padding: 10px 12px; display: grid; grid-template-columns: 22px 1fr minmax(90px, 22%); align-items: center; gap: 9px; border: 1px solid #2f3d55; border-radius: 8px; background: #151d29; color: #7599d1; }
+.work-status.recoverable { grid-template-columns: 22px 1fr auto minmax(90px, 22%); }
+.work-status .resume-progress { min-height: 28px; padding: 4px 9px; white-space: nowrap; }
 .work-status strong, .work-status small { display: block; } .work-status strong { color: #c6d2e5; font-size: 11px; } .work-status small { margin-top: 2px; color: #718096; font-size: 9px; }
 .work-status .smooth-progress { width: 100%; height: 5px; }
 .plan-status { margin: 0 12px 12px; padding: 10px 12px; display: flex; align-items: center; gap: 9px; border: 1px solid #2e493d; border-radius: 8px; background: #14231e; color: #55c894; }

@@ -10,6 +10,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Community health files for contribution, support, security, and issue reporting.
 - Nested rename progress for movie batches, showing both overall file progress and progress through each movie's video and associated sidecars.
 - Clickable movie-row posters using the same full-size, zoomable preview as TV-show artwork.
+- Rename progress recovery after a renderer refresh, with the live dialog and Stop/Undo controls restored automatically and a persistent **View progress** action.
 
 ## [0.1.0] - 2026-10-26
 

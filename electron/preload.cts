@@ -25,14 +25,20 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
-  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }) => ipcRenderer.invoke('rename:execute', groups, options),
+  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean }) => ipcRenderer.invoke('rename:execute', groups, options),
   controlRename: (control: 'stop' | 'undo'): Promise<boolean> => ipcRenderer.invoke('rename:control', control),
+  getRenameStatus: () => ipcRenderer.invoke('rename:status'),
   getLastRenameOperation: () => ipcRenderer.invoke('rename:last-operation'),
   undoRenameOperation: (operationId: string) => ipcRenderer.invoke('rename:undo', operationId),
   onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => listener(progress);
     ipcRenderer.on('rename:progress', handler);
     return () => ipcRenderer.removeListener('rename:progress', handler);
+  },
+  onRenameFinished: (listener: (result: { result?: unknown; moved?: boolean; error?: string }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, result: { result?: unknown; moved?: boolean; error?: string }) => listener(result);
+    ipcRenderer.on('rename:finished', handler);
+    return () => ipcRenderer.removeListener('rename:finished', handler);
   },
   exportRenamePlan: (plan: unknown): Promise<string | undefined> => ipcRenderer.invoke('rename:export-plan', plan),
   providerStatus: () => ipcRenderer.invoke('metadata:status'),

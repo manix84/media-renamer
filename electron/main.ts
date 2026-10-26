@@ -30,6 +30,9 @@ let persistedPreferences: PersistedPreferences | undefined;
 let preferenceWrite = Promise.resolve();
 let renameRunning = false;
 let activeRenameControl: 'stop' | 'undo' | undefined;
+type RenameProgressState = { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
+type ActiveRenameState = { startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; progress: RenameProgressState; control?: 'stop' | 'undo' };
+let activeRenameState: ActiveRenameState | undefined;
 let metadataStore: MetadataCache | undefined;
 let watchedMediaPaths: string[] = [];
 const mediaFileMonitor = new MediaFileMonitor((changes) => {
@@ -299,15 +302,18 @@ ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolve
 ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown) => {
   if (renameRunning) throw new Error('A rename operation is already running.');
   if (options !== undefined && (!options || typeof options !== 'object')) throw new Error('Invalid rename options.');
-  const renameOptions = options as { clearSourceJunk?: unknown; removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown } | undefined;
+  const renameOptions = options as { clearSourceJunk?: unknown; removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown; mediaKind?: unknown; moveFiles?: unknown } | undefined;
   if (renameOptions?.clearSourceJunk !== undefined && typeof renameOptions.clearSourceJunk !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.removeEmptySourceParents !== undefined && typeof renameOptions.removeEmptySourceParents !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.createExternalLog !== undefined && typeof renameOptions.createExternalLog !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
+  if (renameOptions?.mediaKind !== 'movies' && renameOptions?.mediaKind !== 'shows') throw new Error('Invalid rename media kind.');
+  if (renameOptions?.moveFiles !== undefined && typeof renameOptions.moveFiles !== 'boolean') throw new Error('Invalid rename options.');
   renameRunning = true;
   activeRenameControl = undefined;
   mediaFileMonitor.close();
   let executed: { operation: RenameOperation; logPath: string } | undefined;
+  let failure: string | undefined;
   try {
     const resolved = await resolveRenameCollisions(groups);
     const items = resolved.flatMap((group) => group.items);
@@ -321,12 +327,17 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       else groupSizes.push(size);
       previousProgressGroup = progressGroup;
     }
-    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', {
-      operation,
-      completed,
-      total,
-      ...(operation === 'rename' ? renameGroupProgress(groupSizes, completed) : {}),
-    }), {
+    activeRenameState = {
+      startedAt: Date.now(),
+      mediaKind: renameOptions.mediaKind,
+      moved: renameOptions.moveFiles ?? false,
+      progress: { operation: 'rename', completed: 0, total: items.filter((item) => item.sourcePath !== item.targetPath).length, ...renameGroupProgress(groupSizes, 0) },
+    };
+    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => {
+      const progress = { operation, completed, total, ...(operation === 'rename' ? renameGroupProgress(groupSizes, completed) : {}) };
+      if (activeRenameState) activeRenameState.progress = progress;
+      if (!event.sender.isDestroyed()) event.sender.send('rename:progress', progress);
+    }, {
       clearSourceJunk: renameOptions?.clearSourceJunk ?? false,
       removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
       createExternalLog: renameOptions?.createExternalLog ?? false,
@@ -335,9 +346,17 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
     });
     lastRename = executed;
     return executed;
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+    throw error;
   } finally {
     renameRunning = false;
     activeRenameControl = undefined;
+    const finishedState = activeRenameState;
+    activeRenameState = undefined;
+    if (!event.sender.isDestroyed()) event.sender.send('rename:finished', executed
+      ? { result: executed, moved: finishedState?.moved ?? false }
+      : { error: failure ?? 'The rename operation ended unexpectedly.' });
     if (executed) {
       const replacements = new Map(executed.operation.status === 'undone' ? [] : executed.operation.items.map((item) => [item.sourcePath, item.targetPath]));
       watchedMediaPaths = watchedMediaPaths.map((filePath) => replacements.get(filePath) ?? filePath);
@@ -349,8 +368,10 @@ ipcMain.handle('rename:control', (_event, control: unknown) => {
   if (control !== 'stop' && control !== 'undo') throw new Error('Invalid rename control.');
   if (!renameRunning) return false;
   activeRenameControl = control;
+  if (activeRenameState) activeRenameState.control = control;
   return true;
 });
+ipcMain.handle('rename:status', () => activeRenameState ? { running: true, ...activeRenameState } : { running: false });
 ipcMain.handle('rename:last-operation', () => latestRename());
 ipcMain.handle('rename:undo', async (event, operationId: unknown) => {
   if (typeof operationId !== 'string') throw new Error('Invalid rename operation.');
