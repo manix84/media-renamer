@@ -14,6 +14,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Bidirectional episode navigation: selecting a file highlights its matched episode(s), while selecting an episode highlights and reveals its associated file(s); click again to toggle the selection off, click away, or wait 40 seconds.
 - Smoother rename progress during cross-filesystem moves, detecting separate filesystems before attempting an atomic rename, reporting bytes copied within the active file, and distinguishing pending work with moving stripes from measurable work with a periodic progress sweep.
 - Split-title episode handling that offers either episode or the combined match, while using the first episode number and a shared title without trailing part markers for combined filenames.
+- A selected-episode detail pane in the episode sidebar with the episode capture and description.
 
 ## [0.1.0] - 2026-10-26
 

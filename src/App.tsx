@@ -404,7 +404,7 @@ export default function App() {
     if (!linkedSelection) return;
     const clearSelection = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Element && target.closest('.episode, .file-content')) return;
+      if (target instanceof Element && target.closest('.episode, .episode-detail, .file-content')) return;
       setLinkedSelection(undefined);
     };
     const expiry = window.setTimeout(() => setLinkedSelection(undefined), 40_000);
@@ -760,6 +760,9 @@ export default function App() {
     : paths, [activeMediaTab, deferredMoviePaths, movieBatchFilter, movieMatches, paths, unchangedPathSet]);
   const linkedEpisodeIds = useMemo(() => new Set(linkedSelection?.episodeIds ?? []), [linkedSelection]);
   const linkedPaths = useMemo(() => new Set(linkedSelection?.paths ?? []), [linkedSelection]);
+  const selectedEpisode = useMemo(() => linkedSelection?.episodeIds.length
+    ? episodes.find((episode) => episode.id === linkedSelection.episodeIds[0])
+    : undefined, [episodes, linkedSelection]);
 
   function selectLinkedEpisodes(path: string) {
     if (linkedSelection?.source === 'file' && linkedSelection.sourceId === path) {
@@ -2216,6 +2219,10 @@ export default function App() {
               </div>)}
               {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">{t('panel.searchShow')}</div>}</>}
             </div>
+            {activeMediaTab === 'shows' && selectedEpisode && <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
+              {selectedEpisode.imageUrl ? <img src={selectedEpisode.imageUrl} alt=""/> : <div className="episode-detail-placeholder" aria-hidden="true"><FileImage size={22}/></div>}
+              <div className="episode-detail-copy"><span>{episodeCode(selectedEpisode)}</span><strong>{selectedEpisode.title}</strong><p>{selectedEpisode.overview?.trim() || 'No episode description is available.'}</p></div>
+            </aside>}
           </aside>
 
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>

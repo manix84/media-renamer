@@ -78,6 +78,12 @@ kbd { padding: 3px 6px; border: 1px solid #343b4b; border-radius: 5px; backgroun
 h2 { margin: 0; font-size: 17px; letter-spacing: -.025em; }
 .count { display: grid; place-items: center; min-width: 29px; height: 25px; padding: 0 8px; border-radius: 7px; color: #949db0; background: #242a36; font-size: 12px; }
 .episode-list { flex: 1; min-height: 0; height: 0; padding: 7px; overflow-y: auto; }
+.episode-detail { flex: 0 0 auto; padding: 10px; border-top: 1px solid #272e3c; background: #0e131c; }
+.episode-detail > img, .episode-detail-placeholder { width: 100%; aspect-ratio: 16 / 9; display: grid; place-items: center; border-radius: 7px; background: #1a202b; color: #68758a; object-fit: cover; }
+.episode-detail-copy { padding: 9px 3px 2px; }
+.episode-detail-copy > span { color: var(--accent-muted); font-size: 9px; font-weight: 750; letter-spacing: .06em; }
+.episode-detail-copy > strong { display: block; margin-top: 3px; overflow: hidden; color: #dce2ee; font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.episode-detail-copy > p { max-height: 5.5em; margin: 6px 0 0; overflow-y: auto; color: #8792a6; font-size: 9px; line-height: 1.45; }
 .movie-summary { padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; }
 .movie-summary strong { color: #d8deea; font-size: 13px; }
 .movie-summary span, .movie-summary small { color: #7c879b; font-size: 10px; }
@@ -645,6 +651,10 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .work-status { border-color: #cbd8ea; background: #f1f6fc; color: #456c9d; }
 [data-theme="light"] .work-status strong { color: #30425b; }
 [data-theme="light"] .work-status small { color: #687890; }
+[data-theme="light"] .episode-detail { border-color: #dfe3ea; background: #f7f8fa; }
+[data-theme="light"] .episode-detail > img, [data-theme="light"] .episode-detail-placeholder { background: #e8ecf2; color: #69758a; }
+[data-theme="light"] .episode-detail-copy > strong { color: #253047; }
+[data-theme="light"] .episode-detail-copy > p { color: #68758a; }
 [data-theme="light"] .plan-status { border-color: #bcdcca; background: #edf8f2; color: #21805a; }
 [data-theme="light"] .plan-status.blocked { border-color: #e2ce9d; background: #fff8e8; color: #9a6912; }
 [data-theme="light"] .plan-status strong { color: #344a40; } [data-theme="light"] .plan-status.blocked strong { color: #55482d; } [data-theme="light"] .plan-status small { color: #687890; }
