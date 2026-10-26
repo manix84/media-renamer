@@ -399,6 +399,21 @@ export default function App() {
     searchResultButtons.current[activeSearchResult]?.scrollIntoView({ block: 'nearest' });
   }, [activeSearchResult]);
 
+  useEffect(() => {
+    if (!linkedSelection) return;
+    const clearSelection = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('.episode, .file-content')) return;
+      setLinkedSelection(undefined);
+    };
+    const expiry = window.setTimeout(() => setLinkedSelection(undefined), 40_000);
+    document.addEventListener('pointerdown', clearSelection);
+    return () => {
+      window.clearTimeout(expiry);
+      document.removeEventListener('pointerdown', clearSelection);
+    };
+  }, [linkedSelection]);
+
   const enterFileDropTarget = (event: ReactDragEvent<HTMLElement>) => {
     if (!event.dataTransfer.types.includes('Files')) return;
     event.preventDefault();
