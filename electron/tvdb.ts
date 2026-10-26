@@ -1,4 +1,5 @@
 const API_ROOT = 'https://api4.thetvdb.com/v4';
+const ARTWORK_ROOT = 'https://artworks.thetvdb.com';
 
 type LoginResponse = { data: { token: string } };
 type RemoteId = { id?: string; sourceName?: string; type?: number };
@@ -7,6 +8,18 @@ type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
 type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number; overview?: string; image?: string };
 type EpisodesResponse = { data?: { episodes?: RawEpisode[] }; links?: { next?: string | null } };
+
+export function tvdbArtworkUrl(value?: string): string | undefined {
+  const artwork = value?.trim();
+  if (!artwork) return undefined;
+  try {
+    const url = new URL(artwork, ARTWORK_ROOT);
+    if (url.protocol !== 'https:' || !/(?:^|\.)thetvdb\.com$/i.test(url.hostname)) return undefined;
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
 
 export interface TvdbSeries {
   id: string;
@@ -100,7 +113,7 @@ export class TvdbClient {
       year: Number.isFinite(year) ? year : undefined,
       tmdbId,
       ...(data.overview?.trim() ? { overview: data.overview.trim() } : {}),
-      ...(data.image?.trim() ? { imageUrl: data.image.trim() } : {}),
+      ...(tvdbArtworkUrl(data.image) ? { imageUrl: tvdbArtworkUrl(data.image) } : {}),
     };
   }
 
@@ -139,7 +152,7 @@ export class TvdbClient {
           airDate: episode.aired || undefined,
           ...(episode.runtime && episode.runtime > 0 ? { runtimeMinutes: episode.runtime } : {}),
           ...(episode.overview?.trim() ? { overview: episode.overview.trim() } : {}),
-          ...(episode.image?.trim() ? { imageUrl: episode.image.trim() } : {}),
+          ...(tvdbArtworkUrl(episode.image) ? { imageUrl: tvdbArtworkUrl(episode.image) } : {}),
         });
       }
       if (!payload.links?.next) break;

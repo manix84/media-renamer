@@ -15,6 +15,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Smoother rename progress during cross-filesystem moves, detecting separate filesystems before attempting an atomic rename, reporting bytes copied within the active file, and distinguishing pending work with moving stripes from measurable work with a periodic progress sweep.
 - Split-title episode handling that offers either episode or the combined match, while using the first episode number and a shared title without trailing part markers for combined filenames.
 - A selected-episode detail pane in the episode sidebar with the episode capture and description.
+- Reliable TVDB episode captures through normalized artwork URLs, with a clean placeholder when artwork cannot be loaded.
 
 ## [0.1.0] - 2026-10-26
 

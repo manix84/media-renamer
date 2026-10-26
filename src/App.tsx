@@ -332,6 +332,7 @@ export default function App() {
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
   const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[]; source: 'episode' | 'file'; sourceId: string }>();
+  const [failedEpisodeImages, setFailedEpisodeImages] = useState<Set<string>>(() => new Set());
   const [removingPaths, setRemovingPaths] = useState<Set<string>>(() => new Set());
   const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
@@ -2220,7 +2221,7 @@ export default function App() {
               {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">{t('panel.searchShow')}</div>}</>}
             </div>
             {activeMediaTab === 'shows' && selectedEpisode && <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
-              {selectedEpisode.imageUrl ? <img src={selectedEpisode.imageUrl} alt=""/> : <div className="episode-detail-placeholder" aria-hidden="true"><FileImage size={22}/></div>}
+              {selectedEpisode.imageUrl && !failedEpisodeImages.has(selectedEpisode.id) ? <img src={selectedEpisode.imageUrl} alt="" onError={() => setFailedEpisodeImages((current) => new Set(current).add(selectedEpisode.id))}/> : <div className="episode-detail-placeholder" aria-hidden="true"><FileImage size={22}/></div>}
               <div className="episode-detail-copy"><span>{episodeCode(selectedEpisode)}</span><strong>{selectedEpisode.title}</strong><p>{selectedEpisode.overview?.trim() || 'No episode description is available.'}</p></div>
             </aside>}
           </aside>

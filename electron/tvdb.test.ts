@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
+import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbArtworkUrl } from './tvdb.js';
 
 describe('TVDB adapter', () => {
+  it('normalizes relative artwork paths and rejects unrelated hosts', () => {
+    expect(tvdbArtworkUrl('/banners/v4/episode/example.jpg')).toBe('https://artworks.thetvdb.com/banners/v4/episode/example.jpg');
+    expect(tvdbArtworkUrl('https://artworks.thetvdb.com/banners/example.jpg')).toBe('https://artworks.thetvdb.com/banners/example.jpg');
+    expect(tvdbArtworkUrl('https://example.com/image.jpg')).toBeUndefined();
+  });
   it('creates selectable show metadata without a TMDB counterpart', () => {
     const series = { id: '81251', name: 'Pixar Short Films', year: 1984, overview: 'Pixar shorts.', imageUrl: 'https://artworks.thetvdb.com/poster.jpg' };
     expect(directTvdbShow(series)).toEqual({
