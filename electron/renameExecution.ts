@@ -27,6 +27,7 @@ const subtitleExtensionPattern = /\.(?:srt|ass|ssa|sub|vtt)$/i;
 const sourceJunkPatterns = [
   /\.!qb$/i,
   /\.ico$/i,
+  /\.url$/i,
   /^desktop\.ini$/i,
   /^rarbg(?:_do_not_mirror\.exe|\.txt)$/i,
   /^www\.(?:yts\.[a-z0-9-]{2,12}|yify-torrents\.com)\.jpe?g$/i,

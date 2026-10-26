@@ -161,6 +161,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(sourceDirectory, 'desktop.ini'), 'Windows folder metadata'),
       fs.promises.writeFile(path.join(sourceDirectory, '249511327101773901412003621844249118140389.ico'), 'release icon'),
       fs.promises.writeFile(path.join(sourceDirectory, 'custom-folder-icon.ICO'), 'release icon'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'Encoded by Pahe.in.url'), 'internet shortcut'),
       fs.promises.writeFile(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'), 'release advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'RARBG.txt'), 'release advert'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Assassins.1995.1080p.BluRay.x264.YIFY.srt'), ''),
@@ -194,6 +195,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'folder.jpg'), 'keep'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'Encoded by Pahe.in.txt'), 'keep'),
     ]);
 
     const executed = await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), undefined, {
@@ -201,11 +203,12 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(35);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(36);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'desktop.ini'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, '249511327101773901412003621844249118140389.ico'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'custom-folder-icon.ICO'));
+    expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Encoded by Pahe.in.url'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG_DO_NOT_MIRROR.exe'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'RARBG.txt'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Torrent Downloaded From     UIndex.org      .txt'));
@@ -218,6 +221,7 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Encoded by Pahe.in.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'utf8')).resolves.toBe('keep');
