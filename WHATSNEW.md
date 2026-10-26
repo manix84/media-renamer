@@ -8,6 +8,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 - Cross-platform packaging for Linux, Windows, and macOS through GitHub Actions.
 - Community health files for contribution, support, security, and issue reporting.
+- A documented self-contained provider and release-security plan covering credential containment, Electron hardening, artifact inspection, provenance, and rotation.
 
 ## [0.1.0] - 2026-10-26
 
