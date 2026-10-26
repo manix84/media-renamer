@@ -152,11 +152,12 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 1 — TV matching foundation | Complete | 10 of 10 steps |
 | 2 — Safe execution and desktop workflow | Complete | 13 of 13 steps |
 | 3 — Resilient matching and metadata | Complete | 14 of 14 steps |
-| 4 — Movies and library workflows | Started | 7 of 11 steps |
+| 4 — Movies and library workflows | Complete | 11 of 11 steps |
 | 5 — Editing and confirmation | Complete | 6 of 6 steps |
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
-| 7 — Versioning, developer tools, and personality | Planned | 0 of 8 steps |
-| 8 — Release readiness | Planned | 0 of 6 steps |
+| 7 — Versioning, developer tools, and personality | In progress | 9 of 11 steps |
+| 8 — Private-by-design error reporting | Planned | 0 of 39 steps |
+| 9 — Release readiness | Started | 1 of 7 steps |
 
 Milestones describe product capability rather than strict release boundaries. Work may cross milestone boundaries when a real-world batch exposes a more useful next step.
 
@@ -315,8 +316,9 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 - [ ] return and display the created issue URL after success
 - [ ] test cancellation, offline submission, relay rejection, rate limiting, oversized payloads, temporary-file cleanup, renderer compromise boundaries, Markdown injection, image metadata stripping, and final-preview parity
 
-### Milestone 9 — release readiness (planned)
+### Milestone 9 — release readiness (in progress)
 
+- [x] automated unsigned Linux, Windows, and macOS packages with tag-driven GitHub Releases
 - [ ] signed and notarized macOS build
 - [ ] signed Windows build and packaged Linux build
 - [ ] update channel with release notes and safe migrations
@@ -336,12 +338,24 @@ Electron preload exposes a deliberately small IPC surface to the renderer.
 
 Provider responses should be normalized immediately. API keys stay in the main process, paths are validated before filesystem operations, and renderer code never receives unrestricted Node access.
 
+## Releases
+
+GitHub Actions builds unsigned AppImage and Debian packages for Linux, NSIS and portable executables for Windows, and DMG and ZIP packages for macOS. Run **Build releases** manually to produce workflow artifacts without publishing a release.
+
+Tagged builds also create a GitHub Release. To prepare one:
+
+1. Move the relevant entries in `WHATSNEW.md` from **Unreleased** into a heading matching the package version, such as `## [0.2.0] - 2026-11-01`.
+2. Update `package.json` and its lockfile to the same version.
+3. Merge and tag that commit as `v0.2.0`, then push the tag.
+
+The workflow refuses to publish when the matching `WHATSNEW.md` section is absent. Windows signing and macOS signing/notarization are intentionally deferred until their credentials are configured.
+
 Optional features use the [installable extension system](extensions/README.md). Media Renamer runs normally without extensions; users can install packages after release, administrators can provide preinstalled packages, and developers can load local packages without copying them. The Anime library router is the first development example. Extensions remain disabled by default and cannot bypass the rename planner, preflight checks, execution log, or undo support.
 
 ## Next implementation slice
 
 Milestones 1 and 2 are complete. The current backlog is ordered around the problems most likely to affect real media batches:
 
-1. Complete Milestone 7: version visibility and hidden developer mode, followed by seasonal polish and the Easter egg.
+1. Complete Milestone 7 with emoji theme selectors and the hidden Easter egg.
 2. Build the local-only report model, structured reproduction history, path analyser, sanitiser, and editable preview before adding any network submission.
 3. Finish provider onboarding, accessibility, stress testing, signed packages, and updates.

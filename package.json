@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "A confidence-first TV episode and movie renamer",
+  "author": "Rob <373278+manix84@users.noreply.github.com>",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -11,25 +12,69 @@
     "electron:watch": "node scripts/dev-electron.mjs",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "tsc -b && vite build && npm run build:electron",
+    "package": "npm run build && electron-builder",
+    "release:notes": "node scripts/release-notes.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run test && npm run build"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "electron": "latest",
     "lucide-react": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "vite": "latest"
+    "react-dom": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
     "concurrently": "latest",
+    "electron": "latest",
+    "electron-builder": "^26.18.0",
     "typescript": "latest",
+    "vite": "latest",
     "vitest": "latest",
     "wait-on": "latest"
+  },
+  "build": {
+    "appId": "io.github.manix84.media-renamer",
+    "productName": "Media Renamer",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/app-icon.png",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "assets/app-icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/app-icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "icon": "assets/app-icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
