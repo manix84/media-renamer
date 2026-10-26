@@ -330,7 +330,7 @@ export default function App() {
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
-  const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[] }>();
+  const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[]; source: 'episode' | 'file'; sourceId: string }>();
   const [removingPaths, setRemovingPaths] = useState<Set<string>>(() => new Set());
   const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
@@ -760,20 +760,28 @@ export default function App() {
   const linkedPaths = useMemo(() => new Set(linkedSelection?.paths ?? []), [linkedSelection]);
 
   function selectLinkedEpisodes(path: string) {
+    if (linkedSelection?.source === 'file' && linkedSelection.sourceId === path) {
+      setLinkedSelection(undefined);
+      return;
+    }
     const candidate = matchesByPath.get(path)?.match;
     if (!candidate) return;
     const episodeIds = candidateEpisodes(candidate).map((episode) => episode.id);
     if (!episodeIds.length) return;
-    setLinkedSelection({ episodeIds, paths: [path] });
+    setLinkedSelection({ episodeIds, paths: [path], source: 'file', sourceId: path });
     window.requestAnimationFrame(() => episodeElements.current.get(episodeIds[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }
 
   function selectLinkedFiles(episodeId: string) {
+    if (linkedSelection?.source === 'episode' && linkedSelection.sourceId === episodeId) {
+      setLinkedSelection(undefined);
+      return;
+    }
     const matchingPaths = paths.filter((path) => {
       const candidate = matchesByPath.get(path)?.match;
       return candidate ? candidateEpisodes(candidate).some((episode) => episode.id === episodeId) : false;
     });
-    setLinkedSelection({ episodeIds: [episodeId], paths: matchingPaths });
+    setLinkedSelection({ episodeIds: [episodeId], paths: matchingPaths, source: 'episode', sourceId: episodeId });
     if (matchingPaths.length) window.requestAnimationFrame(() => matchRowElements.current.get(matchingPaths[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }
 
