@@ -9,6 +9,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Cross-platform packaging for Linux, Windows, and macOS through GitHub Actions.
 - Community health files for contribution, support, security, and issue reporting.
 - Nested rename progress for movie batches, showing both overall file progress and progress through each movie's video and associated sidecars.
+- Clickable movie-row posters using the same full-size, zoomable preview as TV-show artwork.
 
 ## [0.1.0] - 2026-10-26
 
