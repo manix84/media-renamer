@@ -330,6 +330,7 @@ export default function App() {
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
+  const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[] }>();
   const [removingPaths, setRemovingPaths] = useState<Set<string>>(() => new Set());
   const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
@@ -378,6 +379,7 @@ export default function App() {
   const probeRuns = useRef<Record<string, number>>({});
   const reportedSavedDecisionConflicts = useRef(new Set<string>());
   const matchRowElements = useRef(new Map<string, HTMLElement>());
+  const episodeElements = useRef(new Map<string, HTMLElement>());
   const removalTimers = useRef<Record<string, number>>({});
   const recoveredRename = useRef(false);
   const fileDropDepth = useRef(0);
@@ -739,6 +741,26 @@ export default function App() {
   const visiblePaths = useMemo(() => activeMediaTab === 'movies'
     ? paths.filter((path) => movieBatchFilterMatches(movieBatchFilter, { status: movieMatches[path]?.status, unchanged: unchangedPathSet.has(path), deferred: deferredMoviePaths.has(path) }))
     : paths, [activeMediaTab, deferredMoviePaths, movieBatchFilter, movieMatches, paths, unchangedPathSet]);
+  const linkedEpisodeIds = useMemo(() => new Set(linkedSelection?.episodeIds ?? []), [linkedSelection]);
+  const linkedPaths = useMemo(() => new Set(linkedSelection?.paths ?? []), [linkedSelection]);
+
+  function selectLinkedEpisodes(path: string) {
+    const candidate = matchesByPath.get(path)?.match;
+    if (!candidate) return;
+    const episodeIds = candidateEpisodes(candidate).map((episode) => episode.id);
+    if (!episodeIds.length) return;
+    setLinkedSelection({ episodeIds, paths: [path] });
+    window.requestAnimationFrame(() => episodeElements.current.get(episodeIds[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  }
+
+  function selectLinkedFiles(episodeId: string) {
+    const matchingPaths = paths.filter((path) => {
+      const candidate = matchesByPath.get(path)?.match;
+      return candidate ? candidateEpisodes(candidate).some((episode) => episode.id === episodeId) : false;
+    });
+    setLinkedSelection({ episodeIds: [episodeId], paths: matchingPaths });
+    if (matchingPaths.length) window.requestAnimationFrame(() => matchRowElements.current.get(matchingPaths[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  }
 
   function retryMovieMatches(status: 'unmatched' | 'error') {
     const retryPaths = paths.filter((path) => !deferredMoviePaths.has(path) && movieMatches[path]?.status === status);
@@ -2163,7 +2185,7 @@ export default function App() {
               {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
-                <div className="episode"><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</div>
+                <button ref={(element) => { if (element) episodeElements.current.set(episode.id, element); else episodeElements.current.delete(episode.id); }} type="button" className={`episode ${linkedEpisodeIds.has(episode.id) ? 'linked-highlight' : ''}`} aria-pressed={linkedEpisodeIds.has(episode.id)} onClick={() => selectLinkedFiles(episode.id)}><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</button>
               </div>)}
               {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">{t('panel.searchShow')}</div>}</>}
             </div>
@@ -2263,13 +2285,13 @@ export default function App() {
                 const movieReviewRequired = activeMediaTab === 'movies' && !deferredToTv && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
-                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : unchanged ? 'plan-unchanged' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
+                return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : unchanged ? 'plan-unchanged' : ''} ${linkedPaths.has(path) ? 'linked-highlight' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
                 }}>
                   <div className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : unchanged ? 'unchanged' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
                   {activeMediaTab === 'movies' && (movieFileMatch?.movie?.posterUrl ? <button className="movie-row-poster" aria-label={`View full poster for ${movieFileMatch.movie.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreview({ url: movieFileMatch.movie!.posterUrl!, name: movieFileMatch.movie!.name, year: movieFileMatch.movie!.year }); }}><img src={movieFileMatch.movie.posterUrl} alt=""/></button> : <span className="movie-row-poster" aria-hidden="true"><Film size={18}/></span>)}
-                  <div className="file-content" tabIndex={fileViewMode === 'detailed' ? undefined : 0} role={fileViewMode === 'detailed' ? undefined : 'button'} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (fileViewMode !== 'detailed' && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
+                  <div className="file-content" tabIndex={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 0 : undefined} role={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 'button' : undefined} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={activeMediaTab === 'shows' ? `Highlight matched episodes for ${filename}` : fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if ((activeMediaTab === 'shows' || fileViewMode !== 'detailed') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className="proposed">{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
