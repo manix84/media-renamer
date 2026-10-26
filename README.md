@@ -186,7 +186,7 @@ Milestones describe product capability rather than strict release boundaries. Wo
 - [x] optional pruning of empty source and companion folders after moving
 - [x] opt-in cleanup of recognized release-site junk and zero-byte subtitle sidecars
 - [x] filesystem monitoring for external deletes, renames, and moves
-- [x] animated progress, elapsed/estimated timing, and optional completion reports
+- [x] animated overall-file and current-media-group progress, elapsed/estimated timing, and optional completion reports
 - [x] persisted preferences, appearance palettes, localization, and post-rename actions
 - [x] dockable debug console and JSON dry-run export
 

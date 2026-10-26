@@ -18,11 +18,17 @@ describe('generated metadata assets', () => {
     roots.push(root);
     const fetcher = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }));
     const staged = await stageGeneratedAssets([
-      { targetPath: '/Movies/Film/movie.nfo', content: '<movie>Résumé</movie>' },
+      { targetPath: '/Movies/Film/movie.nfo', content: '<movie>Résumé</movie>', groupIndex: 2 },
       { targetPath: '/Movies/Film/poster.jpg', url: 'https://image.tmdb.org/poster.jpg' },
     ], root, fetcher as typeof fetch);
     expect(await fs.promises.readFile(staged[0].sourcePath, 'utf8')).toContain('Résumé');
+    expect(staged[0].groupIndex).toBe(2);
     expect([...await fs.promises.readFile(staged[1].sourcePath)]).toEqual([1, 2, 3]);
+  });
+
+  it('rejects an invalid movie group association', () => {
+    expect(() => normalizeGeneratedAssets([{ targetPath: '/Movies/Film/movie.nfo', content: '<movie/>', groupIndex: -1 }])).toThrow(/group/);
+    expect(() => normalizeGeneratedAssets([{ targetPath: '/Movies/Film/movie.nfo', content: '<movie/>', groupIndex: 1.5 }])).toThrow(/group/);
   });
 
   it('preserves an existing local asset instead of creating a numbered Plex-invalid name', async () => {

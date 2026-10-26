@@ -21,16 +21,16 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   },
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
   probeMedia: (filePath: string) => ipcRenderer.invoke('media:probe', filePath),
-  stageGeneratedSidecars: (assets: Array<{ targetPath: string; content?: string; url?: string }>) => ipcRenderer.invoke('metadata:stage-sidecars', assets),
+  stageGeneratedSidecars: (assets: Array<{ targetPath: string; content?: string; url?: string; groupIndex?: number }>) => ipcRenderer.invoke('metadata:stage-sidecars', assets),
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
-  resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
-  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }> }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }) => ipcRenderer.invoke('rename:execute', groups, options),
+  resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
+  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string }) => ipcRenderer.invoke('rename:execute', groups, options),
   controlRename: (control: 'stop' | 'undo'): Promise<boolean> => ipcRenderer.invoke('rename:control', control),
   getLastRenameOperation: () => ipcRenderer.invoke('rename:last-operation'),
   undoRenameOperation: (operationId: string) => ipcRenderer.invoke('rename:undo', operationId),
-  onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number }) => listener(progress);
+  onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => listener(progress);
     ipcRenderer.on('rename:progress', handler);
     return () => ipcRenderer.removeListener('rename:progress', handler);
   },

@@ -1,6 +1,6 @@
 import type { Episode, MovieDetails, ShowDetails } from './types';
 
-export type PlexGeneratedAsset = { targetPath: string; content?: string; url?: string };
+export type PlexGeneratedAsset = { targetPath: string; content?: string; url?: string; groupIndex?: number };
 
 function escapeXml(value: string | number | undefined): string {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');

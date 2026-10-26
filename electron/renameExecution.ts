@@ -74,7 +74,7 @@ async function targetOccupied(sourcePath: string, targetPath: string): Promise<b
   }
 }
 
-export type RenameCollisionGroup = { items: RenamePreflightItem[] };
+export type RenameCollisionGroup = { items: RenamePreflightItem[]; progressGroupIndex?: number };
 
 function incrementedGroup(group: RenamePreflightItem[], increment: number): RenamePreflightItem[] {
   const primary = group[0];
@@ -88,7 +88,9 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
   if (!Array.isArray(value) || value.length > 5000) throw new Error('Invalid rename groups.');
   const groups = value.map((group) => {
     if (!group || typeof group !== 'object' || !Array.isArray((group as { items?: unknown }).items)) throw new Error('Invalid rename group.');
-    return { items: renamePreflightItems((group as { items: unknown[] }).items) };
+    const progressGroupIndex = (group as { progressGroupIndex?: unknown }).progressGroupIndex;
+    if (progressGroupIndex !== undefined && (!Number.isInteger(progressGroupIndex) || Number(progressGroupIndex) < 0 || Number(progressGroupIndex) >= 5000)) throw new Error('Invalid rename progress group.');
+    return { items: renamePreflightItems((group as { items: unknown[] }).items), ...(progressGroupIndex !== undefined ? { progressGroupIndex: Number(progressGroupIndex) } : {}) };
   });
   const reserved = new Set<string>();
   const resolved: RenameCollisionGroup[] = [];
@@ -104,7 +106,7 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
       candidate = incrementedGroup(group.items, increment);
     }
     for (const item of candidate) reserved.add(item.targetPath.toLocaleLowerCase());
-    resolved.push({ items: candidate });
+    resolved.push({ items: candidate, ...(group.progressGroupIndex !== undefined ? { progressGroupIndex: group.progressGroupIndex } : {}) });
   }
   return resolved;
 }
@@ -336,6 +338,23 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     if (status !== 'undone') for (const item of [...completed].reverse()) await moveFile(item.targetPath, item.sourcePath).catch(() => undefined);
     throw new Error(`Could not write the operation log; renamed files were rolled back. ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+export type RenameGroupProgress = { groupCompleted: number; groupTotal: number; groupIndex: number; groupsTotal: number };
+
+export function renameGroupProgress(groupSizes: number[], completed: number): RenameGroupProgress | undefined {
+  const sizes = groupSizes.filter((size) => Number.isInteger(size) && size > 0);
+  if (!sizes.length) return undefined;
+  const boundedCompleted = Math.max(0, Math.min(completed, sizes.reduce((total, size) => total + size, 0)));
+  let previous = 0;
+  for (const [index, size] of sizes.entries()) {
+    const end = previous + size;
+    if (boundedCompleted <= end || index === sizes.length - 1) {
+      return { groupCompleted: boundedCompleted - previous, groupTotal: size, groupIndex: index, groupsTotal: sizes.length };
+    }
+    previous = end;
+  }
+  return undefined;
 }
 
 export async function undoRenameOperation(operation: RenameOperation, logPath: string, onProgress?: (completed: number, total: number) => void): Promise<RenameOperation> {

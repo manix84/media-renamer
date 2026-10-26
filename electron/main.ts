@@ -9,7 +9,7 @@ import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFil
 import { probeMedia } from './mediaProbe.js';
 import { stageGeneratedAssets } from './generatedAssets.js';
 import { preflightRenameItems } from './renamePreflight.js';
-import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
+import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
@@ -311,7 +311,22 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
   try {
     const resolved = await resolveRenameCollisions(groups);
     const items = resolved.flatMap((group) => group.items);
-    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', { operation, completed, total }), {
+    const groupSizes: number[] = [];
+    let previousProgressGroup: number | string | undefined;
+    for (const [index, group] of resolved.entries()) {
+      const size = group.items.filter((item) => item.sourcePath !== item.targetPath).length;
+      if (!size) continue;
+      const progressGroup = group.progressGroupIndex ?? `standalone-${index}`;
+      if (progressGroup === previousProgressGroup) groupSizes[groupSizes.length - 1] += size;
+      else groupSizes.push(size);
+      previousProgressGroup = progressGroup;
+    }
+    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => event.sender.send('rename:progress', {
+      operation,
+      completed,
+      total,
+      ...(operation === 'rename' ? renameGroupProgress(groupSizes, completed) : {}),
+    }), {
       clearSourceJunk: renameOptions?.clearSourceJunk ?? false,
       removeEmptySourceParents: renameOptions?.removeEmptySourceParents ?? false,
       createExternalLog: renameOptions?.createExternalLog ?? false,

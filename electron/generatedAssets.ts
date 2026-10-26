@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type GeneratedAsset = { targetPath: string; content?: string; url?: string };
+export type GeneratedAsset = { targetPath: string; content?: string; url?: string; groupIndex?: number };
 
 export function normalizeGeneratedAssets(value: unknown): GeneratedAsset[] {
   if (!Array.isArray(value) || value.length > 5000) throw new Error('Invalid generated sidecars.');
@@ -17,15 +17,17 @@ export function normalizeGeneratedAssets(value: unknown): GeneratedAsset[] {
       const parsed = new URL(url);
       if (parsed.protocol !== 'https:' || !/(?:^|\.)(?:tmdb\.org|thetvdb\.com)$/.test(parsed.hostname)) throw new Error('Unsupported artwork host.');
     }
-    return { targetPath: item.targetPath, ...(content ? { content } : {}), ...(url ? { url } : {}) };
+    const groupIndex = Number.isInteger(item.groupIndex) && Number(item.groupIndex) >= 0 && Number(item.groupIndex) < 5000 ? Number(item.groupIndex) : undefined;
+    if (item.groupIndex !== undefined && groupIndex === undefined) throw new Error('Invalid generated sidecar group.');
+    return { targetPath: item.targetPath, ...(content ? { content } : {}), ...(url ? { url } : {}), ...(groupIndex !== undefined ? { groupIndex } : {}) };
   });
 }
 
-export async function stageGeneratedAssets(value: unknown, stagingRoot: string, fetcher: typeof fetch = fetch): Promise<Array<{ sourcePath: string; targetPath: string }>> {
+export async function stageGeneratedAssets(value: unknown, stagingRoot: string, fetcher: typeof fetch = fetch): Promise<Array<{ sourcePath: string; targetPath: string; groupIndex?: number }>> {
   const assets = normalizeGeneratedAssets(value);
   const directory = path.join(stagingRoot, crypto.randomUUID());
   await fs.promises.mkdir(directory, { recursive: true });
-  const staged: Array<{ sourcePath: string; targetPath: string }> = [];
+  const staged: Array<{ sourcePath: string; targetPath: string; groupIndex?: number }> = [];
   try {
     for (const [index, asset] of assets.entries()) {
       try {
@@ -45,7 +47,7 @@ export async function stageGeneratedAssets(value: unknown, stagingRoot: string, 
         if (bytes.length > 20_000_000) throw new Error('Artwork file is larger than 20 MB.');
         await fs.promises.writeFile(sourcePath, bytes, { flag: 'wx' });
       }
-      staged.push({ sourcePath, targetPath: asset.targetPath });
+      staged.push({ sourcePath, targetPath: asset.targetPath, ...(asset.groupIndex !== undefined ? { groupIndex: asset.groupIndex } : {}) });
     }
     return staged;
   } catch (error) {

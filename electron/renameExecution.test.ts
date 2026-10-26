@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeRenamePlan, readLatestRenameOperation, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
+import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
 
 const temporaryDirectories: string[] = [];
 async function temporaryDirectory() {
@@ -13,6 +13,37 @@ async function temporaryDirectory() {
 afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => fs.promises.rm(directory, { recursive: true, force: true }))));
 
 describe('rename execution', () => {
+  it('maps overall file progress to the active movie group', () => {
+    expect(renameGroupProgress([3, 1, 4], 0)).toEqual({ groupCompleted: 0, groupTotal: 3, groupIndex: 0, groupsTotal: 3 });
+    expect(renameGroupProgress([3, 1, 4], 2)).toEqual({ groupCompleted: 2, groupTotal: 3, groupIndex: 0, groupsTotal: 3 });
+    expect(renameGroupProgress([3, 1, 4], 3)).toEqual({ groupCompleted: 3, groupTotal: 3, groupIndex: 0, groupsTotal: 3 });
+    expect(renameGroupProgress([3, 1, 4], 4)).toEqual({ groupCompleted: 1, groupTotal: 1, groupIndex: 1, groupsTotal: 3 });
+    expect(renameGroupProgress([3, 1, 4], 6)).toEqual({ groupCompleted: 2, groupTotal: 4, groupIndex: 2, groupsTotal: 3 });
+  });
+
+  it('preserves progress associations without coupling collision names', async () => {
+    const root = await temporaryDirectory();
+    const videoSource = path.join(root, 'incoming', 'Movie.mkv');
+    const posterSource = path.join(root, 'staged', 'poster.jpg');
+    const targetDirectory = path.join(root, 'library', 'Movie');
+    await fs.promises.mkdir(path.dirname(videoSource), { recursive: true });
+    await fs.promises.mkdir(path.dirname(posterSource), { recursive: true });
+    await fs.promises.mkdir(targetDirectory, { recursive: true });
+    await Promise.all([
+      fs.promises.writeFile(videoSource, 'video'),
+      fs.promises.writeFile(posterSource, 'poster'),
+      fs.promises.writeFile(path.join(targetDirectory, 'Movie.mkv'), 'occupied'),
+    ]);
+
+    const groups = await resolveRenameCollisions([
+      { items: [{ sourcePath: videoSource, targetPath: path.join(targetDirectory, 'Movie.mkv') }], progressGroupIndex: 0 },
+      { items: [{ sourcePath: posterSource, targetPath: path.join(targetDirectory, 'poster.jpg') }], progressGroupIndex: 0 },
+    ]);
+
+    expect(groups[0]).toMatchObject({ progressGroupIndex: 0, items: [{ targetPath: path.join(targetDirectory, 'Movie (2).mkv') }] });
+    expect(groups[1]).toMatchObject({ progressGroupIndex: 0, items: [{ targetPath: path.join(targetDirectory, 'poster.jpg') }] });
+  });
+
   it('moves files, writes an operation log, and undoes the operation', async () => {
     const root = await temporaryDirectory();
     const source = path.join(root, 'incoming', 'Old.mkv');

@@ -28,7 +28,7 @@ import { registerDeveloperVersionClick } from './core/developerMode';
 import { alternateLibraryRoots } from './core/libraryRoots';
 import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, resolveExtensionWarnings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
 
-type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number };
+type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
 type RenameOperationRecord = { operation: { id: string; status: 'completed' | 'stopped' | 'undone'; items: Array<{ sourcePath: string; targetPath: string }>; removedSourceJunkFiles?: string[]; removedSourceDirectories?: string[]; sourceDirectoryCleanupWarnings?: string[]; externalLogPath?: string; externalLogWarning?: string }; logPath: string };
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type TemplateField = { name: string; description: string; example: string };
@@ -216,10 +216,10 @@ function TemplateReferencePanel({ tab, onClose }: { tab: MediaTab; onClose: () =
   </aside>;
 }
 
-function SmoothProgress({ value, max, className = '' }: { value: number; max: number; className?: string }) {
+function SmoothProgress({ value, max, className = '', label }: { value: number; max: number; className?: string; label?: string }) {
   const boundedMax = Math.max(1, max);
   const boundedValue = Math.max(0, Math.min(value, boundedMax));
-  return <div className={`smooth-progress ${className}`.trim()} role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.min(value, max)}>
+  return <div className={`smooth-progress ${className}`.trim()} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.min(value, max)}>
     <span style={{ width: `${(boundedValue / boundedMax) * 100}%` }}/>
   </div>;
 }
@@ -697,29 +697,30 @@ export default function App() {
     if (!exportNfo && !exportPlexArtwork) return [];
     const assets: PlexGeneratedAsset[] = [];
     const showRoots = new Set<string>();
-    for (const group of executableGroups) {
+    for (const [groupIndex, group] of executableGroups.entries()) {
       const video = group.items[0];
       if (!video) continue;
+      const addAssets = (next: PlexGeneratedAsset[]) => assets.push(...next.map((asset) => ({ ...asset, groupIndex })));
       const targetDirectory = parentDirectory(video.targetPath);
       if (activeMediaTab === 'movies') {
         const movie = movieMatches[video.sourcePath]?.movie;
         if (!movie) continue;
-        if (exportNfo) assets.push({ targetPath: siblingPath(video.targetPath, '.nfo'), content: movieNfo(movie) });
-        if (exportPlexArtwork) assets.push(...plexMovieArtworkAssets(video.targetPath, movie, moveFiles));
+        if (exportNfo) addAssets([{ targetPath: siblingPath(video.targetPath, '.nfo'), content: movieNfo(movie) }]);
+        if (exportPlexArtwork) addAssets(plexMovieArtworkAssets(video.targetPath, movie, moveFiles));
         continue;
       }
       const candidate = matchesByPath.get(video.sourcePath)?.match;
       if (!candidate || !show) continue;
       const matchedEpisodes = candidateEpisodes(candidate);
-      if (exportNfo) assets.push({ targetPath: siblingPath(video.targetPath, '.nfo'), content: episodeNfo(matchedEpisodes) });
-      if (exportPlexArtwork && matchedEpisodes[0]?.imageUrl) assets.push({ targetPath: siblingPath(video.targetPath, '.jpg'), url: matchedEpisodes[0].imageUrl });
+      if (exportNfo) addAssets([{ targetPath: siblingPath(video.targetPath, '.nfo'), content: episodeNfo(matchedEpisodes) }]);
+      if (exportPlexArtwork && matchedEpisodes[0]?.imageUrl) addAssets([{ targetPath: siblingPath(video.targetPath, '.jpg'), url: matchedEpisodes[0].imageUrl }]);
       const season = show.seasons.find((item) => item.number === matchedEpisodes[0]?.season);
       const { showRoot, seasonDirectory } = plexShowDirectories(targetDirectory);
-      if (exportPlexArtwork && season?.posterUrl) assets.push(plexSeasonArtworkAsset(seasonDirectory, season.number, season.posterUrl));
+      if (exportPlexArtwork && season?.posterUrl) addAssets([plexSeasonArtworkAsset(seasonDirectory, season.number, season.posterUrl)]);
       if (showRoots.has(showRoot)) continue;
       showRoots.add(showRoot);
-      if (exportNfo) assets.push({ targetPath: `${showRoot}${showRoot.includes('\\') && !showRoot.includes('/') ? '\\' : '/'}tvshow.nfo`, content: showNfo(show) });
-      if (exportPlexArtwork) assets.push(...plexArtworkAssets(showRoot, show));
+      if (exportNfo) addAssets([{ targetPath: `${showRoot}${showRoot.includes('\\') && !showRoot.includes('/') ? '\\' : '/'}tvshow.nfo`, content: showNfo(show) }]);
+      if (exportPlexArtwork) addAssets(plexArtworkAssets(showRoot, show));
     }
     return [...new Map(assets.map((asset) => [asset.targetPath.toLocaleLowerCase(), asset])).values()];
   }, [activeMediaTab, executableGroups, exportNfo, exportPlexArtwork, matchesByPath, moveFiles, movieMatches, show]);
@@ -1704,13 +1705,29 @@ export default function App() {
     setRenameStartedAt(Date.now());
     setRenameClock(Date.now());
     setError(undefined);
-    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length });
+    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length, groupCompleted: 0, groupTotal: executableGroups[0]?.items.length, groupIndex: 0, groupsTotal: executableGroups.length });
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
       const stagedSidecars = generatedSidecars.length && window.mediaRenamer.stageGeneratedSidecars
         ? await window.mediaRenamer.stageGeneratedSidecars(generatedSidecars)
         : [];
-      const executionGroups = [...executableGroups, ...stagedSidecars.map((item) => ({ items: [item] }))];
+      const groupedSidecars = new Map<number, typeof stagedSidecars>();
+      const ungroupedSidecars: typeof stagedSidecars = [];
+      for (const sidecar of stagedSidecars) {
+        if (sidecar.groupIndex !== undefined && executableGroups[sidecar.groupIndex]) groupedSidecars.set(sidecar.groupIndex, [...(groupedSidecars.get(sidecar.groupIndex) ?? []), sidecar]);
+        else ungroupedSidecars.push(sidecar);
+      }
+      const executionGroups = executableGroups.flatMap((group, progressGroupIndex) => [
+        { items: [...group.items], progressGroupIndex },
+        ...(groupedSidecars.get(progressGroupIndex) ?? []).map((sidecar) => ({ items: [{ sourcePath: sidecar.sourcePath, targetPath: sidecar.targetPath }], progressGroupIndex })),
+      ]);
+      executionGroups.push(...ungroupedSidecars.map((sidecar, index) => ({ items: [{ sourcePath: sidecar.sourcePath, targetPath: sidecar.targetPath }], progressGroupIndex: executableGroups.length + index })));
+      const progressGroupTotals = executionGroups.reduce<number[]>((totals, group) => {
+        totals[group.progressGroupIndex] = (totals[group.progressGroupIndex] ?? 0) + group.items.length;
+        return totals;
+      }, []);
+      const firstGroupTotal = progressGroupTotals[0];
+      if (firstGroupTotal) setWork({ operation: 'Renaming', completed: 0, total: executionGroups.reduce((total, group) => total + group.items.length, 0), groupCompleted: 0, groupTotal: firstGroupTotal, groupIndex: 0, groupsTotal: progressGroupTotals.filter(Boolean).length });
       const preferredLogDirectory = renameLogFolder || (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) || undefined;
       const result = await window.mediaRenamer.executeRenamePlan(executionGroups, {
         clearSourceJunk: moveFiles && clearSourceJunk,
@@ -2051,6 +2068,9 @@ export default function App() {
   const renameCompleted = work?.completed ?? 0;
   const renameTotal = work?.total ?? executableFileCount;
   const renamePercent = renameTotal > 0 ? Math.min(100, Math.round((renameCompleted / renameTotal) * 100)) : 0;
+  const groupCompleted = work?.groupCompleted ?? 0;
+  const groupTotal = work?.groupTotal ?? 0;
+  const groupPercent = groupTotal > 0 ? Math.min(100, Math.round((groupCompleted / groupTotal) * 100)) : 0;
   const renameElapsed = renameStartedAt === undefined ? 0 : Math.max(0, renameClock - renameStartedAt);
   const estimatedRenameTotal = renameCompleted > 0 && work?.operation !== 'Undoing' ? (renameElapsed / renameCompleted) * renameTotal : undefined;
   const estimatedRenameRemaining = estimatedRenameTotal === undefined ? undefined : Math.max(0, estimatedRenameTotal - renameElapsed);
@@ -2344,8 +2364,12 @@ export default function App() {
           <h2 id="rename-title">Rename {executableGroups.length} {activeMediaTab === 'movies' ? 'movie' : 'episode'}{executableGroups.length === 1 ? '' : 's'}?</h2>
           <p id="rename-description">This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty source and companion folders will be removed after the move.' : ''}</p>
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
-            <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : `Renaming ${renameCompleted} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
-            <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal}/>
+            <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : activeMediaTab === 'movies' && work.groupsTotal ? `Sorting movie ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : `Renaming ${renameCompleted} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
+            <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal} label="Overall file progress"/>
+            {activeMediaTab === 'movies' && work.operation === 'Renaming' && groupTotal > 1 && <div className="rename-group-progress">
+              <div className="rename-progress-heading"><strong>Processing {groupCompleted} of {groupTotal} files for this movie</strong><span>{groupPercent}%</span></div>
+              <SmoothProgress className="rename-progress secondary" value={groupCompleted} max={groupTotal} label={`Movie ${(work.groupIndex ?? 0) + 1} associated file progress`}/>
+            </div>}
             <div className="rename-time-grid">
               <span><small>Elapsed</small><strong>{formatDuration(renameElapsed)}</strong></span>
               <span><small>Estimated total</small><strong>{work.operation === 'Undoing' ? '—' : estimatedRenameTotal === undefined ? 'Calculating…' : formatDuration(estimatedRenameTotal)}</strong></span>
