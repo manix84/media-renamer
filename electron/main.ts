@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
-import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
+import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { stageGeneratedAssets } from './generatedAssets.js';
@@ -66,7 +66,7 @@ function metadataCache(): MetadataCache {
 }
 
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
-const SHOW_SEARCH_CACHE_VERSION = 2;
+const SHOW_SEARCH_CACHE_VERSION = 3;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 // v3 adds genre, original-language, and origin-country fields used by extensions.
 const DETAILS_CACHE_VERSION = 3;
@@ -371,12 +371,16 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
     if (results.length) return results;
     if (tvdbId) {
       const series = await tvdb().getSeries(tvdbId);
-      const candidates = series.tmdbId ? await client.searchShows(`tmdb-${series.tmdbId}`) : await client.searchShows(series.name);
-      const ranked = series.year ? candidates.sort((left, right) => Number(right.year === series.year) - Number(left.year === series.year)) : candidates;
-      return ranked.map((candidate) => ({ ...candidate, tvdbId }));
+      if (series.tmdbId) {
+        const candidates = await client.searchShows(`tmdb-${series.tmdbId}`);
+        if (candidates.length) return candidates.map((candidate) => ({ ...candidate, tvdbId: series.id }));
+      }
+      return [directTvdbShow(series)];
     }
     if (!localEnv('TVDB_API_KEY')) return [];
     try {
+      const seriesMatches = await tvdb().searchSeries(search);
+      if (seriesMatches.length) return seriesMatches.map(directTvdbShow);
       const aliases = await aniListClient.searchAnimeTitles(search);
       for (const alias of aliases) {
         const seriesMatches = await tvdb().searchSeries(alias);
@@ -395,6 +399,14 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
 });
 ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
   const id = textArgument(showId, 'show ID');
+  const tvdbId = id.match(/^tvdb-(\d+)$/i)?.[1];
+  if (tvdbId) return metadataCache().get(`tvdb:v${DETAILS_CACHE_VERSION}:show:${tvdbId}`, DETAILS_CACHE_AGE, async () => {
+    const [series, episodes] = await Promise.all([
+      tvdb().getSeries(tvdbId),
+      metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${tvdbId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(tvdbId)),
+    ]);
+    return directTvdbShowDetails(series, episodes);
+  });
   return metadataCache().get(`tmdb:v${DETAILS_CACHE_VERSION}:show:${id}`, DETAILS_CACHE_AGE, () => tmdb().getShow(id));
 });
 ipcMain.handle('metadata:resolve-tvdb-series', async (_event, value: unknown) => {

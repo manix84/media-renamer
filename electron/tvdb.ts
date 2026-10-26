@@ -2,7 +2,7 @@ const API_ROOT = 'https://api4.thetvdb.com/v4';
 
 type LoginResponse = { data: { token: string } };
 type RemoteId = { id?: string; sourceName?: string; type?: number };
-type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
+type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; overview?: string; image?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
 type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
 type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number; overview?: string; image?: string };
@@ -13,6 +13,8 @@ export interface TvdbSeries {
   name: string;
   year?: number;
   tmdbId?: string;
+  overview?: string;
+  imageUrl?: string;
 }
 
 export interface TvdbEpisode {
@@ -25,6 +27,23 @@ export interface TvdbEpisode {
   runtimeMinutes?: number;
   overview?: string;
   imageUrl?: string;
+}
+
+export function directTvdbShow(series: TvdbSeries) {
+  return { id: `tvdb-${series.id}`, tvdbId: series.id, name: series.name, year: series.year, overview: series.overview ?? '', posterUrl: series.imageUrl };
+}
+
+export function directTvdbShowDetails(series: TvdbSeries, episodes: TvdbEpisode[]) {
+  const seasonNumbers = [...new Set(episodes.map((episode) => episode.season))].sort((left, right) => left - right);
+  return {
+    ...directTvdbShow(series),
+    seasons: seasonNumbers.map((number) => ({
+      number,
+      name: number === 0 ? 'Specials' : `Season ${number}`,
+      episodeCount: episodes.filter((episode) => episode.season === number).length,
+      airDate: episodes.find((episode) => episode.season === number && episode.airDate)?.airDate,
+    })),
+  };
 }
 
 function normalizedSeriesName(value: string): string {
@@ -73,7 +92,16 @@ export class TvdbClient {
     const year = rawYear ? Number(rawYear) : undefined;
     const remoteIds = data.remoteIds ?? data.remote_ids ?? [];
     const tmdbId = remoteIds.find((remote) => /themoviedb|movie.?database|tmdb/i.test(remote.sourceName ?? ''))?.id;
-    return { id: String(data.id), name: data.name.trim(), year: Number.isFinite(year) ? year : undefined, tmdbId };
+    const id = data.tvdb_id ?? data.id;
+    if (id === undefined) throw new Error(`TVDB series ${seriesId} returned no series ID.`);
+    return {
+      id: String(id),
+      name: data.name.trim(),
+      year: Number.isFinite(year) ? year : undefined,
+      tmdbId,
+      ...(data.overview?.trim() ? { overview: data.overview.trim() } : {}),
+      ...(data.image?.trim() ? { imageUrl: data.image.trim() } : {}),
+    };
   }
 
   async searchSeries(query: string): Promise<TvdbSeries[]> {

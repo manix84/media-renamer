@@ -1,7 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
+import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 
 describe('TVDB adapter', () => {
+  it('creates selectable show metadata without a TMDB counterpart', () => {
+    const series = { id: '81251', name: 'Pixar Short Films', year: 1984, overview: 'Pixar shorts.', imageUrl: 'https://artworks.thetvdb.com/poster.jpg' };
+    expect(directTvdbShow(series)).toEqual({
+      id: 'tvdb-81251', tvdbId: '81251', name: 'Pixar Short Films', year: 1984, overview: 'Pixar shorts.', posterUrl: 'https://artworks.thetvdb.com/poster.jpg',
+    });
+    expect(directTvdbShowDetails(series, [
+      { id: '1', season: 0, number: 1, title: 'Special', airDate: '1984-01-01' },
+      { id: '2', season: 1, number: 1, title: 'First', airDate: '1986-01-01' },
+      { id: '3', season: 1, number: 2, title: 'Second' },
+    ])).toMatchObject({
+      id: 'tvdb-81251', tvdbId: '81251',
+      seasons: [
+        { number: 0, name: 'Specials', episodeCount: 1, airDate: '1984-01-01' },
+        { number: 1, name: 'Season 1', episodeCount: 2, airDate: '1986-01-01' },
+      ],
+    });
+  });
+
   it('selects a unique normalized title and prefers the requested year', () => {
     const candidates = [
       { id: '1', name: 'The Great British Bake Off', year: 2010 },
@@ -15,9 +33,9 @@ describe('TVDB adapter', () => {
   it('authenticates once and resolves a series ID', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 482771, name: 'Archive X: Unexplained Phenomena ', year: '2026', remoteIds: [{ id: '334779', sourceName: 'TheMovieDB.com' }] } }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 482771, name: 'Archive X: Unexplained Phenomena ', year: '2026', overview: ' An archive series. ', image: 'https://artworks.thetvdb.com/poster.jpg', remoteIds: [{ id: '334779', sourceName: 'TheMovieDB.com' }] } }), { status: 200 }));
     const client = new TvdbClient('api-key', 'subscriber-pin', fetcher);
-    await expect(client.getSeries('482771')).resolves.toEqual({ id: '482771', name: 'Archive X: Unexplained Phenomena', year: 2026, tmdbId: '334779' });
+    await expect(client.getSeries('482771')).resolves.toEqual({ id: '482771', name: 'Archive X: Unexplained Phenomena', year: 2026, tmdbId: '334779', overview: 'An archive series.', imageUrl: 'https://artworks.thetvdb.com/poster.jpg' });
     expect(JSON.parse(fetcher.mock.calls[0][1]?.body as string)).toEqual({ apikey: 'api-key', pin: 'subscriber-pin' });
     expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ authorization: 'Bearer bearer-token' });
   });
