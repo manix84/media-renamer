@@ -29,7 +29,7 @@
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
     "concurrently": "latest",
-    "electron": "latest",
+    "electron": "^45.0.0",
     "electron-builder": "^26.18.0",
     "typescript": "latest",
     "vite": "latest",
