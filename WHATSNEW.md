@@ -12,7 +12,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Clickable movie-row posters using the same full-size, zoomable preview as TV-show artwork.
 - Rename progress recovery after a renderer refresh, with the live dialog and Stop/Undo controls restored automatically and a persistent **View progress** action.
 - Bidirectional episode navigation: selecting a file highlights its matched episode(s), while selecting an episode highlights and reveals its associated file(s); click again to toggle the selection off, click away, or wait 40 seconds.
-- Smoother rename progress during cross-filesystem moves, detecting separate filesystems before attempting an atomic rename, reporting bytes copied within the active file, and showing an active processing state when the filesystem cannot expose progress.
+- Smoother rename progress during cross-filesystem moves, detecting separate filesystems before attempting an atomic rename, reporting bytes copied within the active file, and distinguishing pending work with moving stripes from measurable work with a periodic progress sweep.
 
 ## [0.1.0] - 2026-10-26
 
