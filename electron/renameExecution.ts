@@ -129,6 +129,23 @@ export async function copyFileWithProgress(sourcePath: string, targetPath: strin
   onProgress?.(1);
 }
 
+async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+  const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
+  let published = false;
+  try {
+    await copyFileWithProgress(sourcePath, temporaryPath, onProgress);
+    await fs.promises.link(temporaryPath, targetPath);
+    published = true;
+    await fs.promises.unlink(temporaryPath);
+    try { await fs.promises.unlink(sourcePath); }
+    catch (unlinkError) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw unlinkError; }
+  } catch (copyError) {
+    await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
+    if (published) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
+    throw copyError;
+  }
+}
+
 async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
   if (sourcePath === targetPath) return;
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
@@ -149,6 +166,11 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
     }
     return;
   }
+  const [source, targetDirectory] = await Promise.all([fs.promises.stat(sourcePath), fs.promises.stat(path.dirname(targetPath))]);
+  if (source.dev !== targetDirectory.dev) {
+    await copyAcrossDevices(sourcePath, targetPath, onProgress);
+    return;
+  }
   try {
     await fs.promises.link(sourcePath, targetPath);
     try { await fs.promises.unlink(sourcePath); }
@@ -156,20 +178,7 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
   }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
-    const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
-    let published = false;
-    try {
-      await copyFileWithProgress(sourcePath, temporaryPath, onProgress);
-      await fs.promises.link(temporaryPath, targetPath);
-      published = true;
-      await fs.promises.unlink(temporaryPath);
-      try { await fs.promises.unlink(sourcePath); }
-      catch (unlinkError) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw unlinkError; }
-    } catch (copyError) {
-      await fs.promises.rm(temporaryPath, { force: true }).catch(() => undefined);
-      if (published) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
-      throw copyError;
-    }
+    await copyAcrossDevices(sourcePath, targetPath, onProgress);
   }
 }
 
