@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { preflightRenameItems, renamePreflightItems, type RenamePreflightItem } from './renamePreflight.js';
 import { writeJsonAtomically } from './atomicJson.js';
 import { isVideoFile } from './mediaFiles.js';
@@ -111,7 +112,24 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
   return resolved;
 }
 
-async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
+export async function copyFileWithProgress(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+  const source = await fs.promises.stat(sourcePath);
+  let copied = 0;
+  let lastReportedAt = 0;
+  const readStream = fs.createReadStream(sourcePath);
+  const writeStream = fs.createWriteStream(targetPath, { flags: 'wx', mode: source.mode });
+  readStream.on('data', (chunk: Buffer) => {
+    copied += chunk.length;
+    const now = Date.now();
+    if (now - lastReportedAt < 50 && copied < source.size) return;
+    lastReportedAt = now;
+    onProgress?.(source.size > 0 ? Math.min(1, copied / source.size) : 1);
+  });
+  await pipeline(readStream, writeStream);
+  onProgress?.(1);
+}
+
+async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
   if (sourcePath === targetPath) return;
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   const caseOnly = sourcePath.toLocaleLowerCase() === targetPath.toLocaleLowerCase();
@@ -141,7 +159,7 @@ async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
     const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
     let published = false;
     try {
-      await fs.promises.copyFile(sourcePath, temporaryPath, fs.constants.COPYFILE_EXCL);
+      await copyFileWithProgress(sourcePath, temporaryPath, onProgress);
       await fs.promises.link(temporaryPath, targetPath);
       published = true;
       await fs.promises.unlink(temporaryPath);
@@ -277,7 +295,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     for (const item of items) {
       control = options.control?.();
       if (control) break;
-      await moveFile(item.sourcePath, item.targetPath);
+      await moveFile(item.sourcePath, item.targetPath, (fraction) => onProgress?.(completed.length + fraction, items.length, 'rename'));
       completed.push(item);
       onProgress?.(completed.length, items.length, 'rename');
       control = options.control?.();

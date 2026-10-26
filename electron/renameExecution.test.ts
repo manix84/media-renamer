@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
+import { copyFileWithProgress, executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
 
 const temporaryDirectories: string[] = [];
 async function temporaryDirectory() {
@@ -13,6 +13,21 @@ async function temporaryDirectory() {
 afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => fs.promises.rm(directory, { recursive: true, force: true }))));
 
 describe('rename execution', () => {
+  it('reports incremental byte progress while copying a file', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'source.bin');
+    const target = path.join(root, 'target.bin');
+    const contents = Buffer.alloc(512 * 1024, 42);
+    await fs.promises.writeFile(source, contents);
+    const progress: number[] = [];
+
+    await copyFileWithProgress(source, target, (fraction) => progress.push(fraction));
+
+    expect(progress.at(-1)).toBe(1);
+    expect(progress.some((fraction) => fraction > 0 && fraction < 1)).toBe(true);
+    expect(await fs.promises.readFile(target)).toEqual(contents);
+  });
+
   it('maps overall file progress to the active movie group', () => {
     expect(renameGroupProgress([3, 1, 4], 0)).toEqual({ groupCompleted: 0, groupTotal: 3, groupIndex: 0, groupsTotal: 3 });
     expect(renameGroupProgress([3, 1, 4], 2)).toEqual({ groupCompleted: 2, groupTotal: 3, groupIndex: 0, groupsTotal: 3 });

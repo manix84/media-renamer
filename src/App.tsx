@@ -2143,9 +2143,11 @@ export default function App() {
   })() : undefined;
 
   const renameCompleted = work?.completed ?? 0;
+  const renameCompletedFiles = Math.floor(renameCompleted);
   const renameTotal = work?.total ?? executableFileCount;
   const renamePercent = renameTotal > 0 ? Math.min(100, Math.round((renameCompleted / renameTotal) * 100)) : 0;
   const groupCompleted = work?.groupCompleted ?? 0;
+  const groupCompletedFiles = Math.floor(groupCompleted);
   const groupTotal = work?.groupTotal ?? 0;
   const groupPercent = groupTotal > 0 ? Math.min(100, Math.round((groupCompleted / groupTotal) * 100)) : 0;
   const renameElapsed = renameStartedAt === undefined ? 0 : Math.max(0, renameClock - renameStartedAt);
@@ -2440,12 +2442,12 @@ export default function App() {
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
           <h2 id="rename-title">{renaming ? activeMediaTab === 'movies' ? `Sorting ${work?.groupsTotal ?? executableGroups.length} movie${(work?.groupsTotal ?? executableGroups.length) === 1 ? '' : 's'}` : 'Rename in progress' : `Rename ${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'}?`}</h2>
-          <p id="rename-description">{renaming && work ? `${Math.max(0, work.total - work.completed)} of ${work.total} files remain. You can leave this view and return while the operation continues.` : <>This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty source and companion folders will be removed after the move.' : ''}</>}</p>
+          <p id="rename-description">{renaming && work ? `${Math.max(0, work.total - renameCompletedFiles)} of ${work.total} files remain. You can leave this view and return while the operation continues.` : <>This will rename or move {executableFileCount} file{executableFileCount === 1 ? '' : 's'}, including companion files. Existing destinations are automatically given an increment such as <code>(2)</code>, and the complete operation is logged for undo.{moveFiles && removeEmptySourceParents ? ' Empty source and companion folders will be removed after the move.' : ''}</>}</p>
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
-            <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : activeMediaTab === 'movies' && work.groupsTotal ? `Sorting movie ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : `Renaming ${renameCompleted} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
+            <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : activeMediaTab === 'movies' && work.groupsTotal ? `Sorting movie ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : `Renaming ${renameCompletedFiles} of ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
             <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal} label="Overall file progress"/>
             {activeMediaTab === 'movies' && work.operation === 'Renaming' && groupTotal > 1 && <div className="rename-group-progress">
-              <div className="rename-progress-heading"><strong>Processing {groupCompleted} of {groupTotal} files for this movie</strong><span>{groupPercent}%</span></div>
+              <div className="rename-progress-heading"><strong>Processing {groupCompletedFiles} of {groupTotal} files for this movie</strong><span>{groupPercent}%</span></div>
               <SmoothProgress className="rename-progress secondary" value={groupCompleted} max={groupTotal} label={`Movie ${(work.groupIndex ?? 0) + 1} associated file progress`}/>
             </div>}
             <div className="rename-time-grid">
