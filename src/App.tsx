@@ -2131,19 +2131,25 @@ export default function App() {
               </div>
               {(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <button className="clear-overrides" onClick={() => { setSourceOverride('auto'); setAiUpscaleOverride('auto'); }}>Clear overrides</button>}
             </aside></>}
-            {work && <div className="work-status" role="status" aria-live="polite">
-              <LoaderCircle className="spin" size={18}/>
-              <span><strong>{work.operation === 'Scanning' ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
-              {work.total > 0 && <SmoothProgress value={work.completed} max={work.total}/>}
-            </div>}
-            {paths.length > 0 && <div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
-              {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
-              <span role="status" aria-live="polite"><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
-              {preflightError && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
-              {!preflightError && unchangedPaths.length > 0 && <button className="secondary clear-unchanged" onClick={clearUnchangedFiles}><Trash2 size={14}/> Clear {unchangedPaths.length} unchanged</button>}
-              {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
-              {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
-            </div>}
+            <div className={`panel-status-stack ${work || paths.length > 0 ? 'has-status' : ''}`}>
+              <div className={`status-reveal ${work ? 'visible' : ''}`} aria-hidden={!work}>
+                <div className="status-reveal-inner"><div className="work-status" role={work ? 'status' : undefined} aria-live={work ? 'polite' : undefined}>
+                  <LoaderCircle className="spin" size={18}/>
+                  <span><strong>{work?.operation === 'Scanning' || !work ? 'Scanning folders' : `${work.operation} files`}</strong><small>{work?.total ? `${work.total - work.completed} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
+                  {(work?.total ?? 0) > 0 && <SmoothProgress value={work?.completed ?? 0} max={work?.total ?? 1}/>}
+                </div></div>
+              </div>
+              <div className={`status-reveal ${paths.length > 0 ? 'visible' : ''}`} aria-hidden={paths.length === 0}>
+                <div className="status-reveal-inner"><div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
+                  {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
+                  <span role={paths.length > 0 ? 'status' : undefined} aria-live={paths.length > 0 ? 'polite' : undefined}><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
+                  {preflightError && paths.length > 0 && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
+                  {!preflightError && unchangedPaths.length > 0 && <button className="secondary clear-unchanged" onClick={clearUnchangedFiles}><Trash2 size={14}/> Clear {unchangedPaths.length} unchanged</button>}
+                  {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
+                  {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
+                </div></div>
+              </div>
+            </div>
             {activeMediaTab === 'movies' && paths.length > 0 && <div className="movie-batch-filters" aria-label="Filter movie batch">
               <div>{(['all', 'ready', 'review', 'unmatched', 'unchanged', 'failed', 'deferred'] as MovieBatchFilter[]).map((filter) => (movieBatchFilterCounts[filter] > 0 || movieBatchFilter === filter) && <button key={filter} className={movieBatchFilter === filter ? 'active' : ''} aria-pressed={movieBatchFilter === filter} onClick={() => setMovieBatchFilter(filter)}>{filter[0].toUpperCase() + filter.slice(1)} <span>{movieBatchFilterCounts[filter]}</span></button>)}</div>
               <span className="movie-batch-retries">{movieBatchFilterCounts.unmatched > 0 && <button className="secondary" onClick={() => retryMovieMatches('unmatched')}><RefreshCw size={13}/> Retry unmatched</button>}{movieBatchFilterCounts.failed > 0 && <button className="secondary" onClick={() => retryMovieMatches('error')}><RefreshCw size={13}/> Retry failed</button>}</span>
