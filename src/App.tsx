@@ -16,6 +16,7 @@ import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverri
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
+import { displayEpisodeTitle, episodesForFilename, splitEpisodeReviewCandidates } from './core/splitEpisodes';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
 import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
@@ -149,7 +150,7 @@ function candidateLabel(candidate: MatchCandidate): string {
 }
 
 function candidateTitle(candidate: MatchCandidate): string {
-  return candidateEpisodes(candidate).map((episode) => episode.title).join(', ');
+  return displayEpisodeTitle(candidate);
 }
 
 function joinPath(directory: string, relativePath: string): string {
@@ -544,7 +545,7 @@ export default function App() {
   const reviewingAutomaticItem = reviewingPath ? automaticMatchesByPath.get(reviewingPath) : undefined;
   const suggestedCandidates = useMemo(() => {
     if (!reviewingItem) return [];
-    const candidates = [reviewingItem.match, reviewingAutomaticItem?.match, ...reviewingItem.alternatives].filter((candidate): candidate is MatchCandidate => Boolean(candidate));
+    const candidates = [reviewingItem.match, reviewingAutomaticItem?.match, ...reviewingItem.alternatives].filter((candidate): candidate is MatchCandidate => Boolean(candidate)).flatMap(splitEpisodeReviewCandidates);
     return [...new Map(candidates.map((candidate) => [candidateKey(candidate), candidate])).values()];
   }, [reviewingAutomaticItem, reviewingItem]);
   const reviewCandidates = useMemo(() => {
@@ -601,6 +602,7 @@ export default function App() {
       number: Number(episode.number),
       title: episode.title.trim(),
     } satisfies Episode)) : matchedEpisodes;
+    const filenameEpisodes = episodesForFilename(effectiveEpisodes, episodes);
     const detectedTags = parseReleaseTags(path, releaseAliases);
     const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year, releaseAliases) : undefined;
     const baseTags = detectedTags ? {
@@ -657,7 +659,7 @@ export default function App() {
       - Math.max(0, longestCompanionSuffix - extensionBytes);
     const targetName = activeMediaTab === 'movies'
       ? movieForPath && tags && !effectiveMovieError ? appendMovieVideoSuffix(formatMovieFilename(effectiveMovieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId, movieForPath.collection), movieVideoRole) : undefined
-      : effectiveEpisodes.length && effectiveShowName && tags && !effectiveEpisodeError ? formatEpisodeFilename(effectiveEpisodeTemplate, effectiveShowName, effectiveShowYear, effectiveEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
+      : filenameEpisodes.length && effectiveShowName && tags && !effectiveEpisodeError ? formatEpisodeFilename(effectiveEpisodeTemplate, effectiveShowName, effectiveShowYear, filenameEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
     return {
       sourcePath: path,
       targetName,
