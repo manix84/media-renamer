@@ -26,6 +26,8 @@ export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySou
 const subtitleExtensionPattern = /\.(?:srt|ass|ssa|sub|vtt)$/i;
 const sourceJunkPatterns = [
   /\.!qb$/i,
+  /\.ico$/i,
+  /^desktop\.ini$/i,
   /^rarbg(?:_do_not_mirror\.exe|\.txt)$/i,
   /^www\.(?:yts\.[a-z0-9-]{2,12}|yify-torrents\.com)\.jpe?g$/i,
   /^yts\.[a-z0-9-]{2,12}\s*-\s*official[ ._-]+site\.jpe?g$/i,
