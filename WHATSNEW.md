@@ -20,7 +20,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Episode-grouped rename progress that counts videos as episodes while tracking each episode's subtitles and other sidecars on a secondary progress bar.
 - Dark show-logo treatment in light mode so pale and white provider artwork remains legible.
 - Automatic TVDB discovery when TMDB has no show result or a selected TMDB show lacks a usable TVDB cross-reference.
-- Consistently aligned media-detail pills, with match evidence available by hovering over the proposed filename.
+- Media-detail pills aligned beneath the original filename they describe, with match evidence available by hovering over the proposed filename.
 
 ## [0.1.0] - 2026-10-26
 
