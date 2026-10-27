@@ -74,7 +74,9 @@ h1 { margin-bottom: 6px; font-size: 30px; letter-spacing: -.04em; } h1 span { co
 .search-results strong, .search-results small { display: block; } .search-results strong { font-size: 12px; } .search-results small { margin-top: 3px; color: #747e91; font-size: 10px; }
 .movie-search-hint { width: min(370px, 36vw); min-height: 44px; padding: 8px 12px; display: flex; align-items: center; gap: 9px; border: 1px solid #293142; border-radius: 9px; background: #101620; color: #748096; }
 .movie-search-hint strong, .movie-search-hint small { display: block; } .movie-search-hint strong { color: #c5cddd; font-size: 10px; } .movie-search-hint small { margin-top: 3px; font-size: 8px; }
-.notice { min-height: 44px; margin: -10px 0 18px; padding: 10px 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #594d27; border-radius: 9px; background: #2c2618; color: #d8c375; font-size: 12px; }
+.notice-presence { margin-top: -10px; }
+.notice-presence.present > .animated-presence-inner { overflow: visible; }
+.notice { min-height: 44px; margin: 0 0 18px; padding: 10px 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #594d27; border-radius: 9px; background: #2c2618; color: #d8c375; font-size: 12px; }
 .notice-presence + .notice-presence.present { margin-top: 8px; }
 .notice.error { border-color: #61343a; background: #301d22; color: #ef929b; } .notice code { color: inherit; }
 kbd { padding: 3px 6px; border: 1px solid #343b4b; border-radius: 5px; background: #1b202b; color: #717a8c; font-size: 10px; white-space: nowrap; }

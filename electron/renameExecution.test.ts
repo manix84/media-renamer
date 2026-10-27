@@ -91,6 +91,27 @@ describe('rename execution', () => {
     }
   });
 
+  it('does not require an immediate destination-directory stat after creating it', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Old.mkv');
+    const targetDirectory = path.join(root, 'library', 'Show');
+    const target = path.join(targetDirectory, 'New.mkv');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    const realStat = fs.promises.stat.bind(fs.promises);
+    const stat = vi.spyOn(fs.promises, 'stat');
+    stat.mockImplementation(async (filePath, options) => {
+      if (filePath === targetDirectory) throw Object.assign(new Error('stale directory metadata'), { code: 'ENOENT' });
+      return realStat(filePath, options);
+    });
+    try {
+      await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'));
+      await expect(fs.promises.readFile(target, 'utf8')).resolves.toBe('video');
+    } finally {
+      stat.mockRestore();
+    }
+  });
+
   it('returns restored files to their renamed paths when the undo log cannot be updated', async () => {
     const root = await temporaryDirectory();
     const source = path.join(root, 'Old.mkv');

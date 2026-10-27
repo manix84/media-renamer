@@ -165,11 +165,6 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
     }
     return;
   }
-  const [source, targetDirectory] = await Promise.all([fs.promises.stat(sourcePath), fs.promises.stat(path.dirname(targetPath))]);
-  if (source.dev !== targetDirectory.dev) {
-    await copyAcrossDevices(sourcePath, targetPath, onProgress);
-    return;
-  }
   try {
     if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
     await fs.promises.rename(sourcePath, targetPath);
