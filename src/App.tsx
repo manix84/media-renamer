@@ -1596,7 +1596,9 @@ export default function App() {
           const existing = details.seasons.find((season) => season.number === number);
           return { number, name: existing?.name ?? (number === 0 ? 'Specials' : `Season ${number}`), episodeCount: sortedEpisodes.filter((episode) => episode.season === number).length, airDate: existing?.airDate };
         });
-        setShow({ ...details, ...(result.id.startsWith('tvdb-') ? { name: result.name, overview: result.overview || details.overview, posterUrl: result.posterUrl ?? details.posterUrl } : {}), tvdbId: episodeLoad.tvdbId, seasons });
+        const resolvedDetails = { ...details, tvdbId: episodeLoad.tvdbId, seasons };
+        setShow(resolvedDetails);
+        setQuery(resolvedDetails.name);
         setActiveShowMetadataAgent(resolvedEpisodeAgent);
         setEpisodes(sortedEpisodes);
         const missingSeasons = requestedEpisodeSeasons(paths).filter((season) => !seasonNumbers.includes(season));
