@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
-import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
+import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbLanguageCode } from './tvdb.js';
 import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { fetchArtworkDataUrl, stageGeneratedAssets } from './generatedAssets.js';
@@ -474,16 +474,18 @@ ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
 });
 ipcMain.handle('metadata:resolve-tvdb-series', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid TVDB series lookup.');
-  const request = value as { name?: unknown; year?: unknown };
+  const request = value as { name?: unknown; year?: unknown; language?: unknown };
   const name = textArgument(request.name, 'show name');
   const year = request.year === undefined ? undefined : Number(request.year);
   if (year !== undefined && (!Number.isInteger(year) || year < 1800 || year > 3000)) throw new Error('Invalid show year.');
-  return selectTvdbSeriesMatch(await tvdb().searchSeries(name), name, year);
+  const language = request.language === undefined ? 'eng' : tvdbLanguageCode(textArgument(request.language, 'metadata language'));
+  return selectTvdbSeriesMatch(await tvdb().searchSeries(name, language), name, year);
 });
-ipcMain.handle('metadata:search-tvdb-series', async (_event, query: unknown) => {
+ipcMain.handle('metadata:search-tvdb-series', async (_event, query: unknown, requestedLanguage: unknown) => {
   const search = textArgument(query, 'TVDB search query');
-  return metadataCache().get(`search:v${SHOW_SEARCH_CACHE_VERSION}:tvdb:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => (
-    (await tvdb().searchSeries(search)).map(directTvdbShow)
+  const language = requestedLanguage === undefined ? 'eng' : tvdbLanguageCode(textArgument(requestedLanguage, 'metadata language'));
+  return metadataCache().get(`search:v${SHOW_SEARCH_CACHE_VERSION}:tvdb:${language}:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => (
+    (await tvdb().searchSeries(search, language)).map(directTvdbShow)
   ));
 });
 ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => {
@@ -498,15 +500,23 @@ ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown, mediaType: unknown) 
 });
 ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');
-  const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown };
+  const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown; language?: unknown };
   if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid season list.');
   const seasons = request.seasons.map(Number).sort((left, right) => left - right);
   if (request.agent === 'tvdb-aired') {
     const seriesId = textArgument(request.tvdbId, 'TVDB series ID');
     const showId = textArgument(request.tmdbId, 'TMDB show ID');
-    return metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${seriesId}:tmdb-artwork:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => {
+    const language = request.language === undefined ? 'eng' : tvdbLanguageCode(textArgument(request.language, 'metadata language'));
+    return metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:${language}:${seriesId}:tmdb-artwork:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => {
+      const series = await tvdb().getSeries(seriesId);
+      const episodesPromise = tvdb().getSeriesEpisodes(seriesId, language).catch((reason) => {
+        const message = reason instanceof Error ? reason.message : String(reason);
+        const nativeLanguage = series.originalLanguage;
+        if (!/TVDB episodes for series \d+ were not found\./i.test(message) || !nativeLanguage || nativeLanguage === language) throw reason;
+        return tvdb().getSeriesEpisodes(seriesId, nativeLanguage);
+      });
       const [episodes, artwork] = await Promise.all([
-        tvdb().getSeriesEpisodes(seriesId),
+        episodesPromise,
         Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season))).then((results) => results.flat()).catch(() => []),
       ]);
       return mergeEpisodeArtwork(episodes, artwork);

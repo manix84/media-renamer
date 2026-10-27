@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbArtworkUrl } from './tvdb.js';
+import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbArtworkUrl, tvdbLanguageCode } from './tvdb.js';
 
 describe('TVDB adapter', () => {
+  it('maps application languages to TVDB translation languages', () => {
+    expect(tvdbLanguageCode('en')).toBe('eng');
+    expect(tvdbLanguageCode('pt-BR')).toBe('por');
+    expect(tvdbLanguageCode('ja')).toBe('jpn');
+    expect(tvdbLanguageCode('jpn')).toBe('jpn');
+  });
   it('normalizes relative artwork paths and rejects unrelated hosts', () => {
     expect(tvdbArtworkUrl('/banners/v4/episode/example.jpg')).toBe('https://artworks.thetvdb.com/banners/v4/episode/example.jpg');
     expect(tvdbArtworkUrl('https://artworks.thetvdb.com/banners/example.jpg')).toBe('https://artworks.thetvdb.com/banners/example.jpg');
@@ -38,9 +44,9 @@ describe('TVDB adapter', () => {
   it('authenticates once and resolves a series ID', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 482771, name: 'Archive X: Unexplained Phenomena ', year: '2026', overview: ' An archive series. ', image: 'https://artworks.thetvdb.com/poster.jpg', remoteIds: [{ id: '334779', sourceName: 'TheMovieDB.com' }] } }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 482771, name: 'Archive X: Unexplained Phenomena ', year: '2026', overview: ' An archive series. ', image: 'https://artworks.thetvdb.com/poster.jpg', originalLanguage: 'ja', remoteIds: [{ id: '334779', sourceName: 'TheMovieDB.com' }] } }), { status: 200 }));
     const client = new TvdbClient('api-key', 'subscriber-pin', fetcher);
-    await expect(client.getSeries('482771')).resolves.toEqual({ id: '482771', name: 'Archive X: Unexplained Phenomena', year: 2026, tmdbId: '334779', overview: 'An archive series.', imageUrl: 'https://artworks.thetvdb.com/poster.jpg' });
+    await expect(client.getSeries('482771')).resolves.toEqual({ id: '482771', name: 'Archive X: Unexplained Phenomena', year: 2026, tmdbId: '334779', overview: 'An archive series.', imageUrl: 'https://artworks.thetvdb.com/poster.jpg', originalLanguage: 'jpn' });
     expect(JSON.parse(fetcher.mock.calls[0][1]?.body as string)).toEqual({ apikey: 'api-key', pin: 'subscriber-pin' });
     expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ authorization: 'Bearer bearer-token' });
   });
@@ -49,9 +55,10 @@ describe('TVDB adapter', () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ tvdb_id: '473125', name: 'Mouse Cursor', year: '2026', overview: ' A pointer story. ', image: '/banners/mouse.jpg', remote_ids: [{ id: '1234', sourceName: 'TheMovieDB.com' }] }] }), { status: 200 }));
-    await expect(new TvdbClient('api-key', undefined, fetcher).searchSeries('Click Me All Over')).resolves.toEqual([{
+    await expect(new TvdbClient('api-key', undefined, fetcher).searchSeries('Click Me All Over', 'fra')).resolves.toEqual([{
       id: '473125', name: 'Mouse Cursor', year: 2026, tmdbId: '1234', overview: 'A pointer story.', imageUrl: 'https://artworks.thetvdb.com/banners/mouse.jpg',
     }]);
+    expect(new URL(fetcher.mock.calls[1][0] as string).searchParams.get('language')).toBe('fra');
   });
 
   it('loads every page of English episodes in TVDB aired order', async () => {

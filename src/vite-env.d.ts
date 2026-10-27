@@ -114,9 +114,9 @@ declare global {
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;
       getShow(showId: string): Promise<ShowDetails>;
-      resolveTvdbSeries(request: { name: string; year?: number }): Promise<{ id: string; name: string; year?: number } | undefined>;
-      searchTvdbShows(query: string): Promise<ShowSearchResult[]>;
-      getShowEpisodes(request: { agent: ShowMetadataAgent; tmdbId: string; tvdbId?: string; seasons: number[] }): Promise<Episode[]>;
+      resolveTvdbSeries(request: { name: string; year?: number; language?: string }): Promise<{ id: string; name: string; year?: number } | undefined>;
+      searchTvdbShows(query: string, language?: string): Promise<ShowSearchResult[]>;
+      getShowEpisodes(request: { agent: ShowMetadataAgent; tmdbId: string; tvdbId?: string; seasons: number[]; language?: string }): Promise<Episode[]>;
       searchMovies(query: string): Promise<MovieSearchResult[]>;
       getMovie(movieId: string, mediaType?: 'movie' | 'tv'): Promise<MovieDetails>;
       openDebugConsole(): Promise<void>;

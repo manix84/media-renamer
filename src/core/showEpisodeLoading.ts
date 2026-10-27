@@ -5,6 +5,7 @@ export type ShowEpisodeRequest = {
   tmdbId: string;
   tvdbId?: string;
   seasons: number[];
+  language?: string;
 };
 
 export type ShowEpisodeLoad = {

@@ -1540,14 +1540,14 @@ export default function App() {
       }
       let tvdbId = details.tvdbId ?? result.tvdbId;
       if (episodeAgent === 'tvdb-aired' && !tvdbId) {
-        const resolved = await window.mediaRenamer?.resolveTvdbSeries({ name: details.name, year: details.year });
+        const resolved = await window.mediaRenamer?.resolveTvdbSeries({ name: details.name, year: details.year, language });
         tvdbId = resolved?.id;
         if (resolved) addDebug('info', 'Resolved missing TVDB cross-reference', `${resolved.name}${resolved.year ? ` (${resolved.year})` : ''} · TVDB ${resolved.id}.`);
       }
       if (episodeAgent === 'tvdb-aired' && !tvdbId) {
         let tvdbCandidates: ShowSearchResult[];
         try {
-          tvdbCandidates = await window.mediaRenamer?.searchTvdbShows(details.name) ?? [];
+          tvdbCandidates = await window.mediaRenamer?.searchTvdbShows(details.name, language) ?? [];
         } catch (reason) {
           const message = errorMessage(reason);
           if (/no handler registered for ['"]metadata:search-tvdb-series['"]/i.test(message)) {
@@ -1569,7 +1569,7 @@ export default function App() {
         throw new Error(`No TVDB series matched ${details.name}. Refine the show title and try again.`);
       }
       const episodeLoad = await loadShowEpisodesWithFallback(
-        { agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) },
+        { agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number), language },
         async (request) => await window.mediaRenamer?.getShowEpisodes(request) ?? [],
       );
       const loadedEpisodes = episodeLoad.episodes;
@@ -1584,7 +1584,7 @@ export default function App() {
           const existing = details.seasons.find((season) => season.number === number);
           return { number, name: existing?.name ?? (number === 0 ? 'Specials' : `Season ${number}`), episodeCount: sortedEpisodes.filter((episode) => episode.season === number).length, airDate: existing?.airDate };
         });
-        setShow({ ...details, tvdbId: episodeLoad.tvdbId, seasons });
+        setShow({ ...details, ...(result.id.startsWith('tvdb-') ? { name: result.name, overview: result.overview || details.overview, posterUrl: result.posterUrl ?? details.posterUrl } : {}), tvdbId: episodeLoad.tvdbId, seasons });
         setActiveShowMetadataAgent(resolvedEpisodeAgent);
         setEpisodes(sortedEpisodes);
         const missingSeasons = requestedEpisodeSeasons(paths).filter((season) => !seasonNumbers.includes(season));

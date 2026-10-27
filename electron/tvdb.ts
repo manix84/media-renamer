@@ -3,7 +3,7 @@ const ARTWORK_ROOT = 'https://artworks.thetvdb.com';
 
 type LoginResponse = { data: { token: string } };
 type RemoteId = { id?: string; sourceName?: string; type?: number };
-type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; overview?: string; image?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
+type RawSeries = { id?: number; tvdb_id?: string; name: string; year?: string; firstAired?: string; overview?: string; image?: string; originalLanguage?: string; remoteIds?: RemoteId[]; remote_ids?: RemoteId[] };
 type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
 type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number; overview?: string; image?: string };
@@ -28,6 +28,7 @@ export interface TvdbSeries {
   tmdbId?: string;
   overview?: string;
   imageUrl?: string;
+  originalLanguage?: string;
 }
 
 export interface TvdbEpisode {
@@ -40,6 +41,15 @@ export interface TvdbEpisode {
   runtimeMinutes?: number;
   overview?: string;
   imageUrl?: string;
+}
+
+const TVDB_LANGUAGE_CODES: Record<string, string> = {
+  en: 'eng', es: 'spa', fr: 'fra', de: 'deu', it: 'ita', 'pt-BR': 'por', ja: 'jpn', ko: 'kor', 'zh-CN': 'zho',
+};
+
+export function tvdbLanguageCode(language?: string): string {
+  if (language && /^[a-z]{3}$/i.test(language)) return language.toLocaleLowerCase();
+  return language && TVDB_LANGUAGE_CODES[language] ? TVDB_LANGUAGE_CODES[language] : 'eng';
 }
 
 export function directTvdbShow(series: TvdbSeries) {
@@ -114,11 +124,12 @@ export class TvdbClient {
       tmdbId,
       ...(data.overview?.trim() ? { overview: data.overview.trim() } : {}),
       ...(tvdbArtworkUrl(data.image) ? { imageUrl: tvdbArtworkUrl(data.image) } : {}),
+      ...(data.originalLanguage?.trim() ? { originalLanguage: tvdbLanguageCode(data.originalLanguage.trim()) } : {}),
     };
   }
 
-  async searchSeries(query: string): Promise<TvdbSeries[]> {
-    const params = new URLSearchParams({ query, type: 'series', limit: '5' });
+  async searchSeries(query: string, language = 'eng'): Promise<TvdbSeries[]> {
+    const params = new URLSearchParams({ query, type: 'series', limit: '5', language });
     const response = await this.fetcher(`${API_ROOT}/search?${params}`, {
       headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
     });
