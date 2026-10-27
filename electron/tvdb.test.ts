@@ -54,11 +54,27 @@ describe('TVDB adapter', () => {
   it('searches TVDB series aliases', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ tvdb_id: '473125', name: 'Mouse Cursor', year: '2026', overview: ' A pointer story. ', image: '/banners/mouse.jpg', remote_ids: [{ id: '1234', sourceName: 'TheMovieDB.com' }] }] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ tvdb_id: '473125', name: 'マウスカーソル', year: '2026', overview: ' Native overview. ', image: '/banners/mouse.jpg', remote_ids: [{ id: '1234', sourceName: 'TheMovieDB.com' }] }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { name: 'Mouse Cursor', overview: ' A pointer story. ' } }), { status: 200 }));
     await expect(new TvdbClient('api-key', undefined, fetcher).searchSeries('Click Me All Over', 'fra')).resolves.toEqual([{
       id: '473125', name: 'Mouse Cursor', year: 2026, tmdbId: '1234', overview: 'A pointer story.', imageUrl: 'https://artworks.thetvdb.com/banners/mouse.jpg',
     }]);
     expect(new URL(fetcher.mock.calls[1][0] as string).searchParams.get('language')).toBe('fra');
+    expect(fetcher.mock.calls[2][0]).toBe('https://api4.thetvdb.com/v4/series/473125/translations/fra');
+  });
+
+  it('uses a requested series translation and falls back to the native title when absent', async () => {
+    const translatedFetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 471791, name: '大きい女の子は好きですか?', year: '2026', originalLanguage: 'jpn' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { name: 'Do You Like Big Girls?' } }), { status: 200 }));
+    await expect(new TvdbClient('api-key', undefined, translatedFetcher).getSeries('471791', 'eng')).resolves.toMatchObject({ name: 'Do You Like Big Girls?', originalLanguage: 'jpn' });
+
+    const nativeFetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 471791, name: '大きい女の子は好きですか?', year: '2026' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 404 }));
+    await expect(new TvdbClient('api-key', undefined, nativeFetcher).getSeries('471791', 'eng')).resolves.toMatchObject({ name: '大きい女の子は好きですか?' });
   });
 
   it('loads every page of English episodes in TVDB aired order', async () => {

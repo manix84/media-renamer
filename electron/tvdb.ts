@@ -8,6 +8,7 @@ type SeriesResponse = { data: RawSeries };
 type SearchResponse = { data?: RawSeries[] };
 type RawEpisode = { id?: number; name?: string; aired?: string; seasonNumber?: number; number?: number; absoluteNumber?: number; runtime?: number; overview?: string; image?: string };
 type EpisodesResponse = { data?: { episodes?: RawEpisode[] }; links?: { next?: string | null } };
+type TranslationResponse = { data?: { name?: string; overview?: string } };
 
 export function tvdbArtworkUrl(value?: string): string | undefined {
   const artwork = value?.trim();
@@ -104,7 +105,19 @@ export class TvdbClient {
     return this.token;
   }
 
-  async getSeries(seriesId: string): Promise<TvdbSeries> {
+  private async getSeriesTranslation(seriesId: string, language: string): Promise<{ name?: string; overview?: string } | undefined> {
+    const response = await this.fetcher(`${API_ROOT}/series/${encodeURIComponent(seriesId)}/translations/${encodeURIComponent(language)}`, {
+      headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
+    });
+    if (response.status === 404) return undefined;
+    if (!response.ok) throw new Error(`TVDB series translation request failed (${response.status}).`);
+    const { data } = await response.json() as TranslationResponse;
+    const name = data?.name?.trim();
+    const overview = data?.overview?.trim();
+    return name || overview ? { ...(name ? { name } : {}), ...(overview ? { overview } : {}) } : undefined;
+  }
+
+  async getSeries(seriesId: string, language?: string): Promise<TvdbSeries> {
     const response = await this.fetcher(`${API_ROOT}/series/${encodeURIComponent(seriesId)}/extended`, {
       headers: { accept: 'application/json', authorization: `Bearer ${await this.accessToken()}` },
     });
@@ -117,7 +130,7 @@ export class TvdbClient {
     const tmdbId = remoteIds.find((remote) => /themoviedb|movie.?database|tmdb/i.test(remote.sourceName ?? ''))?.id;
     const id = data.tvdb_id ?? data.id;
     if (id === undefined) throw new Error(`TVDB series ${seriesId} returned no series ID.`);
-    return {
+    const series: TvdbSeries = {
       id: String(id),
       name: data.name.trim(),
       year: Number.isFinite(year) ? year : undefined,
@@ -126,6 +139,9 @@ export class TvdbClient {
       ...(tvdbArtworkUrl(data.image) ? { imageUrl: tvdbArtworkUrl(data.image) } : {}),
       ...(data.originalLanguage?.trim() ? { originalLanguage: tvdbLanguageCode(data.originalLanguage.trim()) } : {}),
     };
+    if (!language) return series;
+    const translation = await this.getSeriesTranslation(series.id, language).catch(() => undefined);
+    return translation ? { ...series, ...translation } : series;
   }
 
   async searchSeries(query: string, language = 'eng'): Promise<TvdbSeries[]> {
@@ -135,7 +151,7 @@ export class TvdbClient {
     });
     if (!response.ok) throw new Error(`TVDB search failed (${response.status}).`);
     const { data = [] } = await response.json() as SearchResponse;
-    return data.map((series) => {
+    const results = data.map((series) => {
       const rawYear = series.year || series.firstAired?.slice(0, 4);
       const year = rawYear ? Number(rawYear) : undefined;
       const remoteIds = series.remoteIds ?? series.remote_ids ?? [];
@@ -149,6 +165,10 @@ export class TvdbClient {
         ...(tvdbArtworkUrl(series.image) ? { imageUrl: tvdbArtworkUrl(series.image) } : {}),
       };
     });
+    return Promise.all(results.map(async (series) => {
+      const translation = await this.getSeriesTranslation(series.id, language).catch(() => undefined);
+      return translation ? { ...series, ...translation } : series;
+    }));
   }
 
   async getSeriesEpisodes(seriesId: string, language = 'eng'): Promise<TvdbEpisode[]> {

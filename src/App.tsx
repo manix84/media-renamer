@@ -1478,7 +1478,7 @@ export default function App() {
             autoSelectResult.current = false;
             const requestedSeasons = requestedEpisodeSeasons(paths);
             const candidateDetails = requestedSeasons.length && window.mediaRenamer?.getShow
-              ? (await Promise.all(found.slice(0, 5).map((candidate) => window.mediaRenamer!.getShow(candidate.id).catch(() => undefined)))).filter((candidate): candidate is ShowDetails => Boolean(candidate))
+              ? (await Promise.all(found.slice(0, 5).map((candidate) => window.mediaRenamer!.getShow(candidate.id, language).catch(() => undefined)))).filter((candidate): candidate is ShowDetails => Boolean(candidate))
               : [];
             if (searchSequence.current !== sequence) return;
             const automaticResult = seasonCompatibleShow(found, candidateDetails, requestedSeasons) ?? found[0];
@@ -1541,7 +1541,7 @@ export default function App() {
     setLoadingEpisodes(true);
     addDebug('info', `Loading ${result.name}`, `${episodeAgent === 'tvdb-aired' ? 'TVDB aired order' : 'TMDB aired order'} selected for episode numbering and titles.`);
     try {
-      const details = await window.mediaRenamer?.getShow(result.id);
+      const details = await window.mediaRenamer?.getShow(result.id, language);
       if (!details) {
         addDebug('error', `Could not load ${result.name}`, 'The metadata provider returned no show details.');
         return;

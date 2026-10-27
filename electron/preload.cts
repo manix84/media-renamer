@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   exportRenamePlan: (plan: unknown): Promise<string | undefined> => ipcRenderer.invoke('rename:export-plan', plan),
   providerStatus: () => ipcRenderer.invoke('metadata:status'),
   searchShows: (query: string) => ipcRenderer.invoke('tmdb:search-shows', query),
-  getShow: (showId: string) => ipcRenderer.invoke('tmdb:get-show', showId),
+  getShow: (showId: string, language?: string) => ipcRenderer.invoke('tmdb:get-show', showId, language),
   resolveTvdbSeries: (request: { name: string; year?: number; language?: string }) => ipcRenderer.invoke('metadata:resolve-tvdb-series', request),
   searchTvdbShows: (query: string, language?: string) => ipcRenderer.invoke('metadata:search-tvdb-series', query, language),
   getShowEpisodes: (request: { agent: 'tvdb-aired' | 'tmdb-aired'; tmdbId: string; tvdbId?: string; seasons: number[]; language?: string }) => ipcRenderer.invoke('metadata:get-show-episodes', request),

@@ -113,7 +113,7 @@ declare global {
       exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;
       searchShows(query: string): Promise<ShowSearchResult[]>;
-      getShow(showId: string): Promise<ShowDetails>;
+      getShow(showId: string, language?: string): Promise<ShowDetails>;
       resolveTvdbSeries(request: { name: string; year?: number; language?: string }): Promise<{ id: string; name: string; year?: number } | undefined>;
       searchTvdbShows(query: string, language?: string): Promise<ShowSearchResult[]>;
       getShowEpisodes(request: { agent: ShowMetadataAgent; tmdbId: string; tvdbId?: string; seasons: number[]; language?: string }): Promise<Episode[]>;

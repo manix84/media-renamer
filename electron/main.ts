@@ -460,12 +460,13 @@ ipcMain.handle('tmdb:search-shows', async (_event, query: unknown) => {
     return [];
   });
 });
-ipcMain.handle('tmdb:get-show', (_event, showId: unknown) => {
+ipcMain.handle('tmdb:get-show', (_event, showId: unknown, requestedLanguage: unknown) => {
   const id = textArgument(showId, 'show ID');
   const tvdbId = id.match(/^tvdb-(\d+)$/i)?.[1];
-  if (tvdbId) return metadataCache().get(`tvdb:v${DETAILS_CACHE_VERSION}:show:${tvdbId}`, DETAILS_CACHE_AGE, async () => {
+  const language = requestedLanguage === undefined ? 'eng' : tvdbLanguageCode(textArgument(requestedLanguage, 'metadata language'));
+  if (tvdbId) return metadataCache().get(`tvdb:v${DETAILS_CACHE_VERSION}:show:${language}:${tvdbId}`, DETAILS_CACHE_AGE, async () => {
     const [series, episodes] = await Promise.all([
-      tvdb().getSeries(tvdbId),
+      tvdb().getSeries(tvdbId, language),
       metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${tvdbId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(tvdbId)),
     ]);
     return directTvdbShowDetails(series, episodes);
