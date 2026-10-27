@@ -24,6 +24,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Inline proposed-filename editing by double-click, with companion files following the edited basename.
 - Windows-compatible sanitization of slashes and other reserved characters in provider-supplied show, movie, collection, and edition folder names.
 - Red warning treatment for the `UNCENSORED` media flag.
+- A clear restart prompt instead of a raw IPC error when a development renderer is newer than its running Electron host.
 
 ## [0.1.0] - 2026-10-26
 

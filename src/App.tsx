@@ -1521,7 +1521,16 @@ export default function App() {
         if (resolved) addDebug('info', 'Resolved missing TVDB cross-reference', `${resolved.name}${resolved.year ? ` (${resolved.year})` : ''} · TVDB ${resolved.id}.`);
       }
       if (episodeAgent === 'tvdb-aired' && !tvdbId) {
-        const tvdbCandidates = await window.mediaRenamer?.searchTvdbShows(details.name) ?? [];
+        let tvdbCandidates: ShowSearchResult[];
+        try {
+          tvdbCandidates = await window.mediaRenamer?.searchTvdbShows(details.name) ?? [];
+        } catch (reason) {
+          const message = errorMessage(reason);
+          if (/no handler registered for ['"]metadata:search-tvdb-series['"]/i.test(message)) {
+            throw new Error('Media Renamer was updated while it was running. Restart the app, then select this show again to load the TVDB fallback results.');
+          }
+          throw reason;
+        }
         if (seasonSequence.current !== sequence) return;
         if (tvdbCandidates.length) {
           searchSequence.current += 1;
