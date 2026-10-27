@@ -204,8 +204,10 @@ export class TmdbClient {
       url: `${LOGO_ROOT}${candidate.file_path}`,
       luminance: await this.logoLuminance!(`${LOGO_ROOT}${candidate.file_path}`).catch(() => undefined),
     })));
-    const suitable = measured.filter((candidate): candidate is typeof candidate & { luminance: number } => candidate.luminance !== undefined && candidate.luminance <= .58)
-      .sort((left, right) => left.luminance - right.luminance || left.index - right.index)[0];
+    // TMDB's order carries language, community-rating, and resolution quality.
+    // Contrast only qualifies a logo for a light background; it must never
+    // promote a lower-quality variant merely because that artwork is darker.
+    const suitable = measured.find((candidate) => candidate.luminance !== undefined && candidate.luminance <= .58);
     return { logoUrl, ...(suitable ? { lightBackgroundLogoUrl: suitable.url } : {}) };
   }
 

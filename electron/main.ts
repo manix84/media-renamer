@@ -72,8 +72,8 @@ function metadataCache(): MetadataCache {
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 3;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
-// v4 adds a locally contrast-checked logo variant for light backgrounds.
-const DETAILS_CACHE_VERSION = 4;
+// v5 keeps light-background logo selection in TMDB's quality order.
+const DETAILS_CACHE_VERSION = 5;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_VERSION = 5;
 
