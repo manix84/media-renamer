@@ -27,6 +27,7 @@ export interface ShowSearchResult extends MediaClassificationMetadata {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  lightBackgroundLogoUrl?: string;
   backgroundUrl?: string;
   squareUrl?: string;
   bannerUrl?: string;
@@ -54,6 +55,7 @@ export interface MovieSearchResult extends MediaClassificationMetadata {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  lightBackgroundLogoUrl?: string;
   backgroundUrl?: string;
   squareUrl?: string;
   bannerUrl?: string;

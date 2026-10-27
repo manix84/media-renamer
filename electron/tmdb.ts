@@ -11,6 +11,7 @@ export interface TmdbShowSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  lightBackgroundLogoUrl?: string;
   backgroundUrl?: string;
   genreIds?: number[];
   originalLanguage?: string;
@@ -50,6 +51,7 @@ export interface TmdbMovieSearchResult {
   overview: string;
   posterUrl?: string;
   logoUrl?: string;
+  lightBackgroundLogoUrl?: string;
   backgroundUrl?: string;
   collection?: { id: string; name: string };
   genreIds?: number[];
@@ -187,7 +189,25 @@ function mergeAndRank(query: string, groups: TmdbShowSearchResult[][]): TmdbShow
 }
 
 export class TmdbClient {
-  constructor(private readonly accessToken: string, private readonly fetcher: typeof fetch = fetch) {}
+  constructor(
+    private readonly accessToken: string,
+    private readonly fetcher: typeof fetch = fetch,
+    private readonly logoLuminance?: (url: string) => Promise<number | undefined>,
+  ) {}
+
+  private async preferredLogos(logos: RawImage[] = []): Promise<{ logoUrl?: string; lightBackgroundLogoUrl?: string }> {
+    const candidates = logos.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0));
+    const logoUrl = candidates[0] ? `${LOGO_ROOT}${candidates[0].file_path}` : undefined;
+    if (!logoUrl || !this.logoLuminance) return { logoUrl };
+    const measured = await Promise.all(candidates.slice(0, 8).map(async (candidate, index) => ({
+      index,
+      url: `${LOGO_ROOT}${candidate.file_path}`,
+      luminance: await this.logoLuminance!(`${LOGO_ROOT}${candidate.file_path}`).catch(() => undefined),
+    })));
+    const suitable = measured.filter((candidate): candidate is typeof candidate & { luminance: number } => candidate.luminance !== undefined && candidate.luminance <= .58)
+      .sort((left, right) => left.luminance - right.luminance || left.index - right.index)[0];
+    return { logoUrl, ...(suitable ? { lightBackgroundLogoUrl: suitable.url } : {}) };
+  }
 
   private async request<T>(pathname: string, params?: URLSearchParams): Promise<T> {
     const url = new URL(`${API_ROOT}${pathname}`);
@@ -273,11 +293,11 @@ export class TmdbClient {
       `/${mediaType}/${encodeURIComponent(movieId)}`,
       new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
     );
-    const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
+    const logos = await this.preferredLogos(data.images?.logos);
     return {
       ...(mediaType === 'tv' ? normalizeMovieLikeShow(data as RawShow) : { ...normalizeMovie(data as RawMovie), mediaType: 'movie' as const }),
       imdbId: data.external_ids?.imdb_id && /^tt\d+$/i.test(data.external_ids.imdb_id) ? data.external_ids.imdb_id.toLowerCase() : undefined,
-      logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined,
+      ...logos,
     };
   }
 
@@ -286,10 +306,10 @@ export class TmdbClient {
       `/tv/${encodeURIComponent(showId)}`,
       new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
     );
-    const logo = data.images?.logos?.slice().sort((left, right) => Number(right.iso_639_1 === 'en') - Number(left.iso_639_1 === 'en') || (right.vote_average ?? 0) - (left.vote_average ?? 0) || (right.width ?? 0) - (left.width ?? 0))[0];
+    const logos = await this.preferredLogos(data.images?.logos);
     return {
       ...normalizeShow(data),
-      logoUrl: logo ? `${LOGO_ROOT}${logo.file_path}` : undefined,
+      ...logos,
       tvdbId: data.external_ids?.tvdb_id ? String(data.external_ids.tvdb_id) : undefined,
       seasons: data.seasons
         .filter((season) => season.episode_count > 0)

@@ -72,8 +72,8 @@ function metadataCache(): MetadataCache {
 const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 3;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
-// v3 adds genre, original-language, and origin-country fields used by extensions.
-const DETAILS_CACHE_VERSION = 3;
+// v4 adds a locally contrast-checked logo variant for light backgrounds.
+const DETAILS_CACHE_VERSION = 4;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_VERSION = 5;
 
@@ -96,10 +96,35 @@ function localEnv(name: string): string | undefined {
   }
 }
 
+async function tmdbLogoLuminance(value: string): Promise<number | undefined> {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.hostname !== 'image.tmdb.org') return undefined;
+  const response = await fetch(url, { headers: { accept: 'image/png,image/webp,image/*' }, signal: AbortSignal.timeout(8_000) });
+  if (!response.ok || !response.headers.get('content-type')?.toLocaleLowerCase().startsWith('image/')) return undefined;
+  const declaredSize = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredSize) && declaredSize > 5_000_000) return undefined;
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > 5_000_000) return undefined;
+  const image = nativeImage.createFromBuffer(bytes);
+  if (image.isEmpty()) return undefined;
+  const size = image.getSize();
+  const sample = size.width > 96 ? image.resize({ width: 96, quality: 'good' }) : image;
+  const bitmap = sample.toBitmap();
+  let luminance = 0;
+  let weight = 0;
+  for (let index = 0; index + 3 < bitmap.length; index += 4) {
+    const alpha = bitmap[index + 3] / 255;
+    if (alpha < .2) continue;
+    luminance += ((bitmap[index] + bitmap[index + 1] + bitmap[index + 2]) / (3 * 255)) * alpha;
+    weight += alpha;
+  }
+  return weight ? luminance / weight : undefined;
+}
+
 function tmdb(): TmdbClient {
   const token = localEnv('TMDB_ACCESS_TOKEN');
   if (!token) throw new Error('TMDB is not configured. Add TMDB_ACCESS_TOKEN to .env and restart the app.');
-  return new TmdbClient(token);
+  return new TmdbClient(token, fetch, tmdbLogoLuminance);
 }
 
 let tvdbClient: TvdbClient | undefined;

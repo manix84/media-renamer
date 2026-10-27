@@ -70,11 +70,15 @@ describe('TMDB adapter', () => {
       images: { logos: [
         { file_path: '/untranslated.png', iso_639_1: null, vote_average: 9, width: 1000 },
         { file_path: '/english.png', iso_639_1: 'en', vote_average: 7, width: 800 },
+        { file_path: '/english-dark.png', iso_639_1: 'en', vote_average: 6, width: 750 },
       ] },
     }), { status: 200 }));
-    const details = await new TmdbClient('token', fetcher).getShow('42');
+    const luminance = vi.fn(async (url: string) => url.endsWith('/english-dark.png') ? .22 : .91);
+    const details = await new TmdbClient('token', fetcher, luminance).getShow('42');
     expect(details.tvdbId).toBe('74550');
     expect(details.logoUrl).toBe('https://image.tmdb.org/t/p/w500/english.png');
+    expect(details.lightBackgroundLogoUrl).toBe('https://image.tmdb.org/t/p/w500/english-dark.png');
+    expect(luminance).toHaveBeenCalledTimes(3);
     const url = fetcher.mock.calls[0][0] as URL;
     expect(url.pathname).toBe('/3/tv/42');
     expect(url.searchParams.get('append_to_response')).toBe('external_ids,images');
