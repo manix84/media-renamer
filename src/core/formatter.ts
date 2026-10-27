@@ -223,7 +223,7 @@ export function formatEpisodeFilename(template: string, show: string, year: numb
 
 export function formatShowFolder(template: string, show: string, year: number | undefined, tvdbId?: string, season?: number): string {
   const rendered = renderNodes(parseTemplate(template), [{
-    show: { name: show, year, tvdbId },
+    show: { name: portableFilenameBase(show), year, tvdbId },
     season,
     seasonPadded: season === undefined ? undefined : String(season).padStart(2, '0'),
     seasonFolder: season === undefined ? undefined : season === 0 ? 'Specials' : `Season ${season}`,
@@ -235,7 +235,15 @@ export function formatShowFolder(template: string, show: string, year: number | 
 }
 
 export function formatMovieFolder(template: string, movie: string, year: number | undefined, tmdbId?: string, edition?: string, imdbId?: string, collection?: MovieCollection): string {
-  const rendered = renderNodes(parseTemplate(template), [{ movie: { name: movie, year, tmdbId, imdbId, edition: normalizeMovieEditionName(edition) ?? edition, collection: collection && { name: collection.name, tmdbId: collection.id } } }])
+  const normalizedEdition = normalizeMovieEditionName(edition) ?? edition;
+  const rendered = renderNodes(parseTemplate(template), [{ movie: {
+    name: portableFilenameBase(movie),
+    year,
+    tmdbId,
+    imdbId,
+    edition: normalizedEdition ? portableFilenameBase(normalizedEdition) : undefined,
+    collection: collection && { name: portableFilenameBase(collection.name), tmdbId: collection.id },
+  } }])
     .split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(' ')
     .replace(/[\t ]+/g, ' ').trim();
   return rendered.split(/[\\/]+/).map(portableFilenameBase).filter(Boolean).join('/');

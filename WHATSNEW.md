@@ -22,6 +22,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Automatic TVDB discovery when TMDB has no show result or a selected TMDB show lacks a usable TVDB cross-reference.
 - Media-detail pills aligned beneath the original filename they describe, with match evidence available by hovering over the proposed filename.
 - Inline proposed-filename editing by double-click, with companion files following the edited basename.
+- Windows-compatible sanitization of slashes and other reserved characters in provider-supplied show, movie, collection, and edition folder names.
 
 ## [0.1.0] - 2026-10-26
 

@@ -97,7 +97,9 @@ describe('episode filename templates', () => {
 
   it('formats portable show folders and optional nested paths', () => {
     expect(formatShowFolder(DEFAULT_SHOW_FOLDER_TEMPLATE, 'Star Trek: Voyager', 1995, '74550')).toBe('Star Trek - Voyager (1995)');
+    expect(formatShowFolder(DEFAULT_SHOW_FOLDER_TEMPLATE, 'In/Spectre', 2020, '368565')).toBe('In - Spectre (2020)');
     expect(formatShowFolder('TV/{{show.name}}/{{show.year}}', 'Show', 2026)).toBe('TV/Show/2026');
+    expect(formatShowFolder('TV/{{show.name}}/Season {{season}}', 'In/Spectre', 2020, '368565', 1)).toBe('TV/In - Spectre/Season 1');
     expect(formatShowFolder('{{show.name}} ({{show.year}})/Season {{season}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons (1989)/Season 5');
     expect(formatShowFolder('{{show.name}}/Season {{seasonPadded}}', 'The Simpsons', 1989, '71663', 5)).toBe('The Simpsons/Season 05');
     expect(formatShowFolder('{{show.name}}/{{seasonFolder}}', 'The Simpsons', 1989, '71663', 0)).toBe('The Simpsons/Specials');
@@ -108,6 +110,7 @@ describe('episode filename templates', () => {
 
   it('formats and validates movie folders independently from shows', () => {
     expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Blade Runner: 2049', 2017, '335984')).toBe('Blade Runner - 2049 (2017)');
+    expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Face/Off', 1997, '754')).toBe('Face - Off (1997)');
     expect(formatMovieFolder(DEFAULT_MOVIE_FOLDER_TEMPLATE, 'Blade Runner', 1982, '78', "Director's Cut")).toBe("Blade Runner (1982) {edition-Director's Cut}");
     expect(formatMovieFolder('Movies/{{movie.name}} {tmdb-{{movie.tmdbId}}}', 'Arrival', 2016, '329865')).toBe('Movies/Arrival {tmdb-329865}');
     expect(movieFolderTemplateError('{{show.name}}')).toBe('Unknown field “show.name”');
