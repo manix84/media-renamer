@@ -225,6 +225,30 @@ function SmoothProgress({ value, max, className = '', label, indeterminate = fal
   </div>;
 }
 
+const PRESENCE_EXIT_MS = 280;
+
+function AnimatedPresence({ show, className = '', children }: { show: boolean; className?: string; children: ReactNode }) {
+  const [mounted, setMounted] = useState(show);
+  const retainedChildren = useRef(children);
+  if (show) retainedChildren.current = children;
+
+  useEffect(() => {
+    if (show) {
+      setMounted(true);
+      return;
+    }
+    if (!mounted) return;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const timeout = window.setTimeout(() => setMounted(false), reducedMotion ? 0 : PRESENCE_EXIT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [mounted, show]);
+
+  if (!mounted) return null;
+  return <div className={`animated-presence ${show ? 'present' : 'leaving'} ${className}`.trim()} aria-hidden={!show}>
+    <div className="animated-presence-inner">{retainedChildren.current}</div>
+  </div>;
+}
+
 export default function App() {
   const { preference, resolvedTheme, palette, setPreference, setPalette } = useTheme();
   const { language, preference: languagePreference, setPreference: setLanguagePreference, t } = useI18n();
@@ -2276,18 +2300,18 @@ export default function App() {
               else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSearchResult((current) => current > 0 ? current - 1 : results.length - 1); }
               else if (event.key === 'Enter' && activeSearchResult >= 0) { event.preventDefault(); void selectShow(results[activeSearchResult]); }
             }} placeholder="Show name, tvdb-482771, or tmdb-…" autoComplete="off"/>{searching && <LoaderCircle className="spin" size={16}/>}{query ? <button className="search-clear" aria-label="Clear show search" title="Clear search" onClick={clearShowSearch}><X size={15}/></button> : !searching && <kbd>⌘ K</kbd>}</div>
-            {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label="TV show search results">
+            <AnimatedPresence show={results.length > 0} className="search-results-presence"><div className="search-results" id="media-search-results" role="listbox" aria-label="TV show search results">
               {results.map((result, index) => <button ref={(element) => { searchResultButtons.current[index] = element; }} id={`media-search-result-${index}`} role="option" aria-selected={activeSearchResult === index} className={activeSearchResult === index ? 'active' : ''} key={result.id} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => void selectShow(result)}>
                 {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder"><Tv size={18}/></span>}
                 <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}{result.id.startsWith('tvdb-') ? ' · TVDB' : ''}</small></span>
               </button>)}
-            </div>}
+            </div></AnimatedPresence>
           </div> : <div className="movie-search-hint"><ListChecks size={16}/><span><strong>Per-file movie matching</strong><small>Use the Match button on a row to search and replace its result.</small></span></div>}
         </section>
 
-        {!provider?.configured && provider && <div className="notice"><AlertCircle size={17}/><span><strong>TMDB access token needed.</strong> Add <code>TMDB_ACCESS_TOKEN=…</code> to <code>.env</code>, then restart the app.</span></div>}
-        {activeMediaTab === 'shows' && showMetadataAgent === 'tvdb-aired' && provider && !provider.tvdbConfigured && <div className="notice"><AlertCircle size={17}/><span><strong>TVDB API key needed for Plex-compatible episode ordering.</strong> Add <code>TVDB_API_KEY=…</code> to <code>.env</code>, then restart the app.</span></div>}
-        {error && <div className="notice error"><AlertCircle size={17}/><span>{error}</span></div>}
+        <AnimatedPresence show={Boolean(provider && !provider.configured)} className="notice-presence"><div className="notice"><AlertCircle size={17}/><span><strong>TMDB access token needed.</strong> Add <code>TMDB_ACCESS_TOKEN=…</code> to <code>.env</code>, then restart the app.</span></div></AnimatedPresence>
+        <AnimatedPresence show={Boolean(activeMediaTab === 'shows' && showMetadataAgent === 'tvdb-aired' && provider && !provider.tvdbConfigured)} className="notice-presence"><div className="notice"><AlertCircle size={17}/><span><strong>TVDB API key needed for Plex-compatible episode ordering.</strong> Add <code>TVDB_API_KEY=…</code> to <code>.env</code>, then restart the app.</span></div></AnimatedPresence>
+        <AnimatedPresence show={Boolean(error)} className="notice-presence"><div className="notice error"><AlertCircle size={17}/><span>{error}</span></div></AnimatedPresence>
 
         <section className="workflow">
           <aside className="episode-panel panel">
@@ -2297,17 +2321,17 @@ export default function App() {
               {activeMediaTab === 'movies' && <span className="count">{paths.length}</span>}
             </div>
             <div className="episode-list">
-              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <>{loadingEpisodes && <div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div>}
+              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <><AnimatedPresence show={loadingEpisodes}><div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div></AnimatedPresence>
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
                 <button ref={(element) => { if (element) episodeElements.current.set(episode.id, element); else episodeElements.current.delete(episode.id); }} type="button" className={`episode ${linkedEpisodeIds.has(episode.id) ? 'linked-highlight' : ''}`} aria-pressed={linkedEpisodeIds.has(episode.id)} onClick={() => selectLinkedFiles(episode.id)}><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</button>
               </div>)}
-              {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">{t('panel.searchShow')}</div>}</>}
+              <AnimatedPresence show={!loadingEpisodes && episodes.length === 0}><div className="empty-state">{t('panel.searchShow')}</div></AnimatedPresence></>}
             </div>
-            {activeMediaTab === 'shows' && selectedEpisode && <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
+            <AnimatedPresence show={Boolean(activeMediaTab === 'shows' && selectedEpisode)} className="episode-detail-presence">{selectedEpisode ? <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
               {episodeArtwork?.dataUrl ? <img src={episodeArtwork.dataUrl} alt=""/> : <div className="episode-detail-placeholder" aria-hidden="true">{selectedEpisode.imageUrl && !episodeArtwork?.failed ? <LoaderCircle className="spin" size={22}/> : <FileImage size={22}/>}</div>}
               <div className="episode-detail-copy"><span>{episodeCode(selectedEpisode)}</span><strong>{selectedEpisode.title}</strong><p>{selectedEpisode.overview?.trim() || 'No episode description is available.'}</p></div>
-            </aside>}
+            </aside> : null}</AnimatedPresence>
           </aside>
 
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
@@ -2325,29 +2349,25 @@ export default function App() {
               {(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <button className="clear-overrides" onClick={() => { setSourceOverride('auto'); setAiUpscaleOverride('auto'); }}>Clear overrides</button>}
             </aside></>}
             <div className={`panel-status-stack ${work || paths.length > 0 ? 'has-status' : ''}`}>
-              <div className={`status-reveal ${work ? 'visible' : ''}`} aria-hidden={!work}>
-                <div className="status-reveal-inner"><div className={`work-status ${renaming ? 'recoverable' : ''}`}>
+              <AnimatedPresence show={Boolean(work)} className="status-presence"><div className={`work-status ${renaming ? 'recoverable' : ''}`}>
                   <LoaderCircle className="spin" size={18}/>
                   <span role={work ? 'status' : undefined} aria-live={work ? 'polite' : undefined}><strong>{work?.operation === 'Scanning' || !work ? 'Scanning folders' : work.operation === 'Renaming' && work.groupsTotal ? `Sorting ${activeMediaTab === 'movies' ? 'movies' : 'episodes'}` : `${work.operation} files`}</strong><small>{work?.operation === 'Renaming' && work.groupsTotal && work.groupIndex !== undefined ? `${Math.max(0, work.groupsTotal - work.groupIndex - ((work.groupCompleted ?? 0) >= (work.groupTotal ?? 1) ? 1 : 0))} of ${work.groupsTotal} ${activeMediaTab === 'movies' ? 'movies' : 'episodes'} remaining · ${Math.max(0, Math.ceil((work.groupTotal ?? 0) - (work.groupCompleted ?? 0)))} files in current` : work?.total ? `${Math.ceil(work.total - work.completed)} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
                   {renaming && <button className="secondary resume-progress" onClick={() => setRenameConfirmationOpen(true)}>View progress</button>}
                   {(work?.total ?? 0) > 0 && <SmoothProgress value={work?.completed ?? 0} max={work?.total ?? 1}/>}
-                </div></div>
-              </div>
-              <div className={`status-reveal ${paths.length > 0 ? 'visible' : ''}`} aria-hidden={paths.length === 0}>
-                <div className="status-reveal-inner"><div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
+                </div></AnimatedPresence>
+              <AnimatedPresence show={paths.length > 0} className="status-presence"><div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
                   {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
                   <span role={paths.length > 0 ? 'status' : undefined} aria-live={paths.length > 0 ? 'polite' : undefined}><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
                   {preflightError && paths.length > 0 && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
                   {!preflightError && unchangedPaths.length > 0 && <button className="secondary clear-unchanged" onClick={clearUnchangedFiles}><Trash2 size={14}/> Clear {unchangedPaths.length} unchanged</button>}
                   {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
                   {confirmationActionCount > 0 && <button className="secondary confirm-suggestions" onClick={() => { setConfirmAllResult(undefined); setConfirmAllOpen(true); }}><FileCheck2 size={15}/> {confirmationSuggestions.length ? `Review ${confirmationActionCount} match${confirmationActionCount === 1 ? '' : 'es'}` : `Resolve ${confirmationBlockers.length} unmatched`}</button>}
-                </div></div>
-              </div>
+                </div></AnimatedPresence>
             </div>
-            {activeMediaTab === 'movies' && paths.length > 0 && <div className="movie-batch-filters" aria-label="Filter movie batch">
+            <AnimatedPresence show={activeMediaTab === 'movies' && paths.length > 0} className="movie-batch-filters-presence"><div className="movie-batch-filters" aria-label="Filter movie batch">
               <div>{(['all', 'ready', 'review', 'unmatched', 'unchanged', 'failed', 'deferred'] as MovieBatchFilter[]).map((filter) => (movieBatchFilterCounts[filter] > 0 || movieBatchFilter === filter) && <button key={filter} className={movieBatchFilter === filter ? 'active' : ''} aria-pressed={movieBatchFilter === filter} onClick={() => setMovieBatchFilter(filter)}>{filter[0].toUpperCase() + filter.slice(1)} <span>{movieBatchFilterCounts[filter]}</span></button>)}</div>
               <span className="movie-batch-retries">{movieBatchFilterCounts.unmatched > 0 && <button className="secondary" onClick={() => retryMovieMatches('unmatched')}><RefreshCw size={13}/> Retry unmatched</button>}{movieBatchFilterCounts.failed > 0 && <button className="secondary" onClick={() => retryMovieMatches('error')}><RefreshCw size={13}/> Retry failed</button>}</span>
-            </div>}
+            </div></AnimatedPresence>
             {paths.length > 0 && <div className={`match-list view-${fileViewMode} ${pinnedPreviewPath ? 'has-pinned-preview' : ''}`}>
               {visiblePaths.map((path) => {
                 const item = matchesByPath.get(path);
@@ -2414,22 +2434,22 @@ export default function App() {
                   <div className="file-content" tabIndex={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 0 : undefined} role={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 'button' : undefined} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={activeMediaTab === 'shows' ? `Highlight matched episodes for ${filename}` : fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if ((activeMediaTab === 'shows' || fileViewMode !== 'detailed') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={resolvedTheme === 'light' ? movieFileMatch.movie.lightBackgroundLogoUrl ?? movieFileMatch.movie.logoUrl : movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className={`proposed ${matchExplanation ? 'has-match-tooltip' : ''} ${plannedTargetName && !deferredToTv ? 'editable' : ''}`} title={editingFilenamePath === path ? undefined : [matchExplanation, plannedTargetName && !deferredToTv ? 'Double-click to edit the proposed filename.' : undefined].filter(Boolean).join('\n') || undefined} onDoubleClick={(event) => { if (!plannedTargetName || deferredToTv) return; event.preventDefault(); event.stopPropagation(); startFilenameEditing(path, plannedTargetName); }}>{editingFilenamePath === path ? <><input autoFocus aria-label={`Edit proposed filename for ${filename}`} aria-invalid={Boolean(filenameDraftError)} value={filenameDraft} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { setFilenameDraft(event.target.value); setFilenameDraftError(undefined); }} onBlur={() => saveFilenameEditing(path)} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } else if (event.key === 'Escape') { event.preventDefault(); cancelFilenameEditing(); } }}/><span>{extension}</span>{filenameDraftError && <em className="plan-error">{filenameDraftError}</em>}</> : <>{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</>}</div></div>
-                    {fileViewMode === 'detailed' && <div className="file-details">
+                    <AnimatedPresence show={fileViewMode === 'detailed'} className="file-details-presence"><div className="file-details">
                       {planIssues.length > 0 && <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span>}
                       <span className="detail-tags">{extensionBadges.map((badge) => <small className={`extension-badge ${badge.tone}`} key={`${badge.extensionId}:${badge.label}`}>{badge.label}</small>)}{detailTags.length ? detailTags.map((tag, index) => <small className={String(tag).toLocaleUpperCase() === 'UNCENSORED' ? 'warning-tag' : undefined} key={`${tag}-${index}`}>{tag}</small>) : extensionBadges.length === 0 ? <small>No release metadata</small> : null}</span>
                       {extensionWarnings.map((warning) => <span className={`extension-warning ${warning.tone}`} key={`${warning.extensionId}:${warning.message}`}><TriangleAlert size={12}/>{warning.message}</span>)}
-                    </div>}
-                    {plannedCompanions.length > 0 && (fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
+                    </div></AnimatedPresence>
+                    <AnimatedPresence show={plannedCompanions.length > 0} className="companion-presence">{fileViewMode === 'compact' ? <div className="companion-summary">{plannedCompanions.length} companion file{plannedCompanions.length === 1 ? '' : 's'}</div> : <div className="companion-files">
                       {plannedCompanions.map((companion) => <div key={companion.sourcePath}>
                         {companion.kind === 'subtitle' ? <Captions size={12}/> : companion.kind === 'artwork' ? <FileImage size={12}/> : <FileText size={12}/>}
                         <span title={companion.sourceName}>{companion.sourceName}</span><ChevronRight size={11}/><strong title={companion.targetName}>{companion.targetName ?? `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match`}</strong>
                       </div>)}
-                    </div>)}
-                    {fileViewMode !== 'detailed' && <div className="filename-preview" onClick={(event) => { event.stopPropagation(); if (!previewPinned) setPinnedPreviewPath(path); }}>
+                    </div>}</AnimatedPresence>
+                    <AnimatedPresence show={fileViewMode !== 'detailed'} className="filename-preview-presence"><div className="filename-preview" onClick={(event) => { event.stopPropagation(); if (!previewPinned) setPinnedPreviewPath(path); }}>
                       <div><span>Original</span><code>{filename}</code></div>
                       <div><span>Proposed</span><code>{fullProposedName}</code></div>
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
-                    </div>}
+                    </div></AnimatedPresence>
                   </div>
                   <div className="row-trailing">
                     <div className="score"><strong>{blockingIssue ? '!' : unchanged ? '—' : deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : blockingIssue ? 'blocked' : unchanged ? 'unchanged' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
@@ -2446,7 +2466,7 @@ export default function App() {
                   </div>
                 </article></div></div>;
               })}
-              {activeMediaTab === 'movies' && visiblePaths.length === 0 && <div className="filtered-empty"><Search size={18}/><strong>No movies in this view</strong><span>Choose another filter to see the rest of the batch.</span></div>}
+              <AnimatedPresence show={activeMediaTab === 'movies' && visiblePaths.length === 0}><div className="filtered-empty"><Search size={18}/><strong>No movies in this view</strong><span>Choose another filter to see the rest of the batch.</span></div></AnimatedPresence>
             </div>}
             {paths.length === 0 && <button className="dropzone dropzone-empty" onClick={addFiles}><FolderOpen size={30}/><span>Drop files or folders anywhere in this panel</span><small>or click to choose video files</small></button>}
             {paths.length > 0 && <div className="drop-target-overlay" aria-hidden="true"><FolderPlus size={30}/><strong>Add files or folders</strong><small>Drop anywhere in this panel</small></div>}
