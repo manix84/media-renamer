@@ -99,6 +99,7 @@ declare global {
       pathForFile(file: File): string;
       probeMedia(filePath: string): Promise<MediaTechnicalTags>;
       stageGeneratedSidecars(assets: Array<{ targetPath: string; content?: string; url?: string; groupIndex?: number }>): Promise<Array<{ sourcePath: string; targetPath: string; groupIndex?: number }>>;
+      loadArtwork(url: string): Promise<string>;
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>>;

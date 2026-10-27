@@ -4,6 +4,34 @@ import path from 'node:path';
 
 export type GeneratedAsset = { targetPath: string; content?: string; url?: string; groupIndex?: number };
 
+function validatedArtworkUrl(value: string): URL {
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:' || !/(?:^|\.)(?:tmdb\.org|thetvdb\.com)$/.test(parsed.hostname)) throw new Error('Unsupported artwork host.');
+  return parsed;
+}
+
+export async function fetchArtworkDataUrl(value: unknown, fetcher: typeof fetch = fetch): Promise<string> {
+  if (typeof value !== 'string' || value.length > 4000) throw new Error('Invalid artwork URL.');
+  let url = validatedArtworkUrl(value);
+  let response: Response | undefined;
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    response = await fetcher(url, { headers: { accept: 'image/avif,image/webp,image/png,image/jpeg' }, redirect: 'manual' });
+    if (response.status < 300 || response.status >= 400) break;
+    const location = response.headers.get('location');
+    if (!location || redirects === 5) throw new Error('Artwork returned too many redirects.');
+    url = validatedArtworkUrl(new URL(location, url).href);
+  }
+  if (!response) throw new Error('Artwork download failed.');
+  if (!response.ok) throw new Error(`Artwork download failed (${response.status}).`);
+  const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLocaleLowerCase();
+  if (!contentType || !['image/avif', 'image/webp', 'image/png', 'image/jpeg'].includes(contentType)) throw new Error('Artwork response was not a supported image.');
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > 20_000_000) throw new Error('Artwork file is larger than 20 MB.');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > 20_000_000) throw new Error('Artwork file is larger than 20 MB.');
+  return `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
 export function normalizeGeneratedAssets(value: unknown): GeneratedAsset[] {
   if (!Array.isArray(value) || value.length > 5000) throw new Error('Invalid generated sidecars.');
   return value.map((entry) => {
@@ -14,8 +42,7 @@ export function normalizeGeneratedAssets(value: unknown): GeneratedAsset[] {
     const url = typeof item.url === 'string' ? item.url : undefined;
     if (Boolean(content) === Boolean(url)) throw new Error('A generated sidecar needs exactly one content source.');
     if (url) {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'https:' || !/(?:^|\.)(?:tmdb\.org|thetvdb\.com)$/.test(parsed.hostname)) throw new Error('Unsupported artwork host.');
+      validatedArtworkUrl(url);
     }
     const groupIndex = Number.isInteger(item.groupIndex) && Number(item.groupIndex) >= 0 && Number(item.groupIndex) < 5000 ? Number(item.groupIndex) : undefined;
     if (item.groupIndex !== undefined && groupIndex === undefined) throw new Error('Invalid generated sidecar group.');

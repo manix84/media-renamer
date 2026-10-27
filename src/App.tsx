@@ -332,7 +332,7 @@ export default function App() {
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
   const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[]; source: 'episode' | 'file'; sourceId: string }>();
-  const [failedEpisodeImages, setFailedEpisodeImages] = useState<Set<string>>(() => new Set());
+  const [episodeArtwork, setEpisodeArtwork] = useState<{ url: string; dataUrl?: string; failed?: boolean }>();
   const [removingPaths, setRemovingPaths] = useState<Set<string>>(() => new Set());
   const [fileDropActive, setFileDropActive] = useState(false);
   const [technicalTags, setTechnicalTags] = useState<Record<string, MediaTechnicalTags>>({});
@@ -764,6 +764,21 @@ export default function App() {
   const selectedEpisode = useMemo(() => linkedSelection?.episodeIds.length
     ? episodes.find((episode) => episode.id === linkedSelection.episodeIds[0])
     : undefined, [episodes, linkedSelection]);
+
+  useEffect(() => {
+    const url = selectedEpisode?.imageUrl;
+    if (!url) { setEpisodeArtwork(undefined); return; }
+    let active = true;
+    setEpisodeArtwork({ url });
+    window.mediaRenamer?.loadArtwork(url).then((dataUrl) => {
+      if (active) setEpisodeArtwork({ url, dataUrl });
+    }).catch((reason) => {
+      if (!active) return;
+      setEpisodeArtwork({ url, failed: true });
+      addDebug('warning', `Could not load episode capture for ${selectedEpisode.title}`, errorMessage(reason));
+    });
+    return () => { active = false; };
+  }, [addDebug, selectedEpisode?.id, selectedEpisode?.imageUrl, selectedEpisode?.title]);
 
   function selectLinkedEpisodes(path: string) {
     if (linkedSelection?.source === 'file' && linkedSelection.sourceId === path) {
@@ -2221,7 +2236,7 @@ export default function App() {
               {!loadingEpisodes && episodes.length === 0 && <div className="empty-state">{t('panel.searchShow')}</div>}</>}
             </div>
             {activeMediaTab === 'shows' && selectedEpisode && <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
-              {selectedEpisode.imageUrl && !failedEpisodeImages.has(selectedEpisode.id) ? <img src={selectedEpisode.imageUrl} alt="" onError={() => setFailedEpisodeImages((current) => new Set(current).add(selectedEpisode.id))}/> : <div className="episode-detail-placeholder" aria-hidden="true"><FileImage size={22}/></div>}
+              {episodeArtwork?.dataUrl ? <img src={episodeArtwork.dataUrl} alt=""/> : <div className="episode-detail-placeholder" aria-hidden="true">{selectedEpisode.imageUrl && !episodeArtwork?.failed ? <LoaderCircle className="spin" size={22}/> : <FileImage size={22}/>}</div>}
               <div className="episode-detail-copy"><span>{episodeCode(selectedEpisode)}</span><strong>{selectedEpisode.title}</strong><p>{selectedEpisode.overview?.trim() || 'No episode description is available.'}</p></div>
             </aside>}
           </aside>

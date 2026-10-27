@@ -2,12 +2,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { normalizeGeneratedAssets, stageGeneratedAssets } from './generatedAssets';
+import { fetchArtworkDataUrl, normalizeGeneratedAssets, stageGeneratedAssets } from './generatedAssets';
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => fs.promises.rm(root, { recursive: true, force: true }))));
 
 describe('generated metadata assets', () => {
+  it('loads trusted artwork as a local data URL', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/jpeg' } }));
+    await expect(fetchArtworkDataUrl('https://artworks.thetvdb.com/example.jpg', fetcher)).resolves.toBe('data:image/jpeg;base64,AQID');
+    expect(fetcher).toHaveBeenCalledOnce();
+    await expect(fetchArtworkDataUrl('https://example.com/image.jpg', fetcher)).rejects.toThrow('Unsupported artwork host');
+  });
   it('rejects unsafe destinations and artwork hosts', () => {
     expect(() => normalizeGeneratedAssets([{ targetPath: 'movie.nfo', content: '<movie/>' }])).toThrow(/destination/);
     expect(() => normalizeGeneratedAssets([{ targetPath: '/Movies/poster.jpg', url: 'https://example.com/poster.jpg' }])).toThrow(/host/);

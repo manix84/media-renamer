@@ -7,7 +7,7 @@ import { TmdbClient } from './tmdb.js';
 import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient } from './tvdb.js';
 import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
-import { stageGeneratedAssets } from './generatedAssets.js';
+import { fetchArtworkDataUrl, stageGeneratedAssets } from './generatedAssets.js';
 import { preflightRenameItems } from './renamePreflight.js';
 import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
@@ -293,6 +293,7 @@ ipcMain.handle('extensions:open-directory', async () => {
 });
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('metadata:stage-sidecars', (_event, assets: unknown) => stageGeneratedAssets(assets, path.join(app.getPath('temp'), 'media-renamer-sidecars')));
+ipcMain.handle('metadata:load-artwork', (_event, url: unknown) => fetchArtworkDataUrl(url));
 ipcMain.handle('media:companions', (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid media paths.');
   return discoverMediaCompanions(values.map(mediaPathArgument));
