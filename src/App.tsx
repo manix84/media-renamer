@@ -226,25 +226,33 @@ function SmoothProgress({ value, max, className = '', label, indeterminate = fal
 }
 
 const PRESENCE_EXIT_MS = 280;
+const PRESENCE_HANDOFF_MS = 140;
 
 function AnimatedPresence({ show, className = '', children }: { show: boolean; className?: string; children: ReactNode }) {
   const [mounted, setMounted] = useState(show);
+  const [visible, setVisible] = useState(show);
   const retainedChildren = useRef(children);
   if (show) retainedChildren.current = children;
 
   useEffect(() => {
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (show) {
       setMounted(true);
+      setVisible(true);
       return;
     }
     if (!mounted) return;
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const timeout = window.setTimeout(() => setMounted(false), reducedMotion ? 0 : PRESENCE_EXIT_MS);
-    return () => window.clearTimeout(timeout);
+    const handoff = reducedMotion ? 0 : PRESENCE_HANDOFF_MS;
+    const hideTimeout = window.setTimeout(() => setVisible(false), handoff);
+    const unmountTimeout = window.setTimeout(() => setMounted(false), handoff + (reducedMotion ? 0 : PRESENCE_EXIT_MS));
+    return () => {
+      window.clearTimeout(hideTimeout);
+      window.clearTimeout(unmountTimeout);
+    };
   }, [mounted, show]);
 
   if (!mounted) return null;
-  return <div className={`animated-presence ${show ? 'present' : 'leaving'} ${className}`.trim()} aria-hidden={!show}>
+  return <div className={`animated-presence ${visible ? 'present' : 'leaving'} ${className}`.trim()} aria-hidden={!visible}>
     <div className="animated-presence-inner">{retainedChildren.current}</div>
   </div>;
 }
@@ -2325,12 +2333,12 @@ export default function App() {
               {activeMediaTab === 'movies' && <span className="count">{paths.length}</span>}
             </div>
             <div className="episode-list">
-              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <><AnimatedPresence show={loadingEpisodes}><div className="empty-state"><LoaderCircle className="spin" size={20}/>Loading episodes…</div></AnimatedPresence>
+              {activeMediaTab === 'movies' ? <div className="movie-summary"><strong>{movieMatchCounts.ready} matched</strong><span>{movieMatchCounts.review} need review · {movieMatchCounts.unmatched} unmatched{movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} TV ${movieMatchCounts.deferred === 1 ? 'episode' : 'episodes'} deferred` : ''}</span><p>Use the Match button on any movie row. Episode-like files stay visible and are handled in TV mode.</p></div> : <><AnimatedPresence show={loadingEpisodes || episodes.length === 0}><div className="empty-state">{loadingEpisodes ? <><LoaderCircle className="spin" size={20}/>Loading episodes…</> : t('panel.searchShow')}</div></AnimatedPresence>
               {!loadingEpisodes && episodes.map((episode, index) => <div key={episode.id}>
                 {episodes[index - 1]?.season !== episode.season && <div className="season-divider">{seasonHeading(episode.season)}</div>}
                 <button ref={(element) => { if (element) episodeElements.current.set(episode.id, element); else episodeElements.current.delete(episode.id); }} type="button" className={`episode ${linkedEpisodeIds.has(episode.id) ? 'linked-highlight' : ''}`} aria-pressed={linkedEpisodeIds.has(episode.id)} onClick={() => selectLinkedFiles(episode.id)}><span>{String(episode.number).padStart(2, '0')}</span><strong title={episode.title}>{episode.title}</strong>{attachedFileCountByEpisode.has(episode.id) && <Check size={14} aria-label={`Attached to ${attachedFileCountByEpisode.get(episode.id)} imported file${attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}`}><title>Attached to {attachedFileCountByEpisode.get(episode.id)} imported file{attachedFileCountByEpisode.get(episode.id) === 1 ? '' : 's'}</title></Check>}</button>
               </div>)}
-              <AnimatedPresence show={!loadingEpisodes && episodes.length === 0}><div className="empty-state">{t('panel.searchShow')}</div></AnimatedPresence></>}
+              </>}
             </div>
             <AnimatedPresence show={Boolean(activeMediaTab === 'shows' && selectedEpisode)} className="episode-detail-presence">{selectedEpisode ? <aside className="episode-detail" aria-label={`Selected episode: ${selectedEpisode.title}`}>
               {episodeArtwork?.dataUrl ? <img src={episodeArtwork.dataUrl} alt=""/> : <div className="episode-detail-placeholder" aria-hidden="true">{selectedEpisode.imageUrl && !episodeArtwork?.failed ? <LoaderCircle className="spin" size={22}/> : <FileImage size={22}/>}</div>}
