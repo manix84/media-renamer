@@ -21,6 +21,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Dark show-logo treatment in light mode so pale and white provider artwork remains legible.
 - Automatic TVDB discovery when TMDB has no show result or a selected TMDB show lacks a usable TVDB cross-reference.
 - Media-detail pills aligned beneath the original filename they describe, with match evidence available by hovering over the proposed filename.
+- Inline proposed-filename editing by double-click, with companion files following the edited basename.
 
 ## [0.1.0] - 2026-10-26
 

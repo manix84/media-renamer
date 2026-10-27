@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime } from './completionChime';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
-import { createRenamePlan, destinationDirectoryForSource, unchangedRenameItemPaths } from './core/renamePlan';
+import { createRenamePlan, destinationDirectoryForSource, filenameProblem, unchangedRenameItemPaths } from './core/renamePlan';
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
 import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
@@ -322,6 +322,10 @@ export default function App() {
   const [metadataOverrides, setMetadataOverrides] = useState<Record<string, MediaMetadataOverride>>({});
   const [editingMetadataPath, setEditingMetadataPath] = useState<string>();
   const [metadataDraft, setMetadataDraft] = useState<MediaMetadataOverride>();
+  const [filenameOverrides, setFilenameOverrides] = useState<Record<string, string>>({});
+  const [editingFilenamePath, setEditingFilenamePath] = useState<string>();
+  const [filenameDraft, setFilenameDraft] = useState('');
+  const [filenameDraftError, setFilenameDraftError] = useState<string>();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [matches, setMatches] = useState<FileMatch[]>([]);
   const [matchOverrides, setMatchOverrides] = useState<Record<string, MatchCandidate>>({});
@@ -658,9 +662,10 @@ export default function App() {
       - COLLISION_INCREMENT_RESERVE_BYTES
       - movieRoleSuffixBytes
       - Math.max(0, longestCompanionSuffix - extensionBytes);
-    const targetName = activeMediaTab === 'movies'
+    const generatedTargetName = activeMediaTab === 'movies'
       ? movieForPath && tags && !effectiveMovieError ? appendMovieVideoSuffix(formatMovieFilename(effectiveMovieTemplate, movieForPath.name, movieForPath.year, tags, extension, movieForPath.id, videoFilenameBudget, movieForPath.imdbId, movieForPath.collection), movieVideoRole) : undefined
       : filenameEpisodes.length && effectiveShowName && tags && !effectiveEpisodeError ? formatEpisodeFilename(effectiveEpisodeTemplate, effectiveShowName, effectiveShowYear, filenameEpisodes, tags, extension, effectiveTvdbId, videoFilenameBudget) : undefined;
+    const targetName = filenameOverrides[path] ?? generatedTargetName;
     return {
       sourcePath: path,
       targetName,
@@ -675,7 +680,7 @@ export default function App() {
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, filenameOverrides, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -841,6 +846,7 @@ export default function App() {
       setMatchOverrides(withoutPaths);
       setMovieMatches(withoutPaths);
       setMetadataOverrides(withoutPaths);
+      setFilenameOverrides(withoutPaths);
       setConfirmedPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
       setHeldConfirmationPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
       setCompanionScan((current) => ({
@@ -850,6 +856,7 @@ export default function App() {
       if (reviewingPath && targets.has(reviewingPath)) setReviewingPath(undefined);
       if (movieReviewPath && targets.has(movieReviewPath)) { setMovieReviewPath(undefined); setMovieReviewResults([]); setMovieReviewSelection(undefined); }
       if (editingMetadataPath && targets.has(editingMetadataPath)) { setEditingMetadataPath(undefined); setMetadataDraft(undefined); }
+      if (editingFilenamePath && targets.has(editingFilenamePath)) { setEditingFilenamePath(undefined); setFilenameDraft(''); }
       if (pinnedPreviewPath && targets.has(pinnedPreviewPath)) setPinnedPreviewPath(undefined);
       setRemovingPaths((current) => new Set([...current].filter((path) => !targets.has(path))));
       delete removalTimers.current.__clearUnchanged;
@@ -1195,6 +1202,7 @@ export default function App() {
     setTechnicalTags(remapRecord);
     setProbeStates(remapRecord);
     setMatchOverrides(remapRecord);
+    setFilenameOverrides(remapRecord);
     setConfirmedPaths((current) => new Set([...current].flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)])));
     setRemovingPaths((current) => new Set([...current].flatMap((filePath) => deleted.has(filePath) ? [] : [nextPath(filePath)])));
     setReviewingPath((current) => current && !deleted.has(current) ? nextPath(current) : undefined);
@@ -1902,6 +1910,7 @@ export default function App() {
     setTechnicalTags(remapRecord);
     setProbeStates(remapRecord);
     setMetadataOverrides(remapRecord);
+    setFilenameOverrides(remapRecord);
     probedPaths.current = new Set([...probedPaths.current].map((item) => replacements.get(item) ?? item));
     probeRuns.current = Object.fromEntries(Object.entries(probeRuns.current).map(([key, value]) => [replacements.get(key) ?? key, value]));
     setPaths((current) => current.length
@@ -1954,6 +1963,9 @@ export default function App() {
     setMetadataOverrides({});
     setEditingMetadataPath(undefined);
     setMetadataDraft(undefined);
+    setFilenameOverrides({});
+    setEditingFilenamePath(undefined);
+    setFilenameDraft('');
     setEpisodes([]);
     setLoadingEpisodes(false);
     setMatches([]);
@@ -1989,11 +2001,13 @@ export default function App() {
     setMovieMatches(withoutPath);
     setForcedMoviePaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setMetadataOverrides(withoutPath);
+    setFilenameOverrides(withoutPath);
     setConfirmedPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     if (reviewingPath === path) setReviewingPath(undefined);
     if (movieReviewPath === path) { setMovieReviewPath(undefined); setMovieReviewResults([]); setMovieReviewSelection(undefined); }
     if (editingMetadataPath === path) { setEditingMetadataPath(undefined); setMetadataDraft(undefined); }
+    if (editingFilenamePath === path) { setEditingFilenamePath(undefined); setFilenameDraft(''); }
     if (pinnedPreviewPath === path) setPinnedPreviewPath(undefined);
     setRemovingPaths((current) => { const next = new Set(current); next.delete(path); return next; });
     delete removalTimers.current[path];
@@ -2005,6 +2019,33 @@ export default function App() {
     setBatchRenameCompleted(false);
     setRemovingPaths((current) => new Set(current).add(path));
     removalTimers.current[path] = window.setTimeout(() => finishRemovingFile(path), 360);
+  }
+
+  function startFilenameEditing(path: string, targetName: string) {
+    const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
+    setEditingFilenamePath(path);
+    setFilenameDraft(extension && targetName.endsWith(extension) ? targetName.slice(0, -extension.length) : targetName);
+    setFilenameDraftError(undefined);
+  }
+
+  function cancelFilenameEditing() {
+    setEditingFilenamePath(undefined);
+    setFilenameDraft('');
+    setFilenameDraftError(undefined);
+  }
+
+  function saveFilenameEditing(path: string) {
+    const extension = filenameFromPath(path).match(/(\.[^.]+)$/)?.[1] ?? '';
+    const stem = filenameDraft.trim();
+    const targetName = `${stem}${extension}`;
+    const problem = filenameProblem(targetName);
+    if (!stem || problem) {
+      setFilenameDraftError(problem ?? 'The filename cannot be empty.');
+      return;
+    }
+    setFilenameOverrides((current) => ({ ...current, [path]: targetName }));
+    addDebug('success', `Updated proposed filename for ${filenameFromPath(path)}`, targetName);
+    cancelFilenameEditing();
   }
 
   function openMetadataEditor(path: string) {
@@ -2358,7 +2399,7 @@ export default function App() {
                   {activeMediaTab === 'movies' && (movieFileMatch?.movie?.posterUrl ? <button className="movie-row-poster" aria-label={`View full poster for ${movieFileMatch.movie.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreview({ url: movieFileMatch.movie!.posterUrl!, name: movieFileMatch.movie!.name, year: movieFileMatch.movie!.year }); }}><img src={movieFileMatch.movie.posterUrl} alt=""/></button> : <span className="movie-row-poster" aria-hidden="true"><Film size={18}/></span>)}
                   <div className="file-content" tabIndex={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 0 : undefined} role={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 'button' : undefined} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={activeMediaTab === 'shows' ? `Highlight matched episodes for ${filename}` : fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if ((activeMediaTab === 'shows' || fileViewMode !== 'detailed') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
-                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className={`proposed ${matchExplanation ? 'has-match-tooltip' : ''}`} title={matchExplanation}>{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</div></div>
+                    <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className={`proposed ${matchExplanation ? 'has-match-tooltip' : ''} ${plannedTargetName && !deferredToTv ? 'editable' : ''}`} title={editingFilenamePath === path ? undefined : [matchExplanation, plannedTargetName && !deferredToTv ? 'Double-click to edit the proposed filename.' : undefined].filter(Boolean).join('\n') || undefined} onDoubleClick={(event) => { if (!plannedTargetName || deferredToTv) return; event.preventDefault(); event.stopPropagation(); startFilenameEditing(path, plannedTargetName); }}>{editingFilenamePath === path ? <><input autoFocus aria-label={`Edit proposed filename for ${filename}`} aria-invalid={Boolean(filenameDraftError)} value={filenameDraft} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { setFilenameDraft(event.target.value); setFilenameDraftError(undefined); }} onBlur={() => saveFilenameEditing(path)} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } else if (event.key === 'Escape') { event.preventDefault(); cancelFilenameEditing(); } }}/><span>{extension}</span>{filenameDraftError && <em className="plan-error">{filenameDraftError}</em>}</> : <>{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{inspecting && <em>Inspecting video &amp; audio…</em>}{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</>}</div></div>
                     {fileViewMode === 'detailed' && <div className="file-details">
                       {planIssues.length > 0 && <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span>}
                       <span className="detail-tags">{extensionBadges.map((badge) => <small className={`extension-badge ${badge.tone}`} key={`${badge.extensionId}:${badge.label}`}>{badge.label}</small>)}{detailTags.length ? detailTags.map((tag, index) => <small key={`${tag}-${index}`}>{tag}</small>) : extensionBadges.length === 0 ? <small>No release metadata</small> : null}</span>
