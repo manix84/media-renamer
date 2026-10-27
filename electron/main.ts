@@ -15,6 +15,7 @@ import { normalizePreferences, readPreferences, writePreferences, type Persisted
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
 import { MetadataCache } from './metadataCache.js';
 import { discoverExtensions, inspectExtensionPackage, installExtension, uninstallExtension } from './extensions.js';
+import { mergeEpisodeArtwork } from './episodeMetadata.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -74,7 +75,7 @@ const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 // v3 adds genre, original-language, and origin-country fields used by extensions.
 const DETAILS_CACHE_VERSION = 3;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
-const EPISODE_CACHE_VERSION = 4;
+const EPISODE_CACHE_VERSION = 5;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());
@@ -467,14 +468,21 @@ ipcMain.handle('tmdb:get-movie', (_event, movieId: unknown, mediaType: unknown) 
 ipcMain.handle('metadata:get-show-episodes', async (_event, value: unknown) => {
   if (!value || typeof value !== 'object') throw new Error('Invalid show metadata request.');
   const request = value as { agent?: unknown; tmdbId?: unknown; tvdbId?: unknown; seasons?: unknown };
+  if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid season list.');
+  const seasons = request.seasons.map(Number).sort((left, right) => left - right);
   if (request.agent === 'tvdb-aired') {
     const seriesId = textArgument(request.tvdbId, 'TVDB series ID');
-    return metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${seriesId}`, EPISODE_CACHE_AGE, () => tvdb().getSeriesEpisodes(seriesId));
+    const showId = textArgument(request.tmdbId, 'TMDB show ID');
+    return metadataCache().get(`tvdb:v${EPISODE_CACHE_VERSION}:episodes:aired:eng:${seriesId}:tmdb-artwork:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => {
+      const [episodes, artwork] = await Promise.all([
+        tvdb().getSeriesEpisodes(seriesId),
+        Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season))).then((results) => results.flat()).catch(() => []),
+      ]);
+      return mergeEpisodeArtwork(episodes, artwork);
+    });
   }
   if (request.agent === 'tmdb-aired') {
-    if (!Array.isArray(request.seasons) || request.seasons.length > 100 || request.seasons.some((season) => !Number.isInteger(season) || Number(season) < 0 || Number(season) > 999)) throw new Error('Invalid TMDB season list.');
     const showId = textArgument(request.tmdbId, 'TMDB show ID');
-    const seasons = request.seasons.map(Number).sort((left, right) => left - right);
     return metadataCache().get(`tmdb:v${EPISODE_CACHE_VERSION}:episodes:aired:${showId}:${seasons.join(',')}`, EPISODE_CACHE_AGE, async () => (await Promise.all(seasons.map((season) => tmdb().getSeasonEpisodes(showId, season)))).flat());
   }
   throw new Error('Unsupported show metadata agent.');

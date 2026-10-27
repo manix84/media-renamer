@@ -16,6 +16,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Split-title episode handling that offers either episode or the combined match, while using the first episode number and a shared title without trailing part markers for combined filenames.
 - A selected-episode detail pane in the episode sidebar with the episode capture and description.
 - Reliable TVDB episode captures fetched through the trusted Electron host, with validated image responses and a clean placeholder when artwork cannot be loaded.
+- TMDB episode captures merged into TVDB-aired metadata by season and episode number when TVDB does not provide an image.
 
 ## [0.1.0] - 2026-10-26
 
