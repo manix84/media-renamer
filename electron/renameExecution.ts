@@ -134,9 +134,9 @@ async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgr
   let published = false;
   try {
     await copyFileWithProgress(sourcePath, temporaryPath, onProgress);
-    await fs.promises.link(temporaryPath, targetPath);
+    if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
+    await fs.promises.rename(temporaryPath, targetPath);
     published = true;
-    await fs.promises.unlink(temporaryPath);
     try { await fs.promises.unlink(sourcePath); }
     catch (unlinkError) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw unlinkError; }
   } catch (copyError) {
@@ -155,9 +155,8 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
     await fs.promises.rename(sourcePath, intermediatePath);
     let published = false;
     try {
-      await fs.promises.link(intermediatePath, targetPath);
+      await fs.promises.rename(intermediatePath, targetPath);
       published = true;
-      await fs.promises.unlink(intermediatePath);
     }
     catch (error) {
       if (published) await fs.promises.rm(targetPath, { force: true }).catch(() => undefined);
@@ -172,9 +171,8 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
     return;
   }
   try {
-    await fs.promises.link(sourcePath, targetPath);
-    try { await fs.promises.unlink(sourcePath); }
-    catch (error) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw error; }
+    if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
+    await fs.promises.rename(sourcePath, targetPath);
   }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
@@ -316,7 +314,9 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
       try { await moveFile(item.targetPath, item.sourcePath); }
       catch (rollbackError) { rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError)); }
     }
-    const detail = rollbackErrors.length ? ` Rollback also failed: ${rollbackErrors.join('; ')}` : ' Completed moves were rolled back.';
+    const detail = rollbackErrors.length
+      ? ` Rollback also failed: ${rollbackErrors.join('; ')}`
+      : completed.length ? ' Completed moves were rolled back.' : ' No files were moved.';
     throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
   }
   if (control === 'undo') {

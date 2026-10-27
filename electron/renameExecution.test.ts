@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { copyFileWithProgress, executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation } from './renameExecution';
 
 const temporaryDirectories: string[] = [];
@@ -73,6 +73,22 @@ describe('rename execution', () => {
     expect(undone.status).toBe('undone');
     await expect(fs.promises.readFile(source, 'utf8')).resolves.toBe('video');
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('moves files without requiring hard-link support', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Old.mkv');
+    const target = path.join(root, 'library', 'New.mkv');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    const link = vi.spyOn(fs.promises, 'link').mockRejectedValue(Object.assign(new Error('Hard links are not supported.'), { code: 'ENOTSUP' }));
+    try {
+      await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'));
+      await expect(fs.promises.readFile(target, 'utf8')).resolves.toBe('video');
+      expect(link).not.toHaveBeenCalled();
+    } finally {
+      link.mockRestore();
+    }
   });
 
   it('returns restored files to their renamed paths when the undo log cannot be updated', async () => {
