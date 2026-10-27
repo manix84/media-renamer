@@ -112,6 +112,34 @@ describe('rename execution', () => {
     }
   });
 
+  it('copies safely when a mounted filesystem rejects an atomic rename with ENOENT', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Old.mkv');
+    const target = path.join(root, 'library', 'Show', 'Season 1', 'New.mkv');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    const realRename = fs.promises.rename.bind(fs.promises);
+    const rename = vi.spyOn(fs.promises, 'rename');
+    rename.mockImplementation(async (oldPath, newPath) => {
+      if (oldPath === source && newPath === target) throw Object.assign(new Error('mounted filesystem lost the destination parent'), { code: 'ENOENT' });
+      return realRename(oldPath, newPath);
+    });
+    try {
+      await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'));
+      await expect(fs.promises.readFile(target, 'utf8')).resolves.toBe('video');
+      await expect(fs.promises.stat(source)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      rename.mockRestore();
+    }
+  });
+
+  it('does not treat a genuinely missing source as a mounted-filesystem rename failure', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Missing.mkv');
+    const target = path.join(root, 'library', 'New.mkv');
+    await expect(executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'))).rejects.toThrow(/source file no longer exists/i);
+  });
+
   it('returns restored files to their renamed paths when the undo log cannot be updated', async () => {
     const root = await temporaryDirectory();
     const source = path.join(root, 'Old.mkv');

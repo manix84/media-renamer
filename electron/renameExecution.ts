@@ -130,6 +130,7 @@ export async function copyFileWithProgress(sourcePath: string, targetPath: strin
 }
 
 async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
   let published = false;
   try {
@@ -170,7 +171,12 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
     await fs.promises.rename(sourcePath, targetPath);
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error;
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' && await exists(sourcePath)) {
+      await copyAcrossDevices(sourcePath, targetPath, onProgress);
+      return;
+    }
+    if (code !== 'EXDEV') throw error;
     await copyAcrossDevices(sourcePath, targetPath, onProgress);
   }
 }
