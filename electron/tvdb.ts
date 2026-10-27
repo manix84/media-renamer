@@ -127,7 +127,16 @@ export class TvdbClient {
     return data.map((series) => {
       const rawYear = series.year || series.firstAired?.slice(0, 4);
       const year = rawYear ? Number(rawYear) : undefined;
-      return { id: String(series.tvdb_id ?? series.id), name: series.name.trim(), year: Number.isFinite(year) ? year : undefined };
+      const remoteIds = series.remoteIds ?? series.remote_ids ?? [];
+      const tmdbId = remoteIds.find((remote) => /themoviedb|movie.?database|tmdb/i.test(remote.sourceName ?? ''))?.id;
+      return {
+        id: String(series.tvdb_id ?? series.id),
+        name: series.name.trim(),
+        year: Number.isFinite(year) ? year : undefined,
+        ...(tmdbId ? { tmdbId } : {}),
+        ...(series.overview?.trim() ? { overview: series.overview.trim() } : {}),
+        ...(tvdbArtworkUrl(series.image) ? { imageUrl: tvdbArtworkUrl(series.image) } : {}),
+      };
     });
   }
 

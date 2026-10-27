@@ -1512,7 +1512,21 @@ export default function App() {
         tvdbId = resolved?.id;
         if (resolved) addDebug('info', 'Resolved missing TVDB cross-reference', `${resolved.name}${resolved.year ? ` (${resolved.year})` : ''} · TVDB ${resolved.id}.`);
       }
-      if (episodeAgent === 'tvdb-aired' && !tvdbId) throw new Error(`Could not safely resolve a TVDB series for ${details.name}. Choose the TMDB agent or search by tvdb-ID.`);
+      if (episodeAgent === 'tvdb-aired' && !tvdbId) {
+        const tvdbCandidates = await window.mediaRenamer?.searchTvdbShows(details.name) ?? [];
+        if (seasonSequence.current !== sequence) return;
+        if (tvdbCandidates.length) {
+          searchSequence.current += 1;
+          setShow(undefined);
+          setEpisodes([]);
+          setActiveSearchResult(-1);
+          setResults(tvdbCandidates);
+          setError(undefined);
+          addDebug('warning', `Choose the TVDB match for ${details.name}`, `${tvdbCandidates.length} TVDB candidate${tvdbCandidates.length === 1 ? '' : 's'} found after the TMDB result had no usable TVDB cross-reference.`);
+          return;
+        }
+        throw new Error(`No TVDB series matched ${details.name}. Refine the show title and try again.`);
+      }
       const episodeLoad = await loadShowEpisodesWithFallback(
         { agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number) },
         async (request) => await window.mediaRenamer?.getShowEpisodes(request) ?? [],
@@ -2210,7 +2224,7 @@ export default function App() {
             {results.length > 0 && <div className="search-results" id="media-search-results" role="listbox" aria-label="TV show search results">
               {results.map((result, index) => <button ref={(element) => { searchResultButtons.current[index] = element; }} id={`media-search-result-${index}`} role="option" aria-selected={activeSearchResult === index} className={activeSearchResult === index ? 'active' : ''} key={result.id} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => void selectShow(result)}>
                 {result.posterUrl ? <img src={result.posterUrl} alt=""/> : <span className="poster-placeholder"><Tv size={18}/></span>}
-                <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}</small></span>
+                <span><strong>{result.name}</strong><small>{result.year ?? 'Year unknown'}{result.id.startsWith('tvdb-') ? ' · TVDB' : ''}</small></span>
               </button>)}
             </div>}
           </div> : <div className="movie-search-hint"><ListChecks size={16}/><span><strong>Per-file movie matching</strong><small>Use the Match button on a row to search and replace its result.</small></span></div>}

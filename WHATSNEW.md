@@ -19,6 +19,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - TMDB episode captures merged into TVDB-aired metadata by season and episode number when TVDB does not provide an image.
 - Episode-grouped rename progress that counts videos as episodes while tracking each episode's subtitles and other sidecars on a secondary progress bar.
 - Dark show-logo treatment in light mode so pale and white provider artwork remains legible.
+- Automatic TVDB discovery when TMDB has no show result or a selected TMDB show lacks a usable TVDB cross-reference.
 
 ## [0.1.0] - 2026-10-26
 

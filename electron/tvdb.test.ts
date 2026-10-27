@@ -48,8 +48,10 @@ describe('TVDB adapter', () => {
   it('searches TVDB series aliases', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { token: 'bearer-token' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ tvdb_id: '473125', name: 'Mouse Cursor', year: '2026' }] }), { status: 200 }));
-    await expect(new TvdbClient('api-key', undefined, fetcher).searchSeries('Click Me All Over')).resolves.toEqual([{ id: '473125', name: 'Mouse Cursor', year: 2026 }]);
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ tvdb_id: '473125', name: 'Mouse Cursor', year: '2026', overview: ' A pointer story. ', image: '/banners/mouse.jpg', remote_ids: [{ id: '1234', sourceName: 'TheMovieDB.com' }] }] }), { status: 200 }));
+    await expect(new TvdbClient('api-key', undefined, fetcher).searchSeries('Click Me All Over')).resolves.toEqual([{
+      id: '473125', name: 'Mouse Cursor', year: 2026, tmdbId: '1234', overview: 'A pointer story.', imageUrl: 'https://artworks.thetvdb.com/banners/mouse.jpg',
+    }]);
   });
 
   it('loads every page of English episodes in TVDB aired order', async () => {

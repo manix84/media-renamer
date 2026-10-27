@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   searchShows: (query: string) => ipcRenderer.invoke('tmdb:search-shows', query),
   getShow: (showId: string) => ipcRenderer.invoke('tmdb:get-show', showId),
   resolveTvdbSeries: (request: { name: string; year?: number }) => ipcRenderer.invoke('metadata:resolve-tvdb-series', request),
+  searchTvdbShows: (query: string) => ipcRenderer.invoke('metadata:search-tvdb-series', query),
   getShowEpisodes: (request: { agent: 'tvdb-aired' | 'tmdb-aired'; tmdbId: string; tvdbId?: string; seasons: number[] }) => ipcRenderer.invoke('metadata:get-show-episodes', request),
   searchMovies: (query: string) => ipcRenderer.invoke('tmdb:search-movies', query),
   getMovie: (movieId: string, mediaType?: 'movie' | 'tv') => ipcRenderer.invoke('tmdb:get-movie', movieId, mediaType),

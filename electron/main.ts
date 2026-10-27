@@ -455,6 +455,12 @@ ipcMain.handle('metadata:resolve-tvdb-series', async (_event, value: unknown) =>
   if (year !== undefined && (!Number.isInteger(year) || year < 1800 || year > 3000)) throw new Error('Invalid show year.');
   return selectTvdbSeriesMatch(await tvdb().searchSeries(name), name, year);
 });
+ipcMain.handle('metadata:search-tvdb-series', async (_event, query: unknown) => {
+  const search = textArgument(query, 'TVDB search query');
+  return metadataCache().get(`search:v${SHOW_SEARCH_CACHE_VERSION}:tvdb:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, async () => (
+    (await tvdb().searchSeries(search)).map(directTvdbShow)
+  ));
+});
 ipcMain.handle('tmdb:search-movies', (_event, query: unknown) => {
   const search = textArgument(query, 'search query');
   return metadataCache().get(`search:movies:${search.toLocaleLowerCase()}`, SEARCH_CACHE_AGE, () => tmdb().searchMovies(search));
