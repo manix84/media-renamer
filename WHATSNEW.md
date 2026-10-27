@@ -18,7 +18,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Reliable TVDB episode captures fetched through the trusted Electron host, with validated image responses and a clean placeholder when artwork cannot be loaded.
 - TMDB episode captures merged into TVDB-aired metadata by season and episode number when TVDB does not provide an image.
 - Episode-grouped rename progress that counts videos as episodes while tracking each episode's subtitles and other sidecars on a secondary progress bar.
-- Dark show-logo treatment in light mode so pale and white provider artwork remains legible.
+- Dark show and movie clearlogo treatment in light mode so pale and white provider artwork remains legible.
 - Automatic TVDB discovery when TMDB has no show result or a selected TMDB show lacks a usable TVDB cross-reference.
 - Media-detail pills aligned beneath the original filename they describe, with match evidence available by hovering over the proposed filename.
 - Inline proposed-filename editing by double-click, with companion files following the edited basename.
