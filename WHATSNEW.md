@@ -23,6 +23,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Media-detail pills aligned beneath the original filename they describe, with match evidence available by hovering over the proposed filename.
 - Inline proposed-filename editing by double-click, with companion files following the edited basename.
 - Windows-compatible sanitization of slashes and other reserved characters in provider-supplied show, movie, collection, and edition folder names.
+- Red warning treatment for the `UNCENSORED` media flag.
 
 ## [0.1.0] - 2026-10-26
 
