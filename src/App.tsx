@@ -7,7 +7,7 @@ import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './co
 import { parseReleaseAliasText } from './core/releaseAliases';
 import { formatSeasonLabel } from './core/seasonLabel';
 import { inferShowQuery } from './core/showInference';
-import { requestedEpisodeSeasons, seasonCompatibleShow } from './core/showSelection';
+import { automaticTvdbFallback, requestedEpisodeSeasons, seasonCompatibleShow } from './core/showSelection';
 import { loadShowEpisodesWithFallback } from './core/showEpisodeLoading';
 import { inferMovieQuery, inferMovieQueryCandidates } from './core/movieInference';
 import { appendMovieVideoSuffix, classifyMovieVideoRoles, movieVideoSuffix } from './core/movieVideoRole';
@@ -1556,7 +1556,11 @@ export default function App() {
           throw reason;
         }
         if (seasonSequence.current !== sequence) return;
-        if (tvdbCandidates.length) {
+        const automaticCandidate = automaticTvdbFallback(tvdbCandidates, details.name, details.year);
+        if (automaticCandidate) {
+          tvdbId = automaticCandidate.tvdbId ?? automaticCandidate.id.replace(/^tvdb-/, '');
+          addDebug('info', `Resolved TVDB identity for ${details.name}`, `${automaticCandidate.name}${automaticCandidate.year ? ` (${automaticCandidate.year})` : ''} · TVDB ${tvdbId}.`);
+        } else if (tvdbCandidates.length > 1) {
           searchSequence.current += 1;
           setShow(undefined);
           setEpisodes([]);
@@ -1566,7 +1570,7 @@ export default function App() {
           addDebug('warning', `Choose the TVDB match for ${details.name}`, `${tvdbCandidates.length} TVDB candidate${tvdbCandidates.length === 1 ? '' : 's'} found after the TMDB result had no usable TVDB cross-reference.`);
           return;
         }
-        throw new Error(`No TVDB series matched ${details.name}. Refine the show title and try again.`);
+        if (!tvdbId) throw new Error(`No TVDB series matched ${details.name}. Refine the show title and try again.`);
       }
       const episodeLoad = await loadShowEpisodesWithFallback(
         { agent: episodeAgent, tmdbId: details.id, tvdbId, seasons: details.seasons.map((season) => season.number), language },

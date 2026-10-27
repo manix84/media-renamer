@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ShowDetails, ShowSearchResult } from './types';
-import { requestedEpisodeSeasons, seasonCompatibleShow } from './showSelection';
+import { automaticTvdbFallback, requestedEpisodeSeasons, seasonCompatibleShow } from './showSelection';
 
 const result = (id: string, name: string): ShowSearchResult => ({ id, name, overview: '' });
 const details = (id: string, name: string, seasons: number[]): ShowDetails => ({
@@ -29,5 +29,22 @@ describe('automatic show selection', () => {
   it('preserves provider order when no candidate satisfies the season evidence', () => {
     const first = result('first', 'First');
     expect(seasonCompatibleShow([first], [details('first', first.name, [1])], [4])).toBe(first);
+  });
+
+  it('silently accepts a sole TVDB fallback even when its translated alias differs', () => {
+    const candidate = result('tvdb-1', 'Onaji Zemi no Someya-san ga Sexy Joyuu Datta Hanashi');
+    expect(automaticTvdbFallback([candidate], "My Classmate's a Sexy Actress", 2026)).toBe(candidate);
+  });
+
+  it('silently accepts one exact translated match among additional results', () => {
+    const exact = { ...result('tvdb-1', 'My Classmate’s a Sexy Actress'), year: 2026 };
+    const other = { ...result('tvdb-2', 'Another Show'), year: 2026 };
+    expect(automaticTvdbFallback([other, exact], "My Classmate's a Sexy Actress", 2026)).toBe(exact);
+  });
+
+  it('requires a choice only when multiple TVDB fallbacks remain uncertain', () => {
+    const first = { ...result('tvdb-1', 'Romanized Alias'), year: 2026 };
+    const second = { ...result('tvdb-2', 'Different Alias'), year: 2026 };
+    expect(automaticTvdbFallback([first, second], 'English Translation', 2026)).toBeUndefined();
   });
 });
