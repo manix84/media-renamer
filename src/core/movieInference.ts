@@ -15,9 +15,13 @@ function cleanTitle(value: string): string {
     .trim();
 }
 
+function normalizeReleaseYearWrappers(value: string): string {
+  return value.replace(/[[(]\s*((?:18|19|20)\d{2})\s*[\])]/g, ' $1 ');
+}
+
 function inferCandidate(filePath: string, latestYear: number, role: MovieVideoRole = { kind: 'main' }): string | undefined {
   const stem = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-  const normalized = cleanTitle(stripMovieVideoRoleTokens(stripEditionTokens(stem), role));
+  const normalized = cleanTitle(normalizeReleaseYearWrappers(stripMovieVideoRoleTokens(stripEditionTokens(stem), role)));
   const years = [...normalized.matchAll(/\b((?:18|19|20)\d{2})\b/g)]
     .filter((match) => Number(match[1]) <= latestYear);
 

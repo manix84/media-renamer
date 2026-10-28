@@ -12,6 +12,15 @@ describe('movie-name inference', () => {
       .toBe('Hotel Transylvania 2 (2015)');
   });
 
+  it.each([
+    ['A Bugs Life [1998].mkv', 'A Bugs Life (1998)'],
+    ['Brave [2012].mkv', 'Brave (2012)'],
+    ['Cars [2006].mkv', 'Cars (2006)'],
+    ['Cars 2 [2011].mkv', 'Cars 2 (2011)'],
+  ])('normalizes a bracketed release year in %s', (filename, expected) => {
+    expect(inferMovieQuery([`/movies/${filename}`], 2026)).toBe(expected);
+  });
+
   it('keeps years that are part of a title and uses the later release year', () => {
     expect(inferMovieQuery(['/movies/2001.A.Space.Odyssey.1968.2160p.UHD.mkv'], 2026)).toBe('2001 A Space Odyssey (1968)');
     expect(inferMovieQuery(['/movies/Blade.Runner.2049.2017.1080p.mkv'], 2026)).toBe('Blade Runner 2049 (2017)');
