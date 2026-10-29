@@ -15,6 +15,12 @@ const STANDARD_CHIME: CompletionChimeTone[] = [
   { frequency: 783.99, start: .24, duration: .36, gain: .08, wave: 'sine' },
 ];
 
+const STANDARD_ERROR_CHIME: CompletionChimeTone[] = [
+  { frequency: 392, start: 0, duration: .2, gain: .075, wave: 'triangle' },
+  { frequency: 311.13, start: .14, duration: .24, gain: .07, wave: 'triangle' },
+  { frequency: 233.08, start: .3, duration: .38, gain: .065, wave: 'triangle' },
+];
+
 function melody(
   frequencies: number[],
   { step = .12, duration = .22, gain = .065, wave = 'sine' as OscillatorType } = {},
@@ -59,11 +65,17 @@ const SEASONAL_CHIMES: Partial<Record<ThemePalette, CompletionChimeTone[]>> = {
   christmas: CHRISTMAS_CHIME,
 };
 
+const SEASONAL_ERROR_CHIMES: Partial<Record<ThemePalette, CompletionChimeTone[]>> = {};
+
 export function completionChimeTones(palette: ThemePalette): CompletionChimeTone[] {
   return SEASONAL_CHIMES[palette] ?? STANDARD_CHIME;
 }
 
-export function prepareCompletionChime(palette: ThemePalette): { play: () => void; dispose: () => void } | undefined {
+export function errorChimeTones(palette: ThemePalette): CompletionChimeTone[] {
+  return SEASONAL_ERROR_CHIMES[palette] ?? STANDARD_ERROR_CHIME;
+}
+
+function prepareChime(tones: CompletionChimeTone[]): { play: () => void; dispose: () => void } | undefined {
   const AudioContextConstructor = window.AudioContext;
   if (!AudioContextConstructor) return undefined;
   let context: AudioContext;
@@ -80,7 +92,6 @@ export function prepareCompletionChime(palette: ThemePalette): { play: () => voi
       if (used) return;
       used = true;
       try {
-        const tones = completionChimeTones(palette);
         const origin = context.currentTime + .025;
         for (const tone of tones) {
           const envelope = context.createGain();
@@ -128,4 +139,12 @@ export function prepareCompletionChime(palette: ThemePalette): { play: () => voi
       void context.close().catch(() => undefined);
     },
   };
+}
+
+export function prepareCompletionChime(palette: ThemePalette): { play: () => void; dispose: () => void } | undefined {
+  return prepareChime(completionChimeTones(palette));
+}
+
+export function prepareErrorChime(palette: ThemePalette): { play: () => void; dispose: () => void } | undefined {
+  return prepareChime(errorChimeTones(palette));
 }

@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { completionChimeTones } from './completionChime';
+import { completionChimeTones, errorChimeTones } from './completionChime';
 
 describe('completion chimes', () => {
   it('uses the standard chime for ordinary colour palettes', () => {
     expect(completionChimeTones('classic')).toEqual(completionChimeTones('ocean'));
+  });
+
+  it('uses a descending default error cue for ordinary colour palettes', () => {
+    expect(errorChimeTones('classic')).toEqual(errorChimeTones('ocean'));
+    expect(errorChimeTones('classic').map((tone) => tone.frequency)).toEqual([392, 311.13, 233.08]);
+  });
+
+  it('falls seasonal palettes back to the default error cue until they are customized', () => {
+    expect(errorChimeTones('halloween')).toEqual(errorChimeTones('classic'));
+    expect(errorChimeTones('christmas')).toEqual(errorChimeTones('classic'));
   });
 
   it('gives seasonal themes distinct chimes', () => {

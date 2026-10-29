@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
-import { prepareCompletionChime } from './completionChime';
+import { prepareCompletionChime, prepareErrorChime } from './completionChime';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource, filenameProblem, unchangedRenameItemPaths } from './core/renamePlan';
 import { applyReleaseOverrides, parseMovieEdition, parseReleaseTags } from './core/releaseTags';
@@ -1865,6 +1865,7 @@ export default function App() {
   async function executeRenames() {
     if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || preflightError || renaming) return;
     const preparedChime = completionChime ? prepareCompletionChime(palette) : undefined;
+    const preparedErrorChime = completionChime ? prepareErrorChime(palette) : undefined;
     setRenaming(true);
     setRenameControl(undefined);
     setRenameStartedAt(Date.now());
@@ -1912,8 +1913,13 @@ export default function App() {
       const entireBatchRenamed = paths.length > 0 && paths.every((path) => renamedVideos.has(path));
       setLastRename(result);
       if (completionReport) setRenameReport({ result, moved: moveFiles });
-      if (result.operation.status === 'completed') preparedChime?.play();
-      else preparedChime?.dispose();
+      if (result.operation.status === 'completed') {
+        preparedChime?.play();
+        preparedErrorChime?.dispose();
+      } else {
+        preparedChime?.dispose();
+        preparedErrorChime?.dispose();
+      }
       if (result.operation.status === 'undone') setBatchRenameCompleted(false);
       else if (entireBatchRenamed && autoClearCompletedBatch) clearBatch();
       else {
@@ -1923,6 +1929,7 @@ export default function App() {
       setRenameConfirmationOpen(false);
     } catch (reason) {
       preparedChime?.dispose();
+      preparedErrorChime?.play();
       const message = errorMessage(reason);
       setError(message);
       addDebug('error', 'Rename operation failed', message);
