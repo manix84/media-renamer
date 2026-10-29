@@ -227,6 +227,7 @@ function SmoothProgress({ value, max, className = '', label, indeterminate = fal
 
 const PRESENCE_EXIT_MS = 280;
 const PRESENCE_HANDOFF_MS = 140;
+const GROUP_PROGRESS_COMPLETION_HOLD_MS = 350;
 
 function AnimatedPresence({ show, className = '', children }: { show: boolean; className?: string; children: ReactNode }) {
   const [mounted, setMounted] = useState(show);
@@ -375,6 +376,7 @@ export default function App() {
   const [companionScan, setCompanionScan] = useState<CompanionScan>({ byVideo: {}, ambiguous: [] });
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
+  const [groupProgressVisible, setGroupProgressVisible] = useState(false);
   const [renameStartedAt, setRenameStartedAt] = useState<number>();
   const [renameClock, setRenameClock] = useState(0);
   const [renameControl, setRenameControl] = useState<'stop' | 'undo'>();
@@ -2280,6 +2282,20 @@ export default function App() {
   const groupCompletedFiles = Math.floor(groupCompleted);
   const groupTotal = work?.groupTotal ?? 0;
   const groupPercent = groupTotal > 0 ? Math.min(100, Math.round((groupCompleted / groupTotal) * 100)) : 0;
+
+  useEffect(() => {
+    const eligible = work?.operation === 'Renaming' && groupTotal > 1;
+    if (!eligible) {
+      setGroupProgressVisible(false);
+      return;
+    }
+    if (groupCompleted < groupTotal) {
+      setGroupProgressVisible(true);
+      return;
+    }
+    const timeout = window.setTimeout(() => setGroupProgressVisible(false), GROUP_PROGRESS_COMPLETION_HOLD_MS);
+    return () => window.clearTimeout(timeout);
+  }, [groupCompleted, groupTotal, work?.operation]);
   const renameElapsed = renameStartedAt === undefined ? 0 : Math.max(0, renameClock - renameStartedAt);
   const estimatedRenameTotal = renameCompleted > 0 && work?.operation !== 'Undoing' ? (renameElapsed / renameCompleted) * renameTotal : undefined;
   const estimatedRenameRemaining = estimatedRenameTotal === undefined ? undefined : Math.max(0, estimatedRenameTotal - renameElapsed);
@@ -2582,7 +2598,7 @@ export default function App() {
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
             <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : work.groupsTotal ? `Sorting ${activeMediaTab === 'movies' ? 'movie' : 'episode'} ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : renameCompleted < renameTotal ? `Processing file ${renameCompletedFiles + 1} of ${renameTotal}` : `Renamed ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
             <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal} label="Overall file progress" indeterminate={work.operation === 'Renaming' && renameCompleted === 0} active={work.operation === 'Renaming' && renameCompleted > 0 && renameCompleted < renameTotal}/>
-            <AnimatedPresence show={work.operation === 'Renaming' && groupTotal > 1} className="rename-group-progress-presence"><div className="rename-group-progress">
+            <AnimatedPresence show={groupProgressVisible} className="rename-group-progress-presence"><div className="rename-group-progress">
               <div className="rename-progress-heading"><strong>Processing {groupCompletedFiles} of {groupTotal} files for this {activeMediaTab === 'movies' ? 'movie' : 'episode'}</strong><span>{groupPercent}%</span></div>
               <SmoothProgress className="rename-progress secondary" value={groupCompleted} max={groupTotal} label={`${activeMediaTab === 'movies' ? 'Movie' : 'Episode'} ${(work.groupIndex ?? 0) + 1} associated file progress`}/>
             </div></AnimatedPresence>
