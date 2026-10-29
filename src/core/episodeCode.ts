@@ -4,6 +4,7 @@ export type ParsedSpecialEpisode = { episode: number; index: number };
 export type ParsedFolderEpisode = { season: number; episode: number };
 
 const episodeCodePattern = /(?:^|[ ._-])(?:s(\d{1,2})[ ._-]*e(\d{1,3})|(\d{1,2})[ ._-]*x[ ._-]*(?!26[45](?=$|[ ._-]))(\d{1,3})|s(\d{1,2})[ ._-]+(\d{1,3}))(?:v\d+)?(?=$|[ ._-])/i;
+const compactSeasonEpisodePattern = /(?:^|[ ._-])([1-9])(\d{2})(?=\s+-\s+\S)/;
 const standaloneEpisodePattern = /\s+-\s+(\d{1,3})(?:v\d+)?(?=\s*(?:-|\[|\(|$))/i;
 const specialEpisodePattern = /(?:^|[ ._-])(?:sp|special|ova|oad)[ ._-]*(\d{1,3})(?=$|[ ._-])/i;
 const compactMultiEpisodePattern = /(?:^|[ ._-])s(\d{1,2})[ ._-]*e(\d{1,3})((?:[ ._-]*e\d{1,3})+)(?=$|[ ._-])/i;
@@ -17,12 +18,16 @@ function pathParts(value: string): string[] {
 
 export function parseEpisodeCode(value: string): ParsedEpisodeCode | undefined {
   const match = episodeCodePattern.exec(value);
-  if (!match) return undefined;
-  return {
-    season: Number(match[1] ?? match[3] ?? match[5]),
-    episode: Number(match[2] ?? match[4] ?? match[6]),
-    index: match.index,
-  };
+  if (match) {
+    return {
+      season: Number(match[1] ?? match[3] ?? match[5]),
+      episode: Number(match[2] ?? match[4] ?? match[6]),
+      index: match.index,
+    };
+  }
+  const compact = compactSeasonEpisodePattern.exec(value);
+  if (!compact || Number(compact[2]) === 0) return undefined;
+  return { season: Number(compact[1]), episode: Number(compact[2]), index: compact.index };
 }
 
 export function parseStandaloneEpisode(value: string): ParsedStandaloneEpisode | undefined {

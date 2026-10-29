@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { parseEpisodeCode, parseEpisodeCodes, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
 
 describe('episode code parser', () => {
+  it('recognises a compact one-digit season and two-digit episode before a title', () => {
+    expect(parseEpisodeCode("The Starlost 114 - Farthing's Comet.m4v")).toMatchObject({ season: 1, episode: 14 });
+  });
+
+  it('does not reinterpret an arbitrary three-digit number without an episode title delimiter', () => {
+    expect(parseEpisodeCode('Documentary 114.m4v')).toBeUndefined();
+  });
+
   it.each([
     ['S03_03.mp4', 3, 3],
     ['S03-04.mkv', 3, 4],

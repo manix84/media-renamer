@@ -16,6 +16,10 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/media/Jackie Chan Adventures - 1 x 25 - The New Atlantis.mp4'])).toBe('Jackie Chan Adventures');
   });
 
+  it('extracts a show title before a compact season and episode code', () => {
+    expect(inferShowQuery(["/media/The Starlost 114 - Farthing's Comet.m4v"])).toBe('The Starlost');
+  });
+
   it('extracts titles before standalone Ep and Episode numbers', () => {
     expect(inferShowQuery(['/media/MUMMIES ALIVE - Ep. 01 - Ra, Ra, Ra, Ra.mp4'])).toBe('MUMMIES ALIVE');
     expect(inferShowQuery(['/media/Mummies.Alive.Ep.02.Sleep.Walk.mkv'])).toBe('Mummies Alive');

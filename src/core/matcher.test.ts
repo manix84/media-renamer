@@ -141,6 +141,17 @@ describe('release tag parser', () => {
 });
 
 describe('episode matcher', () => {
+  it('confidently matches a compact season and episode code corroborated by its title', () => {
+    const result = matchFile("The Starlost 114 - Farthing's Comet.m4v", [
+      { id: 's1e14', season: 1, number: 14, title: "Farthing's Comet" },
+      { id: 's1e15', season: 1, number: 15, title: 'The Beehive' },
+    ], true, .8, 'The Starlost');
+
+    expect(result.match?.episode.id).toBe('s1e14');
+    expect(result.match?.reasons).toContain('season and episode number');
+    expect(result.status).toBe('confident');
+  });
+
   it('uses a season folder with a filename episode number', () => {
     const result = matchFile('/tv/Fringe/Season 3/04 - Electric Sheep.mkv', [
       { id: 's1e4', season: 1, number: 4, title: 'Arrival' },
