@@ -2582,10 +2582,10 @@ export default function App() {
           {renaming && work && <div className="rename-progress-details" role="status" aria-live="polite">
             <div className="rename-progress-heading"><strong>{work.operation === 'Undoing' ? 'Undoing completed renames' : renameControl === 'stop' ? 'Stopping after the current file' : renameControl === 'undo' ? 'Stopping and restoring files' : work.groupsTotal ? `Sorting ${activeMediaTab === 'movies' ? 'movie' : 'episode'} ${(work.groupIndex ?? 0) + 1} of ${work.groupsTotal}` : renameCompleted < renameTotal ? `Processing file ${renameCompletedFiles + 1} of ${renameTotal}` : `Renamed ${renameTotal} files`}</strong><span>{renamePercent}%</span></div>
             <SmoothProgress className="rename-progress" value={renameCompleted} max={renameTotal} label="Overall file progress" indeterminate={work.operation === 'Renaming' && renameCompleted === 0} active={work.operation === 'Renaming' && renameCompleted > 0 && renameCompleted < renameTotal}/>
-            {work.operation === 'Renaming' && groupTotal > 1 && <div className="rename-group-progress">
+            <AnimatedPresence show={work.operation === 'Renaming' && groupTotal > 1} className="rename-group-progress-presence"><div className="rename-group-progress">
               <div className="rename-progress-heading"><strong>Processing {groupCompletedFiles} of {groupTotal} files for this {activeMediaTab === 'movies' ? 'movie' : 'episode'}</strong><span>{groupPercent}%</span></div>
               <SmoothProgress className="rename-progress secondary" value={groupCompleted} max={groupTotal} label={`${activeMediaTab === 'movies' ? 'Movie' : 'Episode'} ${(work.groupIndex ?? 0) + 1} associated file progress`}/>
-            </div>}
+            </div></AnimatedPresence>
             <div className="rename-time-grid">
               <span><small>Elapsed</small><strong>{formatDuration(renameElapsed)}</strong></span>
               <span><small>Estimated total</small><strong>{work.operation === 'Undoing' ? '—' : estimatedRenameTotal === undefined ? 'Calculating…' : formatDuration(estimatedRenameTotal)}</strong></span>
