@@ -525,6 +525,7 @@ button.movie-row-poster:focus-visible { outline: 2px solid var(--accent); outlin
 .row-operation-progress strong { color: #9aa5b8; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .row-operation-progress small { color: #7f8ba0; font: 700 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .row-operation-progress .smooth-progress { height: 5px; }
+.row-operation-progress.inspecting strong { color: #79a9f4; }
 .row-operation-progress.moving strong { color: var(--accent); }
 .row-operation-progress.moved strong { color: #43bd86; }
 .row-operation-progress.moved .smooth-progress > span { background: #43bd86; }
