@@ -1,0 +1,18 @@
+{
+  "apiVersion": 1,
+  "id": "home-assistant-statistics",
+  "name": "Home Assistant Statistics",
+  "version": "1.0.0",
+  "description": "Publishes privacy-conscious aggregate rename statistics as Home Assistant sensor entities.",
+  "settings": [
+    { "key": "baseUrl", "type": "text", "label": "Home Assistant URL", "description": "The local URL of your Home Assistant instance.", "placeholder": "http://homeassistant.local:8123" },
+    { "key": "accessToken", "type": "secret", "label": "Long-lived access token", "description": "Create a long-lived access token in your Home Assistant profile. It is encrypted by the operating system and is never exposed to the extension." }
+  ],
+  "match": { "mediaKinds": ["show", "movie"] },
+  "capabilities": [
+    { "id": "home-assistant.statistics", "reason": "Publish aggregate counters and recent/top media names directly to the configured Home Assistant instance. File paths and credentials are never included." }
+  ],
+  "statisticsAdapters": [
+    { "id": "home-assistant", "label": "Home Assistant REST sensors", "capability": "home-assistant.statistics", "transport": "home-assistant-rest", "urlSettingKey": "baseUrl", "tokenSettingKey": "accessToken", "entityPrefix": "media_renamer" }
+  ]
+}

@@ -1,11 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
 import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbLanguageCode } from './tvdb.js';
-import { expandMediaPaths, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
+import { expandMediaPaths, isImportableVideoFile, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
 import { fetchArtworkDataUrl, stageGeneratedAssets } from './generatedAssets.js';
 import { preflightRenameItems } from './renamePreflight.js';
@@ -16,6 +16,8 @@ import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
 import { MetadataCache } from './metadataCache.js';
 import { discoverExtensions, inspectExtensionPackage, installExtension, uninstallExtension } from './extensions.js';
 import { mergeEpisodeArtwork } from './episodeMetadata.js';
+import { ExtensionSecretVault } from './extensionSecrets.js';
+import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, summarizeRenameStatistics } from './renameStatistics.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -34,7 +36,9 @@ let activeRenameControl: 'stop' | 'undo' | undefined;
 type RenameProgressState = { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
 type ActiveRenameState = { startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; progress: RenameProgressState; control?: 'stop' | 'undo' };
 let activeRenameState: ActiveRenameState | undefined;
+let renameCloseWarningOpen = false;
 let metadataStore: MetadataCache | undefined;
+let extensionSecretStore: ExtensionSecretVault | undefined;
 let watchedMediaPaths: string[] = [];
 const mediaFileMonitor = new MediaFileMonitor((changes) => {
   const replacements = new Map(changes.filter((change): change is Extract<WatchedFileChange, { type: 'moved' }> => change.type === 'moved').map((change) => [change.previousPath, change.path]));
@@ -53,6 +57,37 @@ function preferencesFilePath(): string {
 
 function installedExtensionsDirectory(): string {
   return path.join(app.getPath('userData'), 'extensions');
+}
+
+function extensionSecrets(): ExtensionSecretVault {
+  return extensionSecretStore ??= new ExtensionSecretVault(path.join(app.getPath('userData'), 'extension-secrets.json'), {
+    available: () => safeStorage.isEncryptionAvailable(),
+    seal: (value) => safeStorage.encryptString(value),
+    unseal: (value) => safeStorage.decryptString(value),
+  });
+}
+
+function renameStatisticsFilePath(): string {
+  return path.join(app.getPath('userData'), 'rename-statistics.json');
+}
+
+async function publishStatisticsToEnabledExtensions(providedSummary?: ReturnType<typeof summarizeRenameStatistics>): Promise<number> {
+  const summary = providedSummary ?? summarizeRenameStatistics(await readRenameStatistics(renameStatisticsFilePath()));
+  const [extensions, preferences] = await Promise.all([discoverExtensions(extensionSources()), loadPreferences()]);
+  let published = 0;
+  for (const extension of extensions) {
+    const preference = preferences.extensions?.[extension.id];
+    if (!preference?.enabled) continue;
+    for (const adapter of extension.statisticsAdapters ?? []) {
+      if (!preference.grantedCapabilities?.includes(adapter.capability)) continue;
+      const baseUrl = preference.settings[adapter.urlSettingKey];
+      const token = await extensionSecrets().get(extension.id, adapter.tokenSettingKey);
+      if (!baseUrl || !token) continue;
+      await publishRenameStatistics({ baseUrl, token, entityPrefix: adapter.entityPrefix }, summary);
+      published += 1;
+    }
+  }
+  return published;
 }
 
 function extensionSources(): Array<{ directory: string; source: 'installed' | 'preinstalled' | 'development' }> {
@@ -75,7 +110,7 @@ const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 // v5 keeps light-background logo selection in TMDB's quality order.
 const DETAILS_CACHE_VERSION = 5;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
-const EPISODE_CACHE_VERSION = 5;
+const EPISODE_CACHE_VERSION = 6;
 
 async function loadPreferences(): Promise<PersistedPreferences> {
   return persistedPreferences ??= await readPreferences(preferencesFilePath());
@@ -161,6 +196,20 @@ function createWindow() {
     },
   });
   mainWindow = window;
+  window.on('close', (event) => {
+    if (!renameRunning) return;
+    event.preventDefault();
+    if (renameCloseWarningOpen) return;
+    renameCloseWarningOpen = true;
+    void dialog.showMessageBox(window, {
+      type: 'warning',
+      buttons: ['Keep Media Renamer open'],
+      defaultId: 0,
+      title: 'File operation in progress',
+      message: 'Media Renamer cannot close or restart while files are being moved.',
+      detail: 'Wait for the operation to finish, or use Stop or Undo in the progress window first.',
+    }).finally(() => { renameCloseWarningOpen = false; });
+  });
   window.on('closed', () => { if (mainWindow === window) mainWindow = undefined; });
 
   const devUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
@@ -220,7 +269,7 @@ ipcMain.handle('files:pick', async () => {
     properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'Video files', extensions: [...VIDEO_FILE_EXTENSIONS] }],
   });
-  return result.canceled ? [] : result.filePaths.filter(isVideoFile);
+  return result.canceled ? [] : result.filePaths.filter(isImportableVideoFile);
 });
 
 ipcMain.handle('folders:pick', async () => {
@@ -311,12 +360,26 @@ ipcMain.handle('extensions:install', async () => {
 ipcMain.handle('extensions:uninstall', async (_event, id: unknown) => {
   const extensionId = textArgument(id, 'extension ID');
   await uninstallExtension(extensionId, installedExtensionsDirectory());
+  await extensionSecrets().delete(extensionId);
 });
 ipcMain.handle('extensions:open-directory', async () => {
   await fs.promises.mkdir(installedExtensionsDirectory(), { recursive: true });
   const error = await shell.openPath(installedExtensionsDirectory());
   if (error) throw new Error(error);
 });
+ipcMain.handle('extensions:secret-status', async (_event, extensionId: unknown, key: unknown) => {
+  const id = textArgument(extensionId, 'extension ID');
+  const secretKey = textArgument(key, 'secret key');
+  return { available: extensionSecrets().available(), saved: (await extensionSecrets().keys(id)).includes(secretKey) };
+});
+ipcMain.handle('extensions:set-secret', async (_event, extensionId: unknown, key: unknown, value: unknown) => {
+  const id = textArgument(extensionId, 'extension ID');
+  const secretKey = textArgument(key, 'secret key');
+  if (typeof value !== 'string') throw new Error('Invalid extension secret.');
+  await extensionSecrets().set(id, secretKey, value.trim());
+});
+ipcMain.handle('extensions:delete-secret', async (_event, extensionId: unknown, key: unknown) => extensionSecrets().delete(textArgument(extensionId, 'extension ID'), textArgument(key, 'secret key')));
+ipcMain.handle('extensions:publish-statistics', () => publishStatisticsToEnabledExtensions());
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('metadata:stage-sidecars', (_event, assets: unknown) => stageGeneratedAssets(assets, path.join(app.getPath('temp'), 'media-renamer-sidecars')));
 ipcMain.handle('metadata:load-artwork', (_event, url: unknown) => fetchArtworkDataUrl(url));
@@ -372,6 +435,12 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       control: () => activeRenameControl,
     });
     lastRename = executed;
+    if (executed.operation.status === 'completed') void recordCompletedRename(renameStatisticsFilePath(), renameOptions.mediaKind, executed.operation.items.map((item) => item.targetPath))
+      .then((summary) => publishStatisticsToEnabledExtensions(summary))
+      .catch((error) => {
+        debugEntries = [...debugEntries.slice(-499), { id: ++debugSequence, timestamp: Date.now(), level: 'warning', message: 'Rename statistics could not be recorded or published', detail: error instanceof Error ? error.message : String(error) }];
+        publishDebugEntries();
+      });
     return executed;
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
@@ -539,4 +608,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => process.platform !== 'darwin' && app.quit());
-app.on('before-quit', () => mediaFileMonitor.close());
+app.on('before-quit', (event) => {
+  if (renameRunning) {
+    event.preventDefault();
+    mainWindow?.show();
+    mainWindow?.focus();
+    return;
+  }
+  mediaFileMonitor.close();
+});

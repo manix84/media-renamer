@@ -9,6 +9,11 @@ const episodes: Episode[] = [
 ];
 
 describe('episode filename templates', () => {
+  it('exposes an episode edition directly and through the technical summary', () => {
+    expect(formatEpisode('{{release.edition}} [{{technical}}]', 'Show', 2026, episodes[0], { ...tags, edition: 'XL' }, '123'))
+      .toBe('XL [XL 1080p WEB-DL H.264 AAC 2.0]');
+  });
+
   it('formats the default single-episode name with literal square brackets', () => {
     expect(formatEpisode(DEFAULT_EPISODE_TEMPLATE, 'Show Name', 2026, episodes[0], tags, '74550'))
       .toBe('Show Name (2026) - S01E01 - Episode 1 [1080p WEB-DL H.264 AAC 2.0] {tvdb-74550}');

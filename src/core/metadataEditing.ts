@@ -10,6 +10,7 @@ export type MediaMetadataOverride = {
   edition: string;
   resolution: string;
   source: Source;
+  aiUpscale: boolean;
   videoCodec: string;
   audioCodec: string;
   channels: string;

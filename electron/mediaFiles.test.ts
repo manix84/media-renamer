@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { expandMediaPaths, isSystemMetadataPath, isVideoFile } from './mediaFiles.js';
+import { expandMediaPaths, isImportableVideoFile, isReleaseJunkVideoPath, isSystemMetadataPath, isVideoFile } from './mediaFiles.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -26,6 +26,15 @@ describe('media path expansion', () => {
     expect(isSystemMetadataPath('/shows/desktop.ini')).toBe(true);
   });
 
+  it('rejects the Kingdom-RG promotional video only inside a Kingdom-RG release', () => {
+    const junk = '/incoming/Masters Of The Universe 2026 1080p Blu-Ray Subs KINGDOM-RG/KINGDOM RG.mkv';
+    expect(isVideoFile(junk)).toBe(true);
+    expect(isReleaseJunkVideoPath(junk)).toBe(true);
+    expect(isImportableVideoFile(junk)).toBe(false);
+    expect(isImportableVideoFile('/incoming/Kingdom RG.mkv')).toBe(true);
+    expect(isImportableVideoFile('/incoming/KINGDOM-RG/Actual Movie.mkv')).toBe(true);
+  });
+
   it('recursively expands folders and ignores non-video files', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'media-renamer-'));
     temporaryDirectories.push(root);
@@ -43,5 +52,17 @@ describe('media path expansion', () => {
       path.join(root, 'Season 2', 'Disc 1', 'Show.S02E01.mp4'),
       path.join(root, 'Show.S01E01.mkv'),
     ]);
+  });
+
+  it('does not import a Kingdom-RG promotional MKV beside the real feature', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'media-renamer-kingdom-rg-'));
+    temporaryDirectories.push(root);
+    const release = path.join(root, 'Movie 2026 1080p BluRay KINGDOM-RG');
+    await fs.mkdir(release);
+    await Promise.all([
+      fs.writeFile(path.join(release, 'Movie 2026 1080p BluRay.mkv'), 'feature'),
+      fs.writeFile(path.join(release, 'KINGDOM RG.mkv'), 'advert'),
+    ]);
+    await expect(expandMediaPaths([release])).resolves.toEqual([path.join(release, 'Movie 2026 1080p BluRay.mkv')]);
   });
 });

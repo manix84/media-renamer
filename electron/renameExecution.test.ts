@@ -300,6 +300,7 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(subtitlesDirectory, 'English.srt'), 'subtitle'),
       fs.promises.writeFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'extra video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'keep.txt'), 'keep'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'Media.mkv.rejected.txt'), 'Media Renamer diagnostic'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'keep'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'keep'),
@@ -314,7 +315,7 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(36);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(42);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'desktop.ini'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, '249511327101773901412003621844249118140389.ico'));
@@ -329,17 +330,63 @@ describe('rename execution', () => {
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Ninite K-Lite Codecs Unattended Silent Installer and Updater.website'));
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'keep.txt'), 'utf8')).resolves.toBe('keep');
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'), 'utf8')).resolves.toBe('keep');
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Torrent notes.txt'), 'utf8')).resolves.toBe('keep');
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Encoded by Pahe.in.txt'), 'utf8')).resolves.toBe('keep');
+    expect(executed.operation.removedSourceJunkFiles).toEqual(expect.arrayContaining([
+      path.join(sourceDirectory, 'keep.txt'),
+      path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'),
+      path.join(sourceDirectory, 'Torrent notes.txt'),
+      path.join(sourceDirectory, 'notes.!qB.txt'),
+      path.join(sourceDirectory, 'RARBG release notes.txt'),
+      path.join(sourceDirectory, 'Encoded by Pahe.in.txt'),
+    ]));
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Media.mkv.rejected.txt'), 'utf8')).resolves.toBe('Media Renamer diagnostic');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'notes.!qB.txt'), 'utf8')).resolves.toBe('keep');
-    await expect(fs.promises.readFile(path.join(sourceDirectory, 'RARBG release notes.txt'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'folder.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie.srt'), 'utf8')).resolves.toContain('Subtitle');
     await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
     await expect(fs.promises.readFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'utf8')).resolves.toBe('extra video');
+  });
+
+  it('clears Kingdom-RG adverts while preserving ordinary metadata and moving subtitles', async () => {
+    const root = await temporaryDirectory();
+    const sourceDirectory = path.join(root, 'incoming', 'Movie 2026 1080p BluRay KINGDOM-RG');
+    const subtitlesDirectory = path.join(sourceDirectory, 'Subs');
+    const firstAdvertDirectory = path.join(sourceDirectory, 'Downloaded At 1337x');
+    const secondAdvertDirectory = path.join(sourceDirectory, 'Downloaded At ext.to');
+    const destinationDirectory = path.join(root, 'library', 'Movie (2026)');
+    const feature = path.join(sourceDirectory, 'Movie 2026.mkv');
+    const subtitle = path.join(subtitlesDirectory, 'ID1_en-US.srt');
+    await Promise.all([
+      fs.promises.mkdir(subtitlesDirectory, { recursive: true }),
+      fs.promises.mkdir(firstAdvertDirectory, { recursive: true }),
+      fs.promises.mkdir(secondAdvertDirectory, { recursive: true }),
+    ]);
+    await Promise.all([
+      fs.promises.writeFile(feature, 'feature'),
+      fs.promises.writeFile(subtitle, 'subtitle'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'KINGDOM RG.mkv'), 'advert video'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'KINGDOM RG.nfo'), 'advert metadata'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'Movie 2026.nfo'), '<?xml version="1.0"?><movie><title>Movie 2026</title></movie>'),
+      fs.promises.writeFile(path.join(sourceDirectory, 'Movie 2026 release.nfo'), 'File Format : Matroska\nVideo Format : HEVC\nAudio Format : AC-3'),
+      fs.promises.writeFile(path.join(firstAdvertDirectory, '1337x.txt'), 'advert'),
+      fs.promises.writeFile(path.join(secondAdvertDirectory, 'Ext.to.txt'), 'advert'),
+    ]);
+
+    const executed = await executeRenamePlan([
+      { sourcePath: feature, targetPath: path.join(destinationDirectory, 'Movie (2026).mkv') },
+      { sourcePath: subtitle, targetPath: path.join(destinationDirectory, 'Movie (2026).en.srt') },
+    ], path.join(root, 'history'), undefined, { clearSourceJunk: true, removeEmptySourceParents: true });
+
+    expect(executed.operation.removedSourceJunkFiles).toEqual(expect.arrayContaining([
+      path.join(sourceDirectory, 'KINGDOM RG.mkv'),
+      path.join(sourceDirectory, 'KINGDOM RG.nfo'),
+      path.join(sourceDirectory, 'Movie 2026 release.nfo'),
+      path.join(firstAdvertDirectory, '1337x.txt'),
+      path.join(secondAdvertDirectory, 'Ext.to.txt'),
+    ]));
+    await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie 2026.nfo'), 'utf8')).resolves.toContain('<movie>');
+    await expect(fs.promises.readFile(path.join(destinationDirectory, 'Movie (2026).en.srt'), 'utf8')).resolves.toBe('subtitle');
+    await expect(fs.promises.stat(firstAdvertDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.stat(secondAdvertDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('optionally writes a timestamped log to the common destination folder', async () => {

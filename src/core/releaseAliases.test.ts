@@ -17,10 +17,17 @@ describe('custom release-tag aliases', () => {
   });
 
   it('requires complete tokens and reports malformed or unsupported lines', () => {
-    const parsed = parseReleaseAliasText('source = shiny => LaserDisc\nbroken line');
+    const parsed = parseReleaseAliasText('source = shiny => Betamax\nbroken line');
     expect(parsed.errors).toHaveLength(2);
     const { aliases } = parseReleaseAliasText('flag = TS => Telesync');
     expect(parseReleaseTags('Show.DTS-HD.mkv', aliases).flags).not.toContain('Telesync');
+  });
+
+  it('accepts aliases targeting extended source types', () => {
+    const { aliases, errors } = parseReleaseAliasText('source = satellite encode => DSRip\nsource = laser transfer => LaserDisc');
+    expect(errors).toEqual([]);
+    expect(parseReleaseTags('Show.satellite-encode.mkv', aliases).source).toBe('DSRip');
+    expect(parseReleaseTags('Movie.laser-transfer.mkv', aliases).source).toBe('LaserDisc');
   });
 
   it('accepts saved movie edition aliases', () => {

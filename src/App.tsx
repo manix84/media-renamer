@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { basicSetup } from 'codemirror';
+import { EditorSelection, EditorState, Prec } from '@codemirror/state';
+import { crosshairCursor, Decoration, EditorView, keymap, MatchDecorator, rectangularSelection, ViewPlugin, type DecorationSet } from '@codemirror/view';
+import { selectNextOccurrence, selectSelectionMatches } from '@codemirror/search';
 import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime, prepareErrorChime } from './completionChime';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
@@ -18,7 +22,7 @@ import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type Movi
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
 import { displayEpisodeTitle, episodesForFilename, splitEpisodeReviewCandidates } from './core/splitEpisodes';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
-import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
+import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, ReleaseTags, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
 import { DebugPanel, type DebugEntry, type DockPosition } from './DebugConsole';
 import { SeasonalEffects } from './SeasonalEffects';
@@ -37,6 +41,36 @@ type FileViewMode = 'detailed' | 'summary' | 'compact';
 type MediaTab = 'shows' | 'movies';
 type PreferenceMediaTab = MediaTab | `extension:${string}:${string}`;
 type RenameReport = { result: RenameOperationRecord; moved: boolean };
+type BatchReleaseField = 'edition' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'webOrigin' | 'webOriginShort' | 'group' | 'flags';
+type BatchReleaseOverrides = Partial<Record<BatchReleaseField, string>>;
+
+const BATCH_RELEASE_FIELDS: Array<{ key: BatchReleaseField; label: string; placeholder: string }> = [
+  { key: 'edition', label: 'Edition', placeholder: 'Optional' },
+  { key: 'resolution', label: 'Resolution', placeholder: '1080p' },
+  { key: 'videoCodec', label: 'Video codec', placeholder: 'H.264' },
+  { key: 'audioCodec', label: 'Audio codec', placeholder: 'AAC' },
+  { key: 'channels', label: 'Channels', placeholder: '2.0' },
+  { key: 'webOrigin', label: 'Web origin', placeholder: 'Netflix' },
+  { key: 'webOriginShort', label: 'Origin shorthand', placeholder: 'NF' },
+  { key: 'group', label: 'Release group', placeholder: 'QxR' },
+  { key: 'flags', label: 'Flags', placeholder: 'Comma-separated' },
+];
+
+function applyBatchReleaseMetadata(tags: ReleaseTags, overrides: BatchReleaseOverrides): ReleaseTags {
+  const next = { ...tags };
+  for (const field of BATCH_RELEASE_FIELDS) {
+    if (!Object.hasOwn(overrides, field.key)) continue;
+    const value = overrides[field.key]!.trim();
+    if (field.key === 'flags') next.flags = value.split(',').map((flag) => flag.trim()).filter(Boolean);
+    else next[field.key] = value || undefined;
+  }
+  return next;
+}
+
+function summarizeBatchValues(values: Array<string | number | undefined>): { common?: string; mixed: boolean } {
+  const unique = [...new Set(values.map((value) => value === undefined ? '' : String(value)))];
+  return { common: unique.length === 1 ? unique[0] : undefined, mixed: unique.length > 1 };
+}
 
 const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
   { label: 'Show', fields: [
@@ -58,6 +92,7 @@ const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
   ] },
   { label: 'Release', fields: [
     { name: 'technical', description: 'Detected video/audio details plus release tags', example: '1080p WEB-DL H.264 AAC 2.0' },
+    { name: 'release.edition', description: 'Episode or movie edition', example: "Director's Cut" },
     { name: 'release.resolution', description: 'Video resolution', example: '1080p' },
     { name: 'release.source', description: 'Release source', example: 'WEB-DL' },
     { name: 'release.videoCodec', description: 'Video codec', example: 'H.264' },
@@ -104,7 +139,31 @@ const MOVIE_FOLDER_FIELDS: TemplateField[] = [
   { name: 'movie.edition', description: 'Detected Plex edition name', example: "Director's Cut" },
 ];
 
-const SOURCE_OPTIONS: Source[] = ['DVD', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip'];
+const SOURCE_GROUPS: Array<{ label: string; sources: Source[] }> = [
+  { label: 'Ultra High Quality', sources: ['BluRay', 'BDRip', 'BRRip', 'HD-DVD', 'WEB-DL'] },
+  { label: 'High Quality', sources: ['HDTV', 'WEBRip'] },
+  { label: 'Standard Quality', sources: ['DVD', 'DVDRip', 'PDTV', 'DSRip'] },
+  { label: 'Low Quality', sources: ['TVRip', 'PPVRip', 'VODRip', 'LaserDisc'] },
+  { label: 'Poor / Bootleg Quality', sources: ['WP', 'TS', 'CAMRip', 'VHS'] },
+];
+const SOURCE_QUALITY_LABELS = Object.fromEntries(SOURCE_GROUPS.flatMap((group) => group.sources.map((source) => [source, group.label]))) as Partial<Record<Source, string>>;
+
+function releaseQualityLabel(source: Source, resolution?: string): string | undefined {
+  const quality = SOURCE_QUALITY_LABELS[source];
+  if (resolution && quality) return `${resolution} · ${quality}`;
+  return resolution ?? quality;
+}
+const SOURCE_LABELS: Record<Source, string> = {
+  Unknown: 'Unknown', PDTV: 'PDTV — Pure digital television', HDTV: 'HDTV — High-definition television', 'WEB-DL': 'WEB-DL — Web download', WEBRip: 'WEBRip — Web rip',
+  BluRay: 'Blu-ray disc', BDRip: 'BDRip — Blu-ray disc rip', BRRip: 'BRRip — Blu-ray rip', DVD: 'DVD', DVDRip: 'DVDRip — DVD rip', DSRip: 'DSRip — Digital satellite rip', TVRip: 'TVRip — Television rip',
+  CAMRip: 'CAMRip — Camera recording', TS: 'TS — Telesync', WP: 'WP — Workprint', PPVRip: 'PPVRip — Pay-per-view rip', VODRip: 'VODRip — Video-on-demand rip',
+  'HD-DVD': 'HD-DVD', LaserDisc: 'LaserDisc rip', VHS: 'VHS rip',
+};
+
+function TriStateCheckbox({ value, onChange, label }: { value: 'auto' | 'on' | 'off'; onChange: (value: 'auto' | 'on' | 'off') => void; label: string }) {
+  const next = value === 'auto' ? 'on' : value === 'on' ? 'off' : 'auto';
+  return <button type="button" className={`tri-state-checkbox ${value}`} role="checkbox" aria-checked={value === 'auto' ? 'mixed' : value === 'on'} aria-label={label} title={value === 'auto' ? 'Mixed or detected values — click to set Yes' : value === 'on' ? 'Yes — click to set No' : 'No — click to leave unchanged'} onClick={() => onChange(next)}><span>{value === 'on' ? <Check size={13}/> : value === 'auto' ? '—' : null}</span><em>{value === 'auto' ? 'Unchanged' : value === 'on' ? 'Yes' : 'No'}</em></button>;
+}
 
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -167,25 +226,64 @@ function fullSizeArtworkUrl(url: string): string {
   return url.replace(/\/t\/p\/(?:w\d+|h\d+|original)\//, '/t/p/original/');
 }
 
-function highlightedTemplate(template: string): ReactNode[] {
-  return template.split(/({{[^{}]*}})/g).filter(Boolean).map((part, index) => {
-    if (!part.startsWith('{{')) return <span key={index}>{part}</span>;
-    const marker = part.match(/^{{\s*([#\/^])/)?.[1];
-    return <span className={marker ? 'template-section' : 'template-variable'} key={index}>{part}</span>;
-  });
+const templateTokenMatcher = new MatchDecorator({ regexp: /{{[^{}]*}}/g, decoration: (match) => Decoration.mark({ class: /^{{\s*[#/^]/.test(match[0]) ? 'template-section' : 'template-variable' }) });
+const templateHighlighting = ViewPlugin.fromClass(class {
+  decorations: DecorationSet;
+  constructor(view: EditorView) { this.decorations = templateTokenMatcher.createDeco(view); }
+  update(update: { view: EditorView; docChanged: boolean; viewportChanged: boolean }) {
+    if (update.docChanged || update.viewportChanged) this.decorations = templateTokenMatcher.createDeco(update.view);
+  }
+}, { decorations: (value) => value.decorations });
+
+function selectAllClickedWord(event: MouseEvent, view: EditorView): boolean {
+  if (event.button !== 0 || event.detail !== 2 || (!event.metaKey && !event.ctrlKey)) return false;
+  const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+  if (position === null) return false;
+  const word = view.state.wordAt(position);
+  if (!word || word.empty) return false;
+  const text = view.state.sliceDoc(word.from, word.to);
+  const documentText = view.state.doc.toString();
+  const ranges = [];
+  for (let from = documentText.indexOf(text); from >= 0; from = documentText.indexOf(text, from + text.length)) ranges.push(EditorSelection.range(from, from + text.length));
+  if (ranges.length < 2) return false;
+  event.preventDefault();
+  view.dispatch({ selection: EditorSelection.create(ranges, ranges.findIndex((range) => range.from === word.from)), scrollIntoView: true });
+  view.focus();
+  return true;
 }
 
 function TemplateEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const highlight = useRef<HTMLPreElement>(null);
-  const syncScroll = (event: UIEvent<HTMLTextAreaElement>) => {
-    if (!highlight.current) return;
-    highlight.current.scrollTop = event.currentTarget.scrollTop;
-    highlight.current.scrollLeft = event.currentTarget.scrollLeft;
-  };
-  return <div className="template-editor">
-    <pre ref={highlight} aria-hidden="true">{highlightedTemplate(value)}{'\n'}</pre>
-    <textarea aria-label="Episode filename template" value={value} onChange={(event) => onChange(event.target.value)} onScroll={syncScroll} spellCheck={false}/>
-  </div>;
+  const host = useRef<HTMLDivElement>(null);
+  const editor = useRef<EditorView | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    if (!host.current) return;
+    const view = new EditorView({ parent: host.current, state: EditorState.create({ doc: value, extensions: [
+      basicSetup,
+      EditorState.allowMultipleSelections.of(true),
+      EditorView.clickAddsSelectionRange.of((event) => event.metaKey || event.ctrlKey),
+      rectangularSelection(),
+      crosshairCursor({ key: 'Alt' }),
+      Prec.high(keymap.of([
+        { key: 'Mod-d', run: selectNextOccurrence, preventDefault: true },
+        { key: 'Mod-Shift-l', run: selectSelectionMatches, preventDefault: true },
+      ])),
+      EditorView.domEventHandlers({ mousedown: selectAllClickedWord }),
+      EditorView.contentAttributes.of({ 'aria-label': 'Filename template', spellcheck: 'false' }),
+      EditorView.lineWrapping,
+      templateHighlighting,
+      EditorView.updateListener.of((update) => { if (update.docChanged) onChangeRef.current(update.state.doc.toString()); }),
+    ] }) });
+    editor.current = view;
+    return () => { editor.current = null; view.destroy(); };
+  }, []);
+  useEffect(() => {
+    const view = editor.current;
+    if (!view || view.state.doc.toString() === value) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+  }, [value]);
+  return <><div className="template-editor" ref={host}/><small className="template-multiselect-hint">Multi-edit: Cmd/Ctrl+D next · Cmd/Ctrl+Shift+L all · Alt/Option-click or drag for additional cursors</small></>;
 }
 
 function ReferenceVariables({ fields }: { fields: Array<{ label: string; fields: TemplateField[] }> }) {
@@ -269,6 +367,7 @@ export default function App() {
     return Number.isFinite(saved) && saved >= 50 && saved <= 100 ? Math.round(saved) : 80;
   });
   const [sourceOverride, setSourceOverride] = useState<Source | 'auto'>('auto');
+  const [batchReleaseOverrides, setBatchReleaseOverrides] = useState<BatchReleaseOverrides>({});
   const [releaseAliasText, setReleaseAliasText] = useState('');
   const [savedMatchDecisions, setSavedMatchDecisions] = useState<SavedMatchDecision[]>([]);
   const [savedLibraryRoots, setSavedLibraryRoots] = useState<SavedLibraryRoot[]>([]);
@@ -276,6 +375,7 @@ export default function App() {
   const [extensionPreferences, setExtensionPreferences] = useState<ExtensionPreferences>({});
   const [installedExtensions, setInstalledExtensions] = useState<InstalledExtension[]>([]);
   const [extensionOperation, setExtensionOperation] = useState(false);
+  const [extensionSecretStatuses, setExtensionSecretStatuses] = useState<Record<string, { available: boolean; saved: boolean }>>({});
   const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -284,6 +384,8 @@ export default function App() {
   const [completionChime, setCompletionChime] = useState(false);
   const [completionReport, setCompletionReport] = useState(true);
   const [completionReportAutoClose, setCompletionReportAutoClose] = useState(true);
+  const [showRenameProgressModal, setShowRenameProgressModal] = useState(true);
+  const [autoScrollRenameProgress, setAutoScrollRenameProgress] = useState(false);
   const [clearSourceJunk, setClearSourceJunk] = useState(false);
   const [createExternalRenameLog, setCreateExternalRenameLog] = useState(false);
   const [exportNfo, setExportNfo] = useState(false);
@@ -310,6 +412,7 @@ export default function App() {
   const [renameConfirmationOpen, setRenameConfirmationOpen] = useState(false);
   const [undoConfirmationOpen, setUndoConfirmationOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [failedRenameGroupIndex, setFailedRenameGroupIndex] = useState<number>();
   const [undoing, setUndoing] = useState(false);
   const [lastRename, setLastRename] = useState<RenameOperationRecord>();
   const [renameReport, setRenameReport] = useState<RenameReport>();
@@ -422,6 +525,7 @@ export default function App() {
   const episodeElements = useRef(new Map<string, HTMLElement>());
   const removalTimers = useRef<Record<string, number>>({});
   const recoveredRename = useRef(false);
+  const renameProgressRef = useRef<WorkProgress | undefined>(undefined);
   const fileDropDepth = useRef(0);
   const alternateShowRoots = alternateLibraryRoots(savedLibraryRoots, 'shows', tvBaseFolder);
   const alternateMovieRoots = alternateLibraryRoots(savedLibraryRoots, 'movies', movieBaseFolder);
@@ -496,6 +600,17 @@ export default function App() {
   useEffect(() => {
     void refreshExtensions();
   }, [refreshExtensions]);
+
+  useEffect(() => {
+    let active = true;
+    const secrets = installedExtensions.flatMap((extension) => extension.settings.filter((setting) => setting.type === 'secret').map((setting) => ({ extensionId: extension.id, key: setting.key })));
+    void Promise.all(secrets.map(async ({ extensionId, key }) => [`${extensionId}:${key}`, await window.mediaRenamer?.extensionSecretStatus(extensionId, key)] as const)).then((entries) => {
+      const statuses: Record<string, { available: boolean; saved: boolean }> = {};
+      for (const [key, status] of entries) if (status) statuses[key] = status;
+      if (active) setExtensionSecretStatuses(statuses);
+    }).catch((reason) => addDebug('warning', 'Could not inspect extension credentials', errorMessage(reason)));
+    return () => { active = false; };
+  }, [addDebug, installedExtensions]);
 
   const inspectMedia = useCallback(async (targets: string[]) => {
     if (!window.mediaRenamer?.probeMedia || !targets.length) return;
@@ -598,6 +713,38 @@ export default function App() {
   const movieFormatError = movieTemplateError(movieTemplate);
   const parsedReleaseAliases = useMemo(() => parseReleaseAliasText(releaseAliasText), [releaseAliasText]);
   const releaseAliases = useMemo(() => parsedReleaseAliases.errors.length ? [] : parsedReleaseAliases.aliases, [parsedReleaseAliases]);
+  const batchReleaseValues = useMemo(() => Object.fromEntries(BATCH_RELEASE_FIELDS.map(({ key }) => {
+    const values = paths.map((path) => {
+      const detected = { ...parseReleaseTags(path, releaseAliases), ...technicalTags[path] };
+      const saved = metadataOverrides[path];
+      if (!saved) return key === 'flags' ? detected.flags.join(', ') : detected[key] ?? '';
+      const savedValue = key === 'flags' ? saved.flags : saved[key];
+      return savedValue ?? '';
+    });
+    const unique = [...new Set(values)];
+    return [key, { common: unique.length === 1 ? unique[0] : undefined, mixed: unique.length > 1 }];
+  })) as Record<BatchReleaseField, { common?: string; mixed: boolean }>, [metadataOverrides, paths, releaseAliases, technicalTags]);
+  const batchIdentityValues = useMemo(() => {
+    const rows = paths.map((path) => {
+      const override = metadataOverrides[path];
+      const movie = movieMatches[path]?.movie;
+      const matched = matchesByPath.get(path)?.match;
+      const effectiveEpisodes = override?.episodes.length ? override.episodes : matched ? candidateEpisodes(matched) : [];
+      return {
+        name: override?.name.trim() || (activeMediaTab === 'movies' ? movie?.name : show?.name),
+        year: override ? optionalMetadataNumber(override.year) : activeMediaTab === 'movies' ? movie?.year : show?.year,
+        providerId: override?.providerId.trim() || (activeMediaTab === 'movies' ? movie?.id : show?.tvdbId),
+        season: effectiveEpisodes.map((episode) => episode.season).join(', '),
+        number: effectiveEpisodes.map((episode) => episode.number).join(', '),
+        title: effectiveEpisodes.map((episode) => episode.title).join(' / '),
+      };
+    });
+    return {
+      name: summarizeBatchValues(rows.map((row) => row.name)), year: summarizeBatchValues(rows.map((row) => row.year)), providerId: summarizeBatchValues(rows.map((row) => row.providerId)),
+      season: summarizeBatchValues(rows.map((row) => row.season)), number: summarizeBatchValues(rows.map((row) => row.number)), title: summarizeBatchValues(rows.map((row) => row.title)),
+    };
+  }, [activeMediaTab, matchesByPath, metadataOverrides, movieMatches, paths, show]);
+  const batchMetadataActive = sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' || Object.keys(batchReleaseOverrides).length > 0;
   const deferredMoviePaths = useMemo(() => new Set(paths.filter((path) => !forcedMoviePaths.has(path) && classifyMediaFile(path) === 'shows')), [forcedMoviePaths, paths]);
   const movieVideoRoles = useMemo(() => classifyMovieVideoRoles(paths), [paths]);
   const movieMatchCounts = useMemo(() => ({
@@ -607,7 +754,7 @@ export default function App() {
     detecting: paths.filter((path) => !deferredMoviePaths.has(path) && (!movieMatches[path] || movieMatches[path]?.status === 'detecting')).length,
     deferred: deferredMoviePaths.size,
   }), [deferredMoviePaths, movieMatches, paths]);
-  const exampleTags = applyReleaseOverrides({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, {
+  const exampleTags = applyReleaseOverrides(applyBatchReleaseMetadata({ source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', flags: [] }, batchReleaseOverrides), {
     source: sourceOverride === 'auto' ? undefined : sourceOverride,
     aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
   });
@@ -618,6 +765,19 @@ export default function App() {
   const singleEpisodeFormatExample = formatError ? undefined : formatEpisode(episodeTemplate, 'Star Trek: The Next Generation', 1987, exampleEpisodes[0], exampleTags, '71470');
   const multiEpisodeFormatExample = formatError ? undefined : formatEpisode(episodeTemplate, 'Star Trek: The Next Generation', 1987, exampleEpisodes, exampleTags, '71470');
   const movieFormatExample = movieFormatError ? undefined : formatMovie(movieTemplate, 'Blade Runner: 2049', 2017, exampleTags, '335984');
+  const batchExampleTags = applyReleaseOverrides(applyBatchReleaseMetadata({
+    source: 'Unknown',
+    resolution: batchReleaseValues.resolution.common || (batchReleaseValues.resolution.mixed ? 'Various resolutions' : undefined),
+    videoCodec: batchReleaseValues.videoCodec.common || (batchReleaseValues.videoCodec.mixed ? 'Various codecs' : undefined),
+    audioCodec: batchReleaseValues.audioCodec.common || (batchReleaseValues.audioCodec.mixed ? 'Various audio codecs' : undefined),
+    channels: batchReleaseValues.channels.common || (batchReleaseValues.channels.mixed ? 'Various channels' : undefined),
+    edition: batchReleaseValues.edition.common || (batchReleaseValues.edition.mixed ? 'Various editions' : undefined),
+    webOrigin: batchReleaseValues.webOrigin.common, webOriginShort: batchReleaseValues.webOriginShort.common, group: batchReleaseValues.group.common,
+    flags: batchReleaseValues.flags.common?.split(',').map((flag) => flag.trim()).filter(Boolean) ?? (batchReleaseValues.flags.mixed ? ['Various flags'] : []),
+  }, batchReleaseOverrides), { source: sourceOverride === 'auto' ? undefined : sourceOverride, aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on' });
+  const batchFilenameExample = activeMediaTab === 'movies'
+    ? movieFormatError ? undefined : formatMovie(movieTemplate, batchIdentityValues.name.common || 'Various movies', batchIdentityValues.year.common ? Number(batchIdentityValues.year.common) : undefined, batchExampleTags, batchIdentityValues.providerId.common || 'multiple')
+    : formatError ? undefined : formatEpisode(episodeTemplate, batchIdentityValues.name.common || 'Various shows', batchIdentityValues.year.common ? Number(batchIdentityValues.year.common) : undefined, { id: 'batch-example', season: batchIdentityValues.season.common ? Number(batchIdentityValues.season.common) : 0, number: batchIdentityValues.number.common ? Number(batchIdentityValues.number.common) : 1, title: batchIdentityValues.title.common || 'Various episode titles' }, batchExampleTags, batchIdentityValues.providerId.common || 'multiple');
   const inspectingAny = paths.some((path) => probeStates[path] === 'loading');
   const ambiguousCompanionsByVideo = useMemo(() => {
     const result = new Map<string, string[]>();
@@ -658,10 +818,10 @@ export default function App() {
         webOrigin: metadataOverride.webOrigin.trim() || undefined,
         webOriginShort: metadataOverride.webOriginShort.trim() || undefined,
         group: metadataOverride.group.trim() || undefined,
-        flags: metadataOverride.flags.split(',').map((flag) => flag.trim()).filter(Boolean),
+        flags: [...metadataOverride.flags.split(',').map((flag) => flag.trim()).filter((flag) => Boolean(flag) && flag !== 'AI Upscale'), ...(metadataOverride.aiUpscale ? ['AI Upscale'] : [])],
       } : {}),
     } : undefined;
-    const tags = baseTags ? applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
+    const tags = baseTags ? applyReleaseOverrides(applyBatchReleaseMetadata({ ...baseTags, ...technicalTags[path] }, batchReleaseOverrides), {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     }) : undefined;
@@ -714,7 +874,7 @@ export default function App() {
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, filenameOverrides, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, batchReleaseOverrides, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, filenameOverrides, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -753,6 +913,19 @@ export default function App() {
     if (!item.targetPath || issues.some((issue) => issue.severity === 'error' || issue.code === 'no-change')) return [];
     return [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }];
   }), [preflightPlan]);
+  const renameGroupIndexByPath = useMemo(() => new Map(executableGroups.flatMap((group, index) => group.items[0]?.sourcePath ? [[group.items[0].sourcePath, index] as const] : [])), [executableGroups]);
+  useEffect(() => {
+    if (!autoScrollRenameProgress || !renaming || work?.operation !== 'Renaming' || work.groupIndex === undefined) return;
+    const activePath = executableGroups[work.groupIndex]?.items[0]?.sourcePath;
+    const activeRow = activePath ? matchRowElements.current.get(activePath) : undefined;
+    if (!activeRow) return;
+    const frame = window.requestAnimationFrame(() => activeRow.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoScrollRenameProgress, executableGroups, renaming, work?.groupIndex, work?.operation]);
   const generatedSidecars = useMemo<PlexGeneratedAsset[]>(() => {
     if (!exportNfo && !exportPlexArtwork) return [];
     const assets: PlexGeneratedAsset[] = [];
@@ -923,6 +1096,8 @@ export default function App() {
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
       if (saved.completionReportAutoClose !== undefined) setCompletionReportAutoClose(saved.completionReportAutoClose);
+      if (saved.showRenameProgressModal !== undefined) setShowRenameProgressModal(saved.showRenameProgressModal);
+      if (saved.autoScrollRenameProgress !== undefined) setAutoScrollRenameProgress(saved.autoScrollRenameProgress);
       if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
       if (saved.createExternalRenameLog !== undefined) setCreateExternalRenameLog(saved.createExternalRenameLog);
       if (saved.developerMode !== undefined) setDeveloperMode(saved.developerMode);
@@ -995,6 +1170,8 @@ export default function App() {
       completionChime,
       completionReport,
       completionReportAutoClose,
+      showRenameProgressModal,
+      autoScrollRenameProgress,
       clearSourceJunk,
       createExternalRenameLog,
       developerMode,
@@ -1018,7 +1195,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, autoScrollRenameProgress, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showRenameProgressModal, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     void window.mediaRenamer?.getAppVersion().then((version) => {
@@ -1138,7 +1315,11 @@ export default function App() {
     return () => { active = false; };
   }, [addDebug, preflightAttempt, renameGroups]);
 
-  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => setWork({ operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total, groupCompleted: progress.groupCompleted, groupTotal: progress.groupTotal, groupIndex: progress.groupIndex, groupsTotal: progress.groupsTotal })), []);
+  useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => {
+    const next: WorkProgress = { operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total, groupCompleted: progress.groupCompleted, groupTotal: progress.groupTotal, groupIndex: progress.groupIndex, groupsTotal: progress.groupsTotal };
+    renameProgressRef.current = next;
+    setWork(next);
+  }), []);
 
   useEffect(() => {
     let active = true;
@@ -1150,8 +1331,10 @@ export default function App() {
       setRenameControl(status.control);
       setRenameStartedAt(status.startedAt);
       setRenameClock(Date.now());
-      setWork({ operation: status.progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: status.progress.completed, total: status.progress.total, groupCompleted: status.progress.groupCompleted, groupTotal: status.progress.groupTotal, groupIndex: status.progress.groupIndex, groupsTotal: status.progress.groupsTotal });
-      setRenameConfirmationOpen(true);
+      const next: WorkProgress = { operation: status.progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: status.progress.completed, total: status.progress.total, groupCompleted: status.progress.groupCompleted, groupTotal: status.progress.groupTotal, groupIndex: status.progress.groupIndex, groupsTotal: status.progress.groupsTotal };
+      renameProgressRef.current = next;
+      setWork(next);
+      setRenameConfirmationOpen(showRenameProgressModal);
     }).catch((reason) => { if (active) addDebug('warning', 'Could not recover active rename progress', errorMessage(reason)); });
     const unsubscribe = window.mediaRenamer?.onRenameFinished?.((finished) => {
       if (!recoveredRename.current) return;
@@ -1167,7 +1350,7 @@ export default function App() {
       } else if (finished.error) setError(finished.error);
     });
     return () => { active = false; unsubscribe?.(); };
-  }, [addDebug, completionReport]);
+  }, [addDebug, completionReport, showRenameProgressModal]);
 
   useEffect(() => {
     if (!renaming || renameStartedAt === undefined) return;
@@ -1769,6 +1952,43 @@ export default function App() {
     }
   }
 
+  async function saveExtensionSecret(extensionId: string, settingKey: string, label: string) {
+    const value = window.prompt(`Enter ${label}. It will be stored using the operating system's encrypted credential storage.`)?.trim();
+    if (!value || !window.mediaRenamer?.setExtensionSecret) return;
+    try {
+      await window.mediaRenamer.setExtensionSecret(extensionId, settingKey, value);
+      setExtensionSecretStatuses((current) => ({ ...current, [`${extensionId}:${settingKey}`]: { available: true, saved: true } }));
+      addDebug('success', `${label} saved securely`);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', `Could not save ${label}`, message);
+    }
+  }
+
+  async function deleteExtensionSecret(extensionId: string, settingKey: string, label: string) {
+    try {
+      await window.mediaRenamer?.deleteExtensionSecret(extensionId, settingKey);
+      setExtensionSecretStatuses((current) => ({ ...current, [`${extensionId}:${settingKey}`]: { available: true, saved: false } }));
+      addDebug('info', `${label} removed`);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', `Could not remove ${label}`, message);
+    }
+  }
+
+  async function publishExtensionStatistics() {
+    try {
+      const count = await window.mediaRenamer?.publishExtensionStatistics() ?? 0;
+      addDebug('success', `Published statistics to ${count} extension adapter${count === 1 ? '' : 's'}`);
+    } catch (reason) {
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Could not publish extension statistics', message);
+    }
+  }
+
   async function addExtension() {
     if (!window.mediaRenamer?.installExtension) return;
     setExtensionOperation(true);
@@ -1869,11 +2089,15 @@ export default function App() {
     const preparedChime = completionChime ? prepareCompletionChime(palette) : undefined;
     const preparedErrorChime = completionChime ? prepareErrorChime(palette) : undefined;
     setRenaming(true);
+    setFailedRenameGroupIndex(undefined);
     setRenameControl(undefined);
     setRenameStartedAt(Date.now());
     setRenameClock(Date.now());
     setError(undefined);
-    setWork({ operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length, groupCompleted: 0, groupTotal: executableGroups[0]?.items.length, groupIndex: 0, groupsTotal: executableGroups.length });
+    const initialProgress: WorkProgress = { operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length, groupCompleted: 0, groupTotal: executableGroups[0]?.items.length, groupIndex: 0, groupsTotal: executableGroups.length };
+    renameProgressRef.current = initialProgress;
+    setWork(initialProgress);
+    if (!showRenameProgressModal) setRenameConfirmationOpen(false);
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
       const stagedSidecars = generatedSidecars.length && window.mediaRenamer.stageGeneratedSidecars
@@ -1895,7 +2119,11 @@ export default function App() {
         return totals;
       }, []);
       const firstGroupTotal = progressGroupTotals[0];
-      if (firstGroupTotal) setWork({ operation: 'Renaming', completed: 0, total: executionGroups.reduce((total, group) => total + group.items.length, 0), groupCompleted: 0, groupTotal: firstGroupTotal, groupIndex: 0, groupsTotal: progressGroupTotals.filter(Boolean).length });
+      if (firstGroupTotal) {
+        const progress: WorkProgress = { operation: 'Renaming', completed: 0, total: executionGroups.reduce((total, group) => total + group.items.length, 0), groupCompleted: 0, groupTotal: firstGroupTotal, groupIndex: 0, groupsTotal: progressGroupTotals.filter(Boolean).length };
+        renameProgressRef.current = progress;
+        setWork(progress);
+      }
       const preferredLogDirectory = renameLogFolder || (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) || undefined;
       const result = await window.mediaRenamer.executeRenamePlan(executionGroups, {
         clearSourceJunk: moveFiles && clearSourceJunk,
@@ -1930,6 +2158,7 @@ export default function App() {
       }
       setRenameConfirmationOpen(false);
     } catch (reason) {
+      setFailedRenameGroupIndex(renameProgressRef.current?.groupIndex);
       preparedChime?.dispose();
       preparedErrorChime?.play();
       const message = errorMessage(reason);
@@ -1940,6 +2169,7 @@ export default function App() {
       setRenameControl(undefined);
       setRenameStartedAt(undefined);
       setWork(undefined);
+      renameProgressRef.current = undefined;
     }
   }
 
@@ -2034,8 +2264,11 @@ export default function App() {
     setFilesystemIssues([]);
     setSourceOverride('auto');
     setAiUpscaleOverride('auto');
+    setBatchReleaseOverrides({});
     setMoveFiles(true);
     setWork(undefined);
+    renameProgressRef.current = undefined;
+    setFailedRenameGroupIndex(undefined);
     setBatchMetadataOpen(false);
     setReviewingPath(undefined);
     setPinnedPreviewPath(undefined);
@@ -2107,7 +2340,7 @@ export default function App() {
   function openMetadataEditor(path: string) {
     const saved = metadataOverrides[path];
     if (saved) {
-      setMetadataDraft(structuredClone(saved));
+      setMetadataDraft({ ...structuredClone(saved), aiUpscale: saved.aiUpscale ?? saved.flags.split(',').map((flag) => flag.trim()).includes('AI Upscale') });
       setEditingMetadataPath(path);
       return;
     }
@@ -2115,7 +2348,7 @@ export default function App() {
     const movie = movieMatches[path]?.movie;
     const matchedEpisodes = item?.match ? candidateEpisodes(item.match) : [];
     if (activeMediaTab === 'movies' ? !movie : !show || !matchedEpisodes.length) return;
-    const tags = applyReleaseOverrides({ ...parseReleaseTags(path, releaseAliases), ...technicalTags[path] }, {
+    const tags = applyReleaseOverrides(applyBatchReleaseMetadata({ ...parseReleaseTags(path, releaseAliases), ...technicalTags[path] }, batchReleaseOverrides), {
       source: sourceOverride === 'auto' ? undefined : sourceOverride,
       aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
     });
@@ -2128,6 +2361,7 @@ export default function App() {
       edition: edition ?? '',
       resolution: tags.resolution ?? '',
       source: tags.source,
+      aiUpscale: tags.flags.includes('AI Upscale'),
       videoCodec: tags.videoCodec ?? '',
       audioCodec: tags.audioCodec ?? '',
       channels: tags.channels ?? '',
@@ -2267,7 +2501,7 @@ export default function App() {
       webOrigin: metadataDraft.webOrigin.trim() || undefined,
       webOriginShort: metadataDraft.webOriginShort.trim() || undefined,
       group: metadataDraft.group.trim() || undefined,
-      flags: metadataDraft.flags.split(',').map((flag) => flag.trim()).filter(Boolean),
+      flags: [...metadataDraft.flags.split(',').map((flag) => flag.trim()).filter((flag) => Boolean(flag) && flag !== 'AI Upscale'), ...(metadataDraft.aiUpscale ? ['AI Upscale'] : [])],
     };
     if (activeMediaTab === 'movies') return movieFormatError ? undefined : formatMovieFilename(movieTemplate, metadataDraft.name.trim(), optionalMetadataNumber(metadataDraft.year), draftTags, extension, metadataDraft.providerId.trim() || undefined);
     const draftEpisodes = metadataDraft.episodes.map((episode) => ({ id: episode.id, season: Number(episode.season), number: Number(episode.number), title: episode.title.trim() }));
@@ -2296,6 +2530,9 @@ export default function App() {
     const timeout = window.setTimeout(() => setGroupProgressVisible(false), GROUP_PROGRESS_COMPLETION_HOLD_MS);
     return () => window.clearTimeout(timeout);
   }, [groupCompleted, groupTotal, work?.operation]);
+  useEffect(() => {
+    if (renaming && !showRenameProgressModal) setRenameConfirmationOpen(false);
+  }, [renaming, showRenameProgressModal]);
   const renameElapsed = renameStartedAt === undefined ? 0 : Math.max(0, renameClock - renameStartedAt);
   const estimatedRenameTotal = renameCompleted > 0 && work?.operation !== 'Undoing' ? (renameElapsed / renameCompleted) * renameTotal : undefined;
   const estimatedRenameRemaining = estimatedRenameTotal === undefined ? undefined : Math.max(0, estimatedRenameTotal - renameElapsed);
@@ -2374,19 +2611,10 @@ export default function App() {
           <section className={`match-panel panel ${fileDropActive ? 'drop-active' : ''}`} onDragEnter={enterFileDropTarget} onDragOver={(event) => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragLeave={leaveFileDropTarget} onDrop={dropFilesOnPanel}>
             <div className="panel-heading main-heading">
               <div><p className="eyebrow">{t('panel.matchReview')}</p><h2>{t('panel.importedFiles', { count: paths.length })}</h2></div>
-              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{t(moveFiles ? 'panel.moveFiles' : 'panel.inPlace')}</button><button className={`secondary ${sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto' ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> {t('panel.batchMetadata')}{(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length} onClick={saveCurrentQueue}><ListChecks size={15}/> Save queue</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> {t('panel.refreshMedia')}</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => batchRenameCompleted ? clearBatch() : setClearConfirmation(true)}><Trash2 size={15}/> {t('panel.clearAll')}</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> {t('panel.addFiles')}</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> {t('panel.addFolder')}</button></div>
+              <div className="add-actions"><button className={`secondary ${moveFiles ? 'active' : ''}`} aria-pressed={moveFiles} title={moveFiles ? (activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder) ? `Move renamed files into ${activeMediaTab === 'movies' ? movieBaseFolder : tvBaseFolder}` : `Create the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder beside each source file` : 'Rename files in their current folders'} onClick={() => setMoveFiles((enabled) => !enabled)}><FolderTree size={15}/>{t(moveFiles ? 'panel.moveFiles' : 'panel.inPlace')}</button><button className={`secondary ${batchMetadataActive ? 'active' : ''}`} aria-expanded={batchMetadataOpen} onClick={() => setBatchMetadataOpen((open) => !open)}><SlidersHorizontal size={15}/> {t('panel.batchMetadata')}{batchMetadataActive && <span className="active-indicator"/>}</button><button className="secondary" disabled={!paths.length} onClick={saveCurrentQueue}><ListChecks size={15}/> Save queue</button><button className="secondary" disabled={!paths.length || inspectingAny} onClick={() => setRefreshConfirmation(true)}><RefreshCw size={15}/> {t('panel.refreshMedia')}</button><button className="secondary clear-batch" disabled={!paths.length} onClick={() => batchRenameCompleted ? clearBatch() : setClearConfirmation(true)}><Trash2 size={15}/> {t('panel.clearAll')}</button><button className="secondary" onClick={addFiles}><FolderOpen size={16}/> {t('panel.addFiles')}</button><button className="secondary" onClick={addFolders}><FolderPlus size={16}/> {t('panel.addFolder')}</button></div>
             </div>
-            {batchMetadataOpen && <><button className="batch-popover-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/><aside className="batch-popover" aria-label="Batch metadata">
-              <div className="batch-popover-heading"><span><strong>Batch metadata</strong><small>Applies only to the current imported files</small></span><button aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={15}/></button></div>
-              <p>Auto keeps filename and parent-folder evidence. Use an override when the source material does not identify itself.</p>
-              <div className="metadata-overrides">
-                <label><span><strong>Source</strong><small>For example, an otherwise unidentified DVD encode.</small></span><select value={sourceOverride} onChange={(event) => setSourceOverride(event.target.value as Source | 'auto')}><option value="auto">Auto detect</option>{SOURCE_OPTIONS.map((source) => <option value={source} key={source}>{source}</option>)}</select></label>
-                <label><span><strong>AI Upscale</strong><small>Auto checks filenames and every parent folder.</small></span><select value={aiUpscaleOverride} onChange={(event) => setAiUpscaleOverride(event.target.value as 'auto' | 'on' | 'off')}><option value="auto">Auto detect</option><option value="on">Yes</option><option value="off">No</option></select></label>
-              </div>
-              {(sourceOverride !== 'auto' || aiUpscaleOverride !== 'auto') && <button className="clear-overrides" onClick={() => { setSourceOverride('auto'); setAiUpscaleOverride('auto'); }}>Clear overrides</button>}
-            </aside></>}
             <div className={`panel-status-stack ${work || paths.length > 0 ? 'has-status' : ''}`}>
-              <AnimatedPresence show={Boolean(work)} className="status-presence"><div className={`work-status ${renaming ? 'recoverable' : ''}`}>
+              <AnimatedPresence show={Boolean(work)} className="status-presence work-status-presence"><div className={`work-status ${renaming ? 'recoverable' : ''}`}>
                   <LoaderCircle className="spin" size={18}/>
                   <span role={work ? 'status' : undefined} aria-live={work ? 'polite' : undefined}><strong>{work?.operation === 'Scanning' || !work ? 'Scanning folders' : work.operation === 'Renaming' && work.groupsTotal ? `Sorting ${activeMediaTab === 'movies' ? 'movies' : 'episodes'}` : `${work.operation} files`}</strong><small>{work?.operation === 'Renaming' && work.groupsTotal && work.groupIndex !== undefined ? `${Math.max(0, work.groupsTotal - work.groupIndex - ((work.groupCompleted ?? 0) >= (work.groupTotal ?? 1) ? 1 : 0))} of ${work.groupsTotal} ${activeMediaTab === 'movies' ? 'movies' : 'episodes'} remaining · ${Math.max(0, Math.ceil((work.groupTotal ?? 0) - (work.groupCompleted ?? 0)))} files in current` : work?.total ? `${Math.ceil(work.total - work.completed)} of ${work.total} remaining` : 'Discovering video files…'}</small></span>
                   {renaming && <button className="secondary resume-progress" onClick={() => setRenameConfirmationOpen(true)}>View progress</button>}
@@ -2412,7 +2640,7 @@ export default function App() {
                 const deferredToTv = activeMediaTab === 'movies' && deferredMoviePaths.has(path);
                 const filename = item?.filename ?? filenameFromPath(path);
                 const baseTags = parseReleaseTags(path, releaseAliases);
-                const tags = applyReleaseOverrides({ ...baseTags, ...technicalTags[path] }, {
+                const tags = applyReleaseOverrides(applyBatchReleaseMetadata({ ...baseTags, ...technicalTags[path] }, batchReleaseOverrides), {
                   source: sourceOverride === 'auto' ? undefined : sourceOverride,
                   aiUpscale: aiUpscaleOverride === 'auto' ? undefined : aiUpscaleOverride === 'on',
                 });
@@ -2428,7 +2656,7 @@ export default function App() {
                 const confirmed = confirmedPaths.has(path);
                 const movieVideoRole = movieVideoRoles[path];
                 const roleTag = movieVideoRole?.kind === 'multipart' ? `Part ${movieVideoRole.part}` : movieVideoRole?.kind === 'extra' ? movieVideoRole.extraType === 'behindthescenes' ? 'Behind the scenes' : movieVideoRole.extraType[0].toUpperCase() + movieVideoRole.extraType.slice(1) : movieVideoRole?.kind === 'sample' ? 'Sample' : undefined;
-                const detailTags = tags ? [roleTag, tags.edition ? `Edition: ${tags.edition}` : undefined, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
+                const detailTags = tags ? [roleTag, tags.edition ? `Edition: ${tags.edition}` : undefined, releaseQualityLabel(tags.source, tags.resolution), tags.source !== 'Unknown' ? tags.source : undefined, tags.webOrigin, tags.videoCodec, tags.audioCodec, tags.channels, tags.audioLanguages?.length ? `Audio: ${tags.audioLanguages.map((language) => language.name).join(', ')}` : undefined, ...tags.flags, tags.group].filter(Boolean) : [];
                 const extensionTitle = activeMediaTab === 'movies' ? movieFileMatch?.movie : show;
                 const extensionContext: ExtensionMediaContext | undefined = extensionTitle ? {
                   kind: activeMediaTab === 'movies' ? 'movie' : 'show',
@@ -2462,6 +2690,13 @@ export default function App() {
                 const movieReviewRequired = activeMediaTab === 'movies' && !deferredToTv && movieFileMatch?.status !== 'confident';
                 const confirmationHeld = heldConfirmationPaths.has(path);
                 const keepReviewActionsFixed = matchingRequired || confirmationHeld;
+                const renameGroupIndex = renameGroupIndexByPath.get(path);
+                const activeRenameGroupIndex = work?.operation === 'Renaming' ? work.groupIndex : undefined;
+                const renameRowState = renameGroupIndex === undefined ? undefined
+                  : failedRenameGroupIndex === renameGroupIndex ? 'failed'
+                    : renaming && activeRenameGroupIndex !== undefined ? renameGroupIndex < activeRenameGroupIndex ? 'moved' : renameGroupIndex === activeRenameGroupIndex ? 'moving' : 'pending'
+                      : undefined;
+                const renameRowPercent = renameRowState === 'moved' ? 100 : renameRowState === 'moving' ? groupPercent : 0;
                 return <div className={`match-row-slot ${removing ? 'removing' : ''}`} key={path}><div className="match-row-collapse"><article ref={(element) => { if (element) matchRowElements.current.set(path, element); else matchRowElements.current.delete(path); }} tabIndex={blockingIssue ? -1 : undefined} className={`match-row ${activeMediaTab === 'movies' ? 'movie-batch-row' : ''} ${blockingIssue ? 'plan-blocked' : unchanged ? 'plan-unchanged' : ''} ${linkedPaths.has(path) ? 'linked-highlight' : ''} ${previewPinned ? 'preview-pinned' : ''} ${removing ? 'removing' : ''}`} onPointerLeave={() => {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
@@ -2488,7 +2723,10 @@ export default function App() {
                       {previewPinned && <button aria-label="Close filename preview" title="Close preview" onClick={(event) => { event.stopPropagation(); setPinnedPreviewPath(undefined); }}><X size={13}/></button>}
                     </div></AnimatedPresence>
                   </div>
-                  <div className="row-trailing">
+                  {renameRowState ? <div className={`row-operation-progress ${renameRowState}`} role="status" aria-label={`${filename}: ${renameRowState}`}>
+                    <span><strong>{renameRowState === 'moving' ? moveFiles ? 'Moving' : 'Renaming' : renameRowState[0].toUpperCase() + renameRowState.slice(1)}</strong><small>{renameRowPercent}%</small></span>
+                    <SmoothProgress value={renameRowPercent} max={100} label={`${filename} ${renameRowState} progress`} indeterminate={renameRowState === 'moving' && renameRowPercent === 0}/>
+                  </div> : <div className="row-trailing">
                     <div className="score"><strong>{blockingIssue ? '!' : unchanged ? '—' : deferredToTv ? 'TV' : item ? `${Math.round((item.match?.score ?? 0) * 100)}%` : '—'}</strong><small>{inspecting ? 'inspecting' : blockingIssue ? 'blocked' : unchanged ? 'unchanged' : deferredToTv ? 'deferred' : activeMediaTab === 'movies' ? movieFileMatch?.status ?? 'detecting' : confirmed ? 'confirmed' : status}</small></div>
                     <div className={`row-extras with-edit ${(activeMediaTab === 'movies' || !keepReviewActionsFixed) ? 'with-review' : ''}`}>
                       <button className="row-refresh" aria-label={`Refresh media information for ${filename}`} title="Refresh media information" disabled={inspecting} onClick={() => void inspectMedia([path])}><RefreshCw className={inspecting ? 'spin' : ''} size={14}/></button>
@@ -2500,7 +2738,7 @@ export default function App() {
                     </div>
                     {(matchingRequired && item?.match) || movieConfirmationRequired ? <button className="row-confirm" aria-label={`Confirm suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
                     {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
-                  </div>
+                  </div>}
                 </article></div></div>;
               })}
               <AnimatedPresence show={activeMediaTab === 'movies' && visiblePaths.length === 0}><div className="filtered-empty"><Search size={18}/><strong>No movies in this view</strong><span>Choose another filter to see the rest of the batch.</span></div></AnimatedPresence>
@@ -2535,7 +2773,8 @@ export default function App() {
             <section><h3>Release metadata</h3><div className="metadata-field-grid release-fields">
               <label className="wide"><span>Edition</span><input placeholder="Optional" value={metadataDraft.edition} onChange={(event) => setMetadataDraft({ ...metadataDraft, edition: event.target.value })}/></label>
               <label><span>Resolution</span><input placeholder="1080p" value={metadataDraft.resolution} onChange={(event) => setMetadataDraft({ ...metadataDraft, resolution: event.target.value })}/></label>
-              <label><span>Source</span><select value={metadataDraft.source} onChange={(event) => setMetadataDraft({ ...metadataDraft, source: event.target.value as Source })}><option value="Unknown">Unknown</option>{SOURCE_OPTIONS.map((source) => <option value={source} key={source}>{source}</option>)}</select></label>
+              <label><span>Source</span><select value={metadataDraft.source} onChange={(event) => setMetadataDraft({ ...metadataDraft, source: event.target.value as Source })}><option value="Unknown">{SOURCE_LABELS.Unknown}</option>{SOURCE_GROUPS.map((group) => <optgroup label={group.label} key={group.label}>{group.sources.map((source) => <option value={source} key={source}>{SOURCE_LABELS[source]}</option>)}</optgroup>)}</select></label>
+              <label><span>AI Upscale</span><span className="boolean-field"><input type="checkbox" checked={metadataDraft.aiUpscale} onChange={(event) => setMetadataDraft({ ...metadataDraft, aiUpscale: event.target.checked })}/><span>{metadataDraft.aiUpscale ? 'Yes' : 'No'}</span></span></label>
               <label><span>Video codec</span><input placeholder="H.264" value={metadataDraft.videoCodec} onChange={(event) => setMetadataDraft({ ...metadataDraft, videoCodec: event.target.value })}/></label>
               <label><span>Audio codec</span><input placeholder="AAC" value={metadataDraft.audioCodec} onChange={(event) => setMetadataDraft({ ...metadataDraft, audioCodec: event.target.value })}/></label>
               <label><span>Channels</span><input placeholder="2.0" value={metadataDraft.channels} onChange={(event) => setMetadataDraft({ ...metadataDraft, channels: event.target.value })}/></label>
@@ -2547,6 +2786,23 @@ export default function App() {
             <section className={`metadata-live-preview ${metadataDraftError ? 'invalid' : ''}`}><h3>Filename preview</h3><code>{metadataDraftError ?? metadataDraftPreview ?? 'The active filename template is invalid.'}</code></section>
           </div>
           <div className="metadata-editor-actions">{metadataOverrides[editingMetadataPath] && <button type="button" className="secondary" onClick={() => { setMetadataOverrides((current) => Object.fromEntries(Object.entries(current).filter(([path]) => path !== editingMetadataPath))); setEditingMetadataPath(undefined); setMetadataDraft(undefined); }}>Reset to detected</button>}<span/><button type="button" className="secondary" onClick={() => { setEditingMetadataPath(undefined); setMetadataDraft(undefined); }}>Cancel</button><button className="primary" disabled={Boolean(metadataDraftError)}><FilePenLine size={15}/> Save metadata</button></div>
+        </form>
+      </div>}
+
+      {batchMetadataOpen && <div className="confirmation-layer metadata-editor-layer" role="presentation">
+        <button className="confirmation-backdrop" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}/>
+        <form className="metadata-editor-dialog batch-metadata-dialog" role="dialog" aria-modal="true" aria-labelledby="batch-metadata-title" onSubmit={(event) => { event.preventDefault(); setBatchMetadataOpen(false); }}>
+          <div className="metadata-editor-heading"><div><p className="eyebrow">BATCH METADATA</p><h2 id="batch-metadata-title">{paths.length} imported {activeMediaTab === 'movies' ? `movie${paths.length === 1 ? '' : 's'}` : `episode${paths.length === 1 ? '' : 's'}`}</h2></div><button type="button" className="icon-button" aria-label="Close batch metadata" onClick={() => setBatchMetadataOpen(false)}><X size={18}/></button></div>
+          <div className="metadata-editor-body">
+            <section className="batch-readonly-section"><h3>{activeMediaTab === 'movies' ? 'Movie' : 'Show'}</h3><div className="metadata-field-grid"><label className="wide"><span>Title</span><input disabled value={batchIdentityValues.name.common || (activeMediaTab === 'movies' ? 'Various movies' : 'Various shows')}/></label><label><span>Year</span><input disabled value={batchIdentityValues.year.common || 'Various years'}/></label><label><span>{activeMediaTab === 'movies' ? 'TMDB ID' : 'TVDB ID'}</span><input disabled value={batchIdentityValues.providerId.common || `Various ${activeMediaTab === 'movies' ? 'TMDB' : 'TVDB'} IDs`}/></label></div></section>
+            {activeMediaTab === 'shows' && <section className="batch-readonly-section"><h3>Episode metadata</h3><div className="metadata-episodes"><div className="metadata-episode"><strong>Batch</strong><label><span>Season</span><input disabled value={batchIdentityValues.season.common || 'Multiple'}/></label><label><span>Number</span><input disabled value={batchIdentityValues.number.common || 'Multiple'}/></label><label className="episode-title"><span>Title</span><input disabled value={batchIdentityValues.title.common || 'Various episode titles'}/></label></div></div></section>}
+            <section><h3>Release metadata</h3><p className="batch-metadata-guidance">Shared values are shown directly. “Multiple values” remain untouched until edited; clearing an edited field clears it from every file.</p><div className="metadata-field-grid release-fields">
+              {BATCH_RELEASE_FIELDS.map((field) => { const overridden = Object.hasOwn(batchReleaseOverrides, field.key); const summary = batchReleaseValues[field.key]; return <label className={`${field.key === 'edition' || field.key === 'flags' ? 'wide ' : ''}batch-release-field ${summary.mixed && !overridden ? 'mixed' : ''}`} key={field.key}><span>{field.label}{overridden && <button type="button" aria-label={`Revert ${field.label}`} title="Restore original values" onClick={() => setBatchReleaseOverrides((current) => Object.fromEntries(Object.entries(current).filter(([key]) => key !== field.key)))}><RotateCcw size={11}/></button>}</span><input value={overridden ? batchReleaseOverrides[field.key] ?? '' : summary.common ?? ''} placeholder={summary.mixed && !overridden ? 'Multiple values' : field.placeholder} onChange={(event) => setBatchReleaseOverrides((current) => ({ ...current, [field.key]: event.target.value }))}/></label>; })}
+              <label><span>Source</span><select value={sourceOverride} onChange={(event) => setSourceOverride(event.target.value as Source | 'auto')}><option value="auto">Keep detected values</option>{SOURCE_GROUPS.map((group) => <optgroup label={group.label} key={group.label}>{group.sources.map((source) => <option value={source} key={source}>{SOURCE_LABELS[source]}</option>)}</optgroup>)}</select></label><label><span>AI Upscale</span><TriStateCheckbox value={aiUpscaleOverride} onChange={setAiUpscaleOverride} label="AI Upscale batch override"/></label>
+            </div></section>
+            <section className={`metadata-live-preview ${(activeMediaTab === 'movies' ? movieFormatError : formatError) ? 'invalid' : ''}`}><h3>Filename preview</h3><code>{(activeMediaTab === 'movies' ? movieFormatError : formatError) ?? `${batchFilenameExample ?? 'No representative filename is available.'}.mkv`}</code></section>
+          </div>
+          <div className="metadata-editor-actions">{batchMetadataActive && <button type="button" className="secondary" onClick={() => { setSourceOverride('auto'); setAiUpscaleOverride('auto'); setBatchReleaseOverrides({}); }}>Reset to detected</button>}<span/><button type="button" className="secondary" onClick={() => setBatchMetadataOpen(false)}>Cancel</button><button className="primary"><FilePenLine size={15}/> Apply metadata</button></div>
         </form>
       </div>}
 
@@ -2590,7 +2846,7 @@ export default function App() {
       </div>}
 
       {renameConfirmationOpen && <div className="confirmation-layer" role="presentation">
-        <button className="confirmation-backdrop" aria-label="Cancel rename" disabled={renaming} onClick={() => setRenameConfirmationOpen(false)}/>
+        <button className="confirmation-backdrop" aria-label={renaming ? 'Hide rename progress' : 'Cancel rename'} onClick={() => setRenameConfirmationOpen(false)}/>
         <section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rename-title" aria-describedby="rename-description">
           <span className="confirmation-icon"><FileCheck2 size={20}/></span>
           <h2 id="rename-title">{renaming ? `Sorting ${work?.groupsTotal ?? executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${(work?.groupsTotal ?? executableGroups.length) === 1 ? '' : 's'}` : `Rename ${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'}?`}</h2>
@@ -2707,7 +2963,7 @@ export default function App() {
             {([['detailed', 'Detailed', 'Match evidence and detected media tags'], ['summary', 'Summary', 'Current filename and proposed filename'], ['compact', 'Compact', 'Short rows for larger batches']] as const).map(([value, label, description]) => (
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
             ))}
-          </div></section>
+          </div><label className="preference-toggle"><span><ListChecks size={17}/><span><strong>{t('prefs.autoScrollRenameProgress')}</strong><small>{t('prefs.autoScrollRenameProgressHelp')}</small></span></span><input type="checkbox" checked={autoScrollRenameProgress} onChange={(event) => setAutoScrollRenameProgress(event.target.checked)}/></label></section>
           <section className={`preference-section release-alias-settings ${parsedReleaseAliases.errors.length ? 'invalid' : ''}`}><h3>Release-tag and edition aliases</h3><p>Add personal filename vocabulary without replacing the built-in detector. Matches are case-insensitive, separator-tolerant, and require complete tokens.</p><label><span><strong>Aliases</strong><small><code>field = filename alias =&gt; output</code>; web origins may add <code>| shorthand</code>.</small></span><textarea value={releaseAliasText} onChange={(event) => setReleaseAliasText(event.target.value)} spellCheck={false} placeholder={'source = web download => WEB-DL\nedition = mindbending => Mind Bending\nvideoCodec = AVC => H.264\nwebOrigin = crunchy premium => Crunchyroll | CR'}/></label><small className="release-alias-fields">Fields: <code>source</code> <code>resolution</code> <code>videoCodec</code> <code>audioCodec</code> <code>channels</code> <code>flag</code> <code>webOrigin</code> <code>edition</code></small>{parsedReleaseAliases.errors.length ? <ul className="release-alias-errors">{parsedReleaseAliases.errors.map((error) => <li key={error}>{error}</li>)}</ul> : <div className="release-alias-status"><Check size={13}/>{parsedReleaseAliases.aliases.length ? `${parsedReleaseAliases.aliases.length} custom alias${parsedReleaseAliases.aliases.length === 1 ? '' : 'es'} active` : 'Built-in vocabulary only'}</div>}{releaseAliasText && <button className="clear-overrides" onClick={() => setReleaseAliasText('')}>Clear custom aliases</button>}</section>
           <section className="preference-section"><h3>Reusable batch queues</h3><p>Reload a saved set of source files without changing anything on disk.</p>{savedBatchQueues.length ? savedBatchQueues.map((queue) => <div className="destination-row standalone" key={queue.id}><span><strong>{queue.name}</strong><small>{queue.mediaType === 'movies' ? 'Movies' : 'TV'} · {queue.paths.length} file{queue.paths.length === 1 ? '' : 's'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => loadSavedQueue(queue)}><FolderOpen size={14}/>Load</button><button className="icon-button" aria-label={`Delete ${queue.name}`} onClick={() => setSavedBatchQueues((current) => current.filter((item) => item.id !== queue.id))}><Trash2 size={14}/></button></span></div>) : <small>No saved queues. Use Save queue above the file list.</small>}</section>
           <section className="preference-section"><h3>{t('prefs.fileMoves')}</h3><p>{t('prefs.fileMovesHelp')}</p><label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.clearJunk')}</strong><small>{t('prefs.clearJunkHelp')}</small></span></span><input type="checkbox" checked={clearSourceJunk} onChange={(event) => setClearSourceJunk(event.target.checked)}/></label><label className="preference-toggle"><span><FolderTree size={17}/><span><strong>{t('prefs.removeEmpty')}</strong><small>{t('prefs.removeEmptyHelp')}</small></span></span><input type="checkbox" checked={removeEmptySourceParents} onChange={(event) => setRemoveEmptySourceParents(event.target.checked)}/></label></section>
@@ -2718,15 +2974,19 @@ export default function App() {
             const mediaTabSettingKeys = new Set((extension.mediaSettingsTabs ?? []).map((tab) => tab.baseFolderSettingKey));
             return <div className="extension-card" key={extension.id}><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>{extension.name} <small className="extension-source">{sourceLabel}</small></strong><small>{extension.description} · v{extension.version}</small></span></span><input type="checkbox" checked={extensionPreference.enabled} onChange={(event) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: event.target.checked, settings: current[extension.id]?.settings ?? {} } }))}/></label>{(extension.capabilities ?? []).map((capability) => {
               const granted = extensionPreference.grantedCapabilities?.includes(capability.id) ?? false;
-              return <label className="extension-capability" key={capability.id}><span><ShieldCheck size={16}/><span><strong>{capability.id === 'network.metadata' ? 'Metadata network access' : capability.id}</strong><small>{capability.reason}</small><code>{capability.origins.join(', ')}</code></span></span><input type="checkbox" checked={granted} onChange={(event) => setExtensionPreferences((current) => { const existing = current[extension.id] ?? { enabled: false, settings: {} }; const grants = new Set(existing.grantedCapabilities ?? []); if (event.target.checked) grants.add(capability.id); else grants.delete(capability.id); return { ...current, [extension.id]: { ...existing, grantedCapabilities: [...grants] } }; })}/></label>;
+              return <label className="extension-capability" key={capability.id}><span><ShieldCheck size={16}/><span><strong>{capability.id === 'network.metadata' ? 'Metadata network access' : capability.id === 'home-assistant.statistics' ? 'Home Assistant statistics access' : capability.id}</strong><small>{capability.reason}</small>{capability.origins?.length ? <code>{capability.origins.join(', ')}</code> : null}</span></span><input type="checkbox" checked={granted} onChange={(event) => setExtensionPreferences((current) => { const existing = current[extension.id] ?? { enabled: false, settings: {} }; const grants = new Set(existing.grantedCapabilities ?? []); if (event.target.checked) grants.add(capability.id); else grants.delete(capability.id); return { ...current, [extension.id]: { ...existing, grantedCapabilities: [...grants] } }; })}/></label>;
             })}{extension.settings.filter((setting) => !mediaTabSettingKeys.has(setting.key)).map((setting) => {
               const value = extensionPreference.settings[setting.key] ?? '';
-              return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{value || setting.description}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseExtensionFolder(extension.id, setting.key, setting.pickerKind)}><FolderTree size={14}/>{value ? 'Change' : 'Choose'}</button>{value && <button className="icon-button" aria-label={`Clear ${setting.label}`} onClick={() => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: current[extension.id]?.enabled ?? false, settings: Object.fromEntries(Object.entries(current[extension.id]?.settings ?? {}).filter(([key]) => key !== setting.key)) } }))}><X size={14}/></button>}</span></div>;
-            })}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</div>;
+              if (setting.type === 'directory') return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{value || setting.description}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseExtensionFolder(extension.id, setting.key, setting.pickerKind)}><FolderTree size={14}/>{value ? 'Change' : 'Choose'}</button>{value && <button className="icon-button" aria-label={`Clear ${setting.label}`} onClick={() => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: current[extension.id]?.enabled ?? false, settings: Object.fromEntries(Object.entries(current[extension.id]?.settings ?? {}).filter(([key]) => key !== setting.key)) } }))}><X size={14}/></button>}</span></div>;
+              if (setting.type === 'text') return <label className="extension-text-setting" key={setting.key}><span><strong>{setting.label}</strong><small>{setting.description}</small></span><input type="url" value={value} placeholder={setting.placeholder} onChange={(event) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: current[extension.id]?.enabled ?? false, settings: { ...(current[extension.id]?.settings ?? {}), [setting.key]: event.target.value } } }))}/></label>;
+              const status = extensionSecretStatuses[`${extension.id}:${setting.key}`];
+              return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{status?.saved ? 'Saved securely in the operating system credential vault.' : status?.available === false ? 'Secure credential storage is unavailable.' : setting.description}</small></span><span className="destination-actions"><button className="secondary" disabled={status?.available === false} onClick={() => void saveExtensionSecret(extension.id, setting.key, setting.label)}><ShieldCheck size={14}/>{status?.saved ? 'Replace' : 'Save'}</button>{status?.saved && <button className="icon-button" aria-label={`Remove ${setting.label}`} onClick={() => void deleteExtensionSecret(extension.id, setting.key, setting.label)}><Trash2 size={14}/></button>}</span></div>;
+            })}{(extension.statisticsAdapters?.length ?? 0) > 0 && <button className="secondary extension-publish" onClick={() => void publishExtensionStatistics()}><RefreshCw size={14}/>Publish current statistics</button>}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</div>;
           }) : <div className="extension-empty"><Sparkles size={18}/><span><strong>No extensions installed</strong><small>Media Renamer works normally without extensions. Install only the packages you want.</small></span></div>}<small>Extensions run only after metadata is matched. Invalid or incompatible packages are ignored, and normal TV or movie destinations remain available.</small></section>
           <section className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><Monitor size={17}/><span><strong>{t('prefs.renameProgressModal')}</strong><small>{t('prefs.renameProgressModalHelp')}</small></span></span><input type="checkbox" checked={showRenameProgressModal} onChange={(event) => setShowRenameProgressModal(event.target.checked)}/></label>
             <label className="preference-toggle"><span><ListChecks size={17}/><span><strong>{t('prefs.completionReport')}</strong><small>{t('prefs.completionReportHelp')}</small></span></span><input type="checkbox" checked={completionReport} onChange={(event) => setCompletionReport(event.target.checked)}/></label>
             <label className="preference-toggle"><span><Clock3 size={17}/><span><strong>{t('prefs.completionReportAutoClose')}</strong><small>{t('prefs.completionReportAutoCloseHelp')}</small></span></span><input type="checkbox" checked={completionReportAutoClose} onChange={(event) => setCompletionReportAutoClose(event.target.checked)}/></label>
             <label className="preference-toggle"><span><FileText size={17}/><span><strong>{t('prefs.saveLog')}</strong><small>{t('prefs.saveLogHelp')}</small></span></span><input type="checkbox" checked={createExternalRenameLog} onChange={(event) => setCreateExternalRenameLog(event.target.checked)}/></label>
@@ -2778,7 +3038,7 @@ export default function App() {
             <section className={`preference-section format-editor ${formatError ? 'invalid' : ''}`}>
               <div className="format-heading"><span><h3>Episode filename template</h3><p>Lay it out like a script. Runs of whitespace and indentation become one filename space.</p></span><button onClick={() => setEpisodeTemplate(DEFAULT_EPISODE_TEMPLATE)} disabled={episodeTemplate === DEFAULT_EPISODE_TEMPLATE}>Reset</button></div>
               <TemplateEditor value={episodeTemplate} onChange={setEpisodeTemplate}/>
-              {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
+              {formatError ? <small className="format-error">{formatError}</small> : <small className="format-help"><code>{'{{show.name}}'}</code> <code>{'{{show.tvdbId}}'}</code> <code>{'{{episode.range}}'}</code> <code>{'{{#episodes}}…{{/episodes}}'}</code> <code>{'{{technical}}'}</code> <code>{'{{release.edition}}'}</code> <code>{'{{release.audioCodec}}'}</code> <code>{'{{audio.languageCodes3}}'}</code><button className={`reference-link ${templateReferenceOpen ? 'active' : ''}`} aria-expanded={templateReferenceOpen} onClick={() => setTemplateReferenceOpen((open) => !open)}>Reference</button></small>}
               {singleEpisodeFormatExample && <div className="format-preview"><span>Single</span><strong>{singleEpisodeFormatExample}.mkv</strong></div>}
               {multiEpisodeFormatExample && <div className="format-preview"><span>Merged</span><strong>{multiEpisodeFormatExample}.mkv</strong></div>}
             </section>

@@ -16,11 +16,22 @@ export function isVideoFile(filePath: string): boolean {
   return !isSystemMetadataPath(filePath) && VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+export function isReleaseJunkVideoPath(filePath: string): boolean {
+  const extension = path.extname(filePath);
+  const stem = path.basename(filePath, extension);
+  if (!/^kingdom[ ._-]*rg$/i.test(stem)) return false;
+  return path.dirname(filePath).split(/[\\/]/).some((part) => /(?:^|[ ._-])kingdom[ ._-]*rg(?:$|[ ._-])/i.test(part));
+}
+
+export function isImportableVideoFile(filePath: string): boolean {
+  return isVideoFile(filePath) && !isReleaseJunkVideoPath(filePath);
+}
+
 async function collectMediaFiles(inputPath: string, results: string[]): Promise<void> {
   if (isSystemMetadataPath(inputPath)) return;
   const stat = await fs.stat(inputPath);
   if (stat.isFile()) {
-    if (isVideoFile(inputPath)) results.push(inputPath);
+    if (isImportableVideoFile(inputPath)) results.push(inputPath);
     return;
   }
   if (!stat.isDirectory()) return;

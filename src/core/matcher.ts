@@ -30,9 +30,52 @@ function titleSimilarity(filename: string, title: string, showTitle?: string): n
   return recall * 0.85 + precision * 0.15;
 }
 
-function numberedEpisodes(filename: string, episodes: Episode[], filePath = filename): { season: number; episodeNumbers: number[]; evidence: 'season' | 'folder' | 'special' | 'absolute' | 'sole-season' } | undefined {
+function hasEpisodeTitleEvidence(filename: string, showTitle: string | undefined, episodeNumbers: number[]): boolean {
+  const leaf = (filename.split(/[\\/]/).pop() ?? filename)
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/\[[^\]]*\]|\([^)]*(?:\b(?:2160p|1080p|720p|576p|480p|web|blu[ ._-]?ray|dvd|x26[45]|h26[45]|hevc|av1|aac|ac3|eac3|dts)\b)[^)]*\)/gi, ' ');
+  const showTokens = new Set(showTitle ? normalizeTitle(showTitle) : []);
+  const release = parseReleaseTags(filename);
+  const releaseTokens = new Set(normalizeTitle([
+    release.group,
+    release.source,
+    release.resolution,
+    release.videoCodec,
+    release.audioCodec,
+    release.channels,
+    ...release.flags,
+  ].filter(Boolean).join(' ')));
+  const placeholderTokens = new Set(['unknown', 'untitled', 'tba', 'tbd']);
+  const numberedTokens = new Set(episodeNumbers.flatMap((number) => [String(number), String(number).padStart(2, '0'), String(number).padStart(3, '0')]));
+  return normalizeTitle(leaf).some((token) => !showTokens.has(token) && !releaseTokens.has(token) && !placeholderTokens.has(token) && !numberedTokens.has(token) && !/^20\d{2}$/.test(token));
+}
+
+function cumulativeSeasonEpisodes(season: number, numbers: number[], episodes: Episode[]): Episode[] | undefined {
+  const seasonEpisodes = episodes.filter((episode) => episode.season === season);
+  const maximumSeasonEpisode = Math.max(0, ...seasonEpisodes.map((episode) => episode.number));
+  if (!seasonEpisodes.length || numbers.some((number) => number <= maximumSeasonEpisode)) return undefined;
+
+  const regularEpisodes = episodes
+    .filter((episode) => episode.season > 0)
+    .sort((left, right) => left.season - right.season || left.number - right.number);
+  const resolved = numbers.map((number) => {
+    const providerMatches = regularEpisodes.filter((episode) => episode.absoluteNumber === number);
+    return providerMatches.length === 1 ? providerMatches[0] : regularEpisodes[number - 1];
+  });
+  return resolved.every((episode): episode is Episode => Boolean(episode) && episode.season === season) ? resolved : undefined;
+}
+
+function numberedEpisodes(filename: string, episodes: Episode[], filePath = filename): { season: number; episodeNumbers: number[]; evidence: 'season' | 'folder' | 'special' | 'absolute' | 'sole-season' | 'cumulative' } | undefined {
   const matches = parseEpisodeCodes(filename);
-  if (matches.length) return { season: matches[0].season, episodeNumbers: matches.map((match) => match.episode), evidence: 'season' };
+  if (matches.length) {
+    const season = matches[0].season;
+    const numbers = matches.map((match) => match.episode);
+    const exact = numbers.every((number) => episodes.some((episode) => episode.season === season && episode.number === number));
+    if (exact) return { season, episodeNumbers: numbers, evidence: 'season' };
+    const cumulative = cumulativeSeasonEpisodes(season, numbers, episodes);
+    if (cumulative) return { season, episodeNumbers: cumulative.map((episode) => episode.number), evidence: 'cumulative' };
+    return { season, episodeNumbers: numbers, evidence: 'season' };
+  }
   const special = parseSpecialEpisode(filename);
   if (special) return { season: 0, episodeNumbers: [special.episode], evidence: 'special' };
   const folder = parseFolderEpisode(filePath);
@@ -58,6 +101,7 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
   const numbered = numberedEpisodes(filename, episodes, filePath);
   const numberedMatches = numbered?.episodeNumbers.map((number) => episodes.find((episode) => episode.season === numbered.season && episode.number === number));
   const completeNumberedMatch = numberedMatches?.every((episode): episode is Episode => Boolean(episode)) ? numberedMatches as Episode[] : undefined;
+  const numberOnlyEvidence = Boolean(numbered && completeNumberedMatch && ['season', 'folder', 'special', 'cumulative'].includes(numbered.evidence) && !hasEpisodeTitleEvidence(filename, showTitle, numbered.episodeNumbers));
   return episodes
     .map((episode) => {
       const reasons: string[] = [];
@@ -68,14 +112,21 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
           ? completeNumberedMatch.length > 1 ? `${completeNumberedMatch.length} episode numbers` : 'season and episode number'
           : numbered.evidence === 'folder' ? 'season folder and episode number'
           : numbered.evidence === 'special' ? 'special episode number'
+            : numbered.evidence === 'cumulative' ? 'cumulative episode number mapped into stated season'
             : numbered.evidence === 'absolute' ? 'absolute episode number'
               : 'episode number in the only matching season');
+        if (numberOnlyEvidence) {
+          score += 0.4;
+          reasons.push('exact numbering with no conflicting episode title');
+        }
       }
       if (useTitle) {
-        const similarity = titleSimilarity(filename, episode.title, showTitle);
+        const titleScores = [episode.title, ...(episode.alternateTitles ?? [])].map((title) => ({ title, score: titleSimilarity(filename, title, showTitle) }));
+        const bestTitle = titleScores.sort((left, right) => right.score - left.score)[0];
+        const similarity = bestTitle?.score ?? 0;
         score += similarity * 0.65;
-        if (similarity >= 0.5) reasons.push(`title ${Math.round(similarity * 100)}%`);
-        const embeddedSimilarity = embeddedTitle ? titleSimilarity(embeddedTitle, episode.title, showTitle) : 0;
+        if (similarity >= 0.5) reasons.push(`${bestTitle?.title === episode.title ? 'title' : 'alternate title'} ${Math.round(similarity * 100)}%`);
+        const embeddedSimilarity = embeddedTitle ? Math.max(...[episode.title, ...(episode.alternateTitles ?? [])].map((title) => titleSimilarity(embeddedTitle, title, showTitle))) : 0;
         score += embeddedSimilarity * 0.3;
         if (embeddedSimilarity >= 0.5) reasons.push(`embedded title ${Math.round(embeddedSimilarity * 100)}%`);
       }

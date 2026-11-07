@@ -1,4 +1,4 @@
-export type Source = 'BluRay' | 'DVD' | 'WEB-DL' | 'WEBRip' | 'HDTV' | 'DVDRip' | 'TVRip' | 'Unknown';
+export type Source = 'BluRay' | 'DVD' | 'PDTV' | 'HDTV' | 'WEB-DL' | 'WEBRip' | 'BDRip' | 'BRRip' | 'DVDRip' | 'DSRip' | 'TVRip' | 'CAMRip' | 'TS' | 'WP' | 'PPVRip' | 'VODRip' | 'HD-DVD' | 'LaserDisc' | 'VHS' | 'Unknown';
 export type ShowMetadataAgent = 'tvdb-aired' | 'tmdb-aired';
 
 export interface MediaClassificationMetadata {
@@ -13,6 +13,7 @@ export interface Episode {
   number: number;
   absoluteNumber?: number;
   title: string;
+  alternateTitles?: string[];
   airDate?: string;
   runtimeMinutes?: number;
   overview?: string;

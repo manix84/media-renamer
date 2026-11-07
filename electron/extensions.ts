@@ -27,12 +27,15 @@ export interface InstalledExtensionManifest {
   name: string;
   version: string;
   description: string;
-  settings: Array<{ key: string; type: 'directory'; label: string; description: string; pickerKind: 'TV' | 'Movie' }>;
+  settings: Array<
+    { key: string; type: 'directory'; label: string; description: string; pickerKind: 'TV' | 'Movie' }
+    | { key: string; type: 'text' | 'secret'; label: string; description: string; placeholder?: string }
+  >;
   match: ExtensionMatchClause;
   anyOf?: ExtensionMatchClause[];
   badges?: Array<{ label: string; tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
-  capabilities?: Array<{ id: 'network.metadata'; reason: string; origins: string[] }>;
+  capabilities?: Array<{ id: 'network.metadata' | 'home-assistant.statistics'; reason: string; origins?: string[] }>;
   metadataAdapters?: Array<{
     id: string;
     label: string;
@@ -49,6 +52,7 @@ export interface InstalledExtensionManifest {
       inputs: Array<{ name: string; type: 'string'; required: boolean; maximumLength: number }>;
     }>;
   }>;
+  statisticsAdapters?: Array<{ id: string; label: string; capability: 'home-assistant.statistics'; transport: 'home-assistant-rest'; urlSettingKey: string; tokenSettingKey: string; entityPrefix: string }>;
   destinations?: Partial<Record<'show' | 'movie', { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{ id: string; label: string; mediaKind: 'show' | 'movie'; note: string; baseFolderSettingKey: string; folderTemplateSettingKey: string; fileTemplateSettingKey: string; defaultFolderTemplate?: string; defaultFileTemplate?: string }>;
   source: ExtensionSource;
@@ -114,8 +118,13 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension setting is invalid.');
     const setting = entry as Record<string, unknown>;
     const key = shortText(setting.key, 'setting key', 200);
-    if (!/^[a-z0-9][a-z0-9.-]*$/i.test(key) || setting.type !== 'directory' || (setting.pickerKind !== 'TV' && setting.pickerKind !== 'Movie')) throw new Error('Extension setting is invalid.');
-    return { key, type: 'directory' as const, label: shortText(setting.label, 'setting label', 200), description: shortText(setting.description, 'setting description'), pickerKind: setting.pickerKind as 'TV' | 'Movie' };
+    if (!/^[a-z0-9][a-z0-9.-]*$/i.test(key) || !['directory', 'text', 'secret'].includes(String(setting.type))) throw new Error('Extension setting is invalid.');
+    const common = { key, label: shortText(setting.label, 'setting label', 200), description: shortText(setting.description, 'setting description') };
+    if (setting.type === 'directory') {
+      if (setting.pickerKind !== 'TV' && setting.pickerKind !== 'Movie') throw new Error('Extension setting is invalid.');
+      return { ...common, type: 'directory' as const, pickerKind: setting.pickerKind as 'TV' | 'Movie' };
+    }
+    return { ...common, type: setting.type as 'text' | 'secret', ...(setting.placeholder === undefined ? {} : { placeholder: shortText(setting.placeholder, 'setting placeholder', 300) }) };
   }) : [];
   if (settings.length > 50 || new Set(settings.map((setting) => setting.key)).size !== settings.length) throw new Error('Extension settings are invalid.');
   const settingKeys = new Set(settings.map((setting) => setting.key));
@@ -148,8 +157,12 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     ? item.capabilities.map((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension capability is invalid.');
       const capability = entry as Record<string, unknown>;
-      if (capability.id !== 'network.metadata' || !Array.isArray(capability.origins) || !capability.origins.length || capability.origins.length > 20) throw new Error('Extension capability is invalid.');
-      return { id: 'network.metadata' as const, reason: shortText(capability.reason, 'capability reason', 300), origins: [...new Set(capability.origins.map(networkOrigin))] };
+      if (capability.id === 'network.metadata') {
+        if (!Array.isArray(capability.origins) || !capability.origins.length || capability.origins.length > 20) throw new Error('Extension capability is invalid.');
+        return { id: 'network.metadata' as const, reason: shortText(capability.reason, 'capability reason', 300), origins: [...new Set(capability.origins.map(networkOrigin))] };
+      }
+      if (capability.id !== 'home-assistant.statistics' || capability.origins !== undefined) throw new Error('Extension capability is invalid.');
+      return { id: 'home-assistant.statistics' as const, reason: shortText(capability.reason, 'capability reason', 300) };
     })
     : (() => { throw new Error('Extension capabilities are invalid.'); })();
   if (capabilities && new Set(capabilities.map((capability) => capability.id)).size !== capabilities.length) throw new Error('Extension capability IDs must be unique.');
@@ -199,6 +212,20 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     })
     : (() => { throw new Error('Extension metadata adapters are invalid.'); })();
   if (metadataAdapters && new Set(metadataAdapters.map((adapter) => adapter.id)).size !== metadataAdapters.length) throw new Error('Extension metadata adapter IDs must be unique.');
+  const statisticsAdapters: InstalledExtensionManifest['statisticsAdapters'] = item.statisticsAdapters === undefined ? undefined : Array.isArray(item.statisticsAdapters) && item.statisticsAdapters.length <= 10
+    ? item.statisticsAdapters.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Extension statistics adapter is invalid.');
+      const adapter = entry as Record<string, unknown>;
+      if (adapter.capability !== 'home-assistant.statistics' || adapter.transport !== 'home-assistant-rest'
+        || !capabilities?.some((capability) => capability.id === 'home-assistant.statistics')) throw new Error('Extension statistics adapter is invalid.');
+      const urlSettingKey = identifier(adapter.urlSettingKey, 'statistics URL setting key');
+      const tokenSettingKey = identifier(adapter.tokenSettingKey, 'statistics token setting key');
+      if (!settings.some((setting) => setting.key === urlSettingKey && setting.type === 'text')
+        || !settings.some((setting) => setting.key === tokenSettingKey && setting.type === 'secret')) throw new Error('Extension statistics adapter references invalid settings.');
+      const entityPrefix = shortText(adapter.entityPrefix, 'statistics entity prefix', 100);
+      if (!/^[a-z][a-z0-9_]*$/.test(entityPrefix)) throw new Error('Extension statistics entity prefix is invalid.');
+      return { id: identifier(adapter.id, 'statistics adapter ID'), label: shortText(adapter.label, 'statistics adapter label', 200), capability: 'home-assistant.statistics' as const, transport: 'home-assistant-rest' as const, urlSettingKey, tokenSettingKey, entityPrefix };
+    }) : (() => { throw new Error('Extension statistics adapters are invalid.'); })();
   const anyOf = item.anyOf === undefined ? undefined : Array.isArray(item.anyOf) && item.anyOf.length <= 20 ? item.anyOf.map(matchClause) : (() => { throw new Error('Extension alternative rules are invalid.'); })();
   const mediaSettingsTabs = item.mediaSettingsTabs === undefined ? undefined : Array.isArray(item.mediaSettingsTabs) && item.mediaSettingsTabs.length <= 10
     ? item.mediaSettingsTabs.map((entry) => {
@@ -235,6 +262,7 @@ export function normalizeExtensionManifest(value: unknown, source: ExtensionSour
     ...(warnings?.length ? { warnings } : {}),
     ...(capabilities?.length ? { capabilities } : {}),
     ...(metadataAdapters?.length ? { metadataAdapters } : {}),
+    ...(statisticsAdapters?.length ? { statisticsAdapters } : {}),
     ...(destinations && Object.keys(destinations).length ? { destinations } : {}),
     ...(mediaSettingsTabs?.length ? { mediaSettingsTabs } : {}),
     source,

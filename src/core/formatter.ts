@@ -33,7 +33,7 @@ const VALID_NAMES = new Set([
   'show.name', 'show.year', 'show.tvdbId', 'episode.range', 'episodes', 'technical',
   'season', 'number', 'seasonPadded', 'numberPadded', 'code', 'title', 'first', 'last',
   'release.resolution', 'release.source', 'release.videoCodec', 'release.audioCodec',
-  'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags',
+  'release.channels', 'release.group', 'release.webOrigin', 'release.webOriginShort', 'release.flags', 'release.edition',
   'audio.languages', 'audio.languageNames', 'audio.languageCodes3', 'audio.languageCodes2', 'name', 'code3', 'code2',
 ]);
 const MOVIE_VALID_NAMES = new Set([
@@ -116,7 +116,7 @@ function episodeRange(episodes: Episode[]): string {
 }
 
 function templateContext(show: string, year: number | undefined, tvdbId: string | undefined, episodes: Episode[], tags: ReleaseTags): TemplateContext {
-  const technical = [tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...tags.flags, tags.videoCodec, tags.audioCodec, tags.channels]
+  const technical = [tags.edition, tags.resolution, tags.source !== 'Unknown' ? tags.source : undefined, ...tags.flags, tags.videoCodec, tags.audioCodec, tags.channels]
     .filter(Boolean).join(' ');
   return {
     show: { name: show, year, tvdbId },
@@ -134,6 +134,7 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
     technical,
     audio: audioContext(tags),
     release: {
+      edition: tags.edition,
       resolution: tags.resolution,
       source: tags.source === 'Unknown' ? undefined : tags.source,
       videoCodec: tags.videoCodec,

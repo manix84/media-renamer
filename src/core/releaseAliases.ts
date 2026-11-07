@@ -5,7 +5,7 @@ export type ReleaseTagAlias = { field: ReleaseAliasField; match: string; value: 
 export type ParsedReleaseAliases = { aliases: ReleaseTagAlias[]; errors: string[] };
 
 const fields = new Set<ReleaseAliasField>(['source', 'resolution', 'videoCodec', 'audioCodec', 'channels', 'flag', 'webOrigin', 'edition']);
-const sources = new Set<Source>(['BluRay', 'DVD', 'WEB-DL', 'WEBRip', 'HDTV', 'DVDRip', 'TVRip', 'Unknown']);
+const sources = new Set<Source>(['BluRay', 'DVD', 'PDTV', 'HDTV', 'WEB-DL', 'WEBRip', 'BDRip', 'BRRip', 'DVDRip', 'DSRip', 'TVRip', 'CAMRip', 'TS', 'WP', 'PPVRip', 'VODRip', 'HD-DVD', 'LaserDisc', 'VHS', 'Unknown']);
 
 export function parseReleaseAliasText(text: string): ParsedReleaseAliases {
   const aliases: ReleaseTagAlias[] = [];

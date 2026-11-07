@@ -28,6 +28,16 @@ export interface ExtensionDirectorySetting {
   pickerKind: 'TV' | 'Movie';
 }
 
+export interface ExtensionTextSetting {
+  key: string;
+  type: 'text' | 'secret';
+  label: string;
+  description: string;
+  placeholder?: string;
+}
+
+export type ExtensionSetting = ExtensionDirectorySetting | ExtensionTextSetting;
+
 export interface ExtensionMatchClause {
   mediaKinds?: ExtensionMediaKind[];
   genreIds?: number[];
@@ -47,9 +57,19 @@ export interface ExtensionMatchClause {
 export type ExtensionContributionTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 export interface ExtensionCapability {
-  id: 'network.metadata';
+  id: 'network.metadata' | 'home-assistant.statistics';
   reason: string;
-  origins: string[];
+  origins?: string[];
+}
+
+export interface ExtensionStatisticsAdapter {
+  id: string;
+  label: string;
+  capability: 'home-assistant.statistics';
+  transport: 'home-assistant-rest';
+  urlSettingKey: string;
+  tokenSettingKey: string;
+  entityPrefix: string;
 }
 
 export interface ExtensionMetadataAdapter {
@@ -75,13 +95,14 @@ export interface ExtensionManifest {
   name: string;
   version: string;
   description: string;
-  settings: ExtensionDirectorySetting[];
+  settings: ExtensionSetting[];
   match: ExtensionMatchClause;
   anyOf?: ExtensionMatchClause[];
   badges?: Array<{ label: string; tone?: ExtensionContributionTone }>;
   warnings?: Array<{ message: string; tone: 'info' | 'warning' | 'danger' }>;
   capabilities?: ExtensionCapability[];
   metadataAdapters?: ExtensionMetadataAdapter[];
+  statisticsAdapters?: ExtensionStatisticsAdapter[];
   destinations?: Partial<Record<ExtensionMediaKind, { settingKey: string; label: string }>>;
   mediaSettingsTabs?: Array<{
     id: string;

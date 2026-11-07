@@ -28,11 +28,17 @@ declare global {
       installExtension(): Promise<InstalledExtension | undefined>;
       uninstallExtension(id: string): Promise<void>;
       openExtensionsDirectory(): Promise<void>;
+      extensionSecretStatus(extensionId: string, key: string): Promise<{ available: boolean; saved: boolean }>;
+      setExtensionSecret(extensionId: string, key: string, value: string): Promise<void>;
+      deleteExtensionSecret(extensionId: string, key: string): Promise<boolean>;
+      publishExtensionStatistics(): Promise<number>;
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        showRenameProgressModal?: boolean;
+        autoScrollRenameProgress?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         developerMode?: boolean;
@@ -64,6 +70,8 @@ declare global {
         completionChime?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        showRenameProgressModal?: boolean;
+        autoScrollRenameProgress?: boolean;
         clearSourceJunk?: boolean;
         createExternalRenameLog?: boolean;
         developerMode?: boolean;

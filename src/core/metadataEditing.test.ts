@@ -3,7 +3,7 @@ import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverri
 
 function metadata(overrides: Partial<MediaMetadataOverride> = {}): MediaMetadataOverride {
   return {
-    name: 'Example', year: '2026', providerId: '123', episodes: [], edition: '', resolution: '1080p', source: 'WEB-DL',
+    name: 'Example', year: '2026', providerId: '123', episodes: [], edition: '', resolution: '1080p', source: 'WEB-DL', aiUpscale: false,
     videoCodec: 'H.264', audioCodec: 'AAC', channels: '2.0', webOrigin: '', webOriginShort: '', group: '', flags: '', ...overrides,
   };
 }

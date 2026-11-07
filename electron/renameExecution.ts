@@ -47,7 +47,27 @@ const sourceJunkPatterns = [
   /^how[ ._-]+to[ ._-]+play[ ._-]+hevc[ ._-]*\(\s*this[ ._-]+file\s*\)\.txt$/i,
   /^ninite[ ._-]+k-lite[ ._-]+codecs[ ._-]+unattended[ ._-]+silent[ ._-]+installer[ ._-]+and[ ._-]+updater\.website$/i,
   /^torrent[ ._-]+downloaded[ ._-]+from[ ._-]+(?:demonoid(?:\.[a-z0-9-]{2,12})?(?:[ ._-]+www\.demonoid\.[a-z0-9-]{2,12})?|extratorrent\.[a-z0-9-]{2,12}|uindex\.[a-z0-9-]{2,12}|unlock\.[a-z0-9-]{2,12})(?:[ ._-]+copy)?[ ._-]*\.txt$/i,
+  /^kingdom[ ._-]*rg\.(?:mkv|nfo)$/i,
 ];
+
+const sourceJunkDirectoryPattern = /^downloaded[ ._-]+at(?:[ ._-]+.+)?$/i;
+
+function isLooseTextJunk(filename: string): boolean {
+  return /\.txt$/i.test(filename) && !/\.rejected\.txt$/i.test(filename);
+}
+
+async function isPlaintextReleaseNfo(filePath: string): Promise<boolean> {
+  if (!/\.nfo$/i.test(filePath)) return false;
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(64 * 1024);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const prefix = buffer.subarray(0, bytesRead).toString('utf8').replace(/^\uFEFF/, '').trimStart();
+    return !/^<\?xml\b/i.test(prefix) && !/^<(?:movie|tvshow|episodedetails|season|artist|album)\b/i.test(prefix);
+  } finally {
+    await handle.close();
+  }
+}
 
 async function exists(filePath: string): Promise<boolean> {
   try { await fs.promises.lstat(filePath); return true; }
@@ -266,11 +286,16 @@ async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: s
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') warnings.push(`Could not inspect source folder ${directory}: ${error instanceof Error ? error.message : String(error)}`);
       return;
     }
+    const junkDirectory = sourceJunkDirectoryPattern.test(path.basename(directory));
     for (const entry of entries) {
       const entryPath = path.join(directory, entry.name);
       if (entry.isDirectory()) await visit(entryPath, true);
       else if (entry.isFile()) {
-        let isJunk = sourceJunkPatterns.some((pattern) => pattern.test(entry.name));
+        let isJunk = junkDirectory || isLooseTextJunk(entry.name) || sourceJunkPatterns.some((pattern) => pattern.test(entry.name));
+        if (!isJunk && /\.nfo$/i.test(entry.name)) {
+          try { isJunk = await isPlaintextReleaseNfo(entryPath); }
+          catch (error) { warnings.push(`Could not inspect possible release-info NFO ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }
+        }
         if (!isJunk && subtitleExtensionPattern.test(entry.name)) {
           try { isJunk = (await fs.promises.stat(entryPath)).size === 0; }
           catch (error) { warnings.push(`Could not inspect possible source junk file ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }

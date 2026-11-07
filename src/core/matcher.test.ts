@@ -17,6 +17,21 @@ describe('release tag parser', () => {
   });
 
   it.each([
+    ['Show.PDTV.mkv', 'PDTV'], ['Show.Pure.Digital.Television.mkv', 'PDTV'],
+    ['Show.High.Definition.TV.mkv', 'HDTV'], ['Show.web-download.mkv', 'WEB-DL'],
+    ['Show.BD-Rip.mkv', 'BDRip'], ['Show.Blu-ray.Disc.Rip.mkv', 'BDRip'],
+    ['Show.BR-Rip.mkv', 'BRRip'], ['Show.BluRay.Rip.mkv', 'BRRip'],
+    ['Show.Digital.Versatile.Disc.Rip.mkv', 'DVDRip'], ['Show.DS-Rip.mkv', 'DSRip'],
+    ['Show.Digital.Satellite.Rip.mkv', 'DSRip'], ['Show.Television.Rip.mkv', 'TVRip'],
+    ['Show.Camera.Rip.mkv', 'CAMRip'], ['Show.Telesync.mkv', 'TS'],
+    ['Show.Workprint.mkv', 'WP'], ['Show.Pay.Per.View.Rip.mkv', 'PPVRip'],
+    ['Show.Video.On.Demand.Rip.mkv', 'VODRip'], ['Show.HDDVD.mkv', 'HD-DVD'],
+    ['Show.LD-Rip.mkv', 'LaserDisc'], ['Show.Video.Home.System.Rip.mkv', 'VHS'],
+  ])('normalises source aliases: %s → %s', (filename, source) => {
+    expect(parseReleaseTags(filename).source).toBe(source);
+  });
+
+  it.each([
     ['Show.S01E01.1080p.NF.WEB-DL.x265-QxR.mkv', 'Netflix', 'NF', 'QxR'],
     ['Show.S01E01.1080p.Netflix.WEB-DL.x265-VARYG.mkv', 'Netflix', 'NF', 'VARYG'],
     ['[VARYG] Show - 01 [1080p CR WEB-DL].mkv', 'Crunchyroll', 'CR', 'VARYG'],
@@ -182,6 +197,16 @@ describe('episode matcher', () => {
     expect(result.status).toBe('review');
   });
 
+  it('accepts a numbered episode when an alternate provider title matches the filename', () => {
+    const result = matchFile('Sonic X - S01 E01 - Enter the Supersonic Hero (480p DVDRip).mp4', [{
+      id: 'sonic-x-s01e01', season: 1, number: 1, title: 'Chaos Control Freaks', alternateTitles: ['Enter the Supersonic Hero'],
+    }], true, .8, 'Sonic X');
+
+    expect(result.match?.episode.title).toBe('Chaos Control Freaks');
+    expect(result.match?.reasons.some((reason) => reason.startsWith('alternate title '))).toBe(true);
+    expect(result.status).toBe('confident');
+  });
+
   it('normalizes punctuation and noise', () => {
     expect(normalizeTitle("The.Off-Site.Meeting.720p.WEBRip")).toEqual(['off', 'site', 'meeting']);
     expect(normalizeTitle('Anime.S04E02v2.Episode.Two.1080p')).toEqual(['anime', 'two']);
@@ -194,6 +219,47 @@ describe('episode matcher', () => {
     ];
     expect(matchFile('Show.S01E02.mkv', combined).match?.episode.id).toBe('s1');
     expect(matchFile('Show.S04E02.mkv', combined).match?.episode.id).toBe('s4');
+  });
+
+  it('confidently accepts an exact season and episode code when no episode title is present', () => {
+    const result = matchFile('[Group] Show.Name.S03E07.1080p.WEB-DL.x265.mkv', [
+      { id: 's3e7', season: 3, number: 7, title: 'A Title the File Does Not Contain' },
+      { id: 's3e8', season: 3, number: 8, title: 'The Next Episode' },
+    ], true, .8, 'Show Name');
+    expect(result.match?.episode.id).toBe('s3e7');
+    expect(result.match?.score).toBeCloseTo(.85);
+    expect(result.match?.reasons).toContain('exact numbering with no conflicting episode title');
+    expect(result.status).toBe('confident');
+  });
+
+  it('maps an impossible season episode number as a cumulative episode number', () => {
+    const catalogue = [
+      ...Array.from({ length: 26 }, (_, index) => ({ id: `s1e${index + 1}`, season: 1, number: index + 1, absoluteNumber: index + 1, title: `Season one ${index + 1}` })),
+      ...Array.from({ length: 26 }, (_, index) => ({ id: `s2e${index + 1}`, season: 2, number: index + 1, absoluteNumber: index + 27, title: `Season two ${index + 1}` })),
+    ];
+    const result = matchFile('Sonic X - S02E27 - unknown [480P DVDRIP H264 AC3].mp4', catalogue, true, .8, 'Sonic X');
+
+    expect(result.match?.episode.id).toBe('s2e1');
+    expect(result.match?.reasons).toContain('cumulative episode number mapped into stated season');
+    expect(result.status).toBe('confident');
+  });
+
+  it('does not reinterpret an invalid episode number when its cumulative position belongs to another season', () => {
+    const catalogue = [
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `s1e${index + 1}`, season: 1, number: index + 1, title: `Season one ${index + 1}` })),
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `s2e${index + 1}`, season: 2, number: index + 1, title: `Season two ${index + 1}` })),
+    ];
+    const result = matchFile('Show.S02E25.mkv', catalogue, false, .8, 'Show');
+
+    expect(result.match).toBeUndefined();
+  });
+
+  it('does not apply number-only confidence when unmatched title text is present', () => {
+    const result = matchFile('Show.Name.S03E07.Completely.Different.Words.mkv', [
+      { id: 's3e7', season: 3, number: 7, title: 'Expected Title' },
+    ], true, .8, 'Show Name');
+    expect(result.match?.score).toBe(.45);
+    expect(result.status).toBe('review');
   });
 
   it('matches an anime episode with an attached release revision', () => {
@@ -291,8 +357,8 @@ describe('episode matcher', () => {
     ], true, 0.8, 'His Dark Materials');
 
     expect(result.match?.episode.id).toBe('episode');
-    expect(result.match?.score).toBe(0.45);
-    expect(result.match?.reasons).toEqual(['season and episode number']);
+    expect(result.match?.score).toBeCloseTo(0.85);
+    expect(result.match?.reasons).toEqual(['season and episode number', 'exact numbering with no conflicting episode title']);
   });
 
   it('still matches the unique part of an episode title that repeats the show name', () => {
@@ -318,7 +384,8 @@ describe('episode matcher', () => {
     const numbered = matchFile('Show.S01E01.mkv', [{ id: 'episode', season: 1, number: 1, title: 'Pilot', runtimeMinutes: 22 }], false, .8, 'Show', 44 * 60);
     const durationOnly = matchFile('Unrelated.mkv', [{ id: 'episode', season: 1, number: 1, title: 'Pilot', runtimeMinutes: 44 }], false, .8, 'Show', 44 * 60);
 
-    expect(numbered.match?.score).toBe(.45);
+    expect(numbered.match?.score).toBeCloseTo(.85);
+    expect(numbered.status).toBe('confident');
     expect(durationOnly.match).toBeUndefined();
   });
 });

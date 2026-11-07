@@ -2,6 +2,8 @@
 
 Extensions are optional packages that add classification, badges, settings, and destination routing without becoming part of Media Renamer itself. A normal installation works with no extensions. Users choose what to install and every extension starts disabled.
 
+Extensions remain declarative. Narrow host-owned adapters may expose audited operations such as metadata queries or aggregate Home Assistant statistics publishing. The bundled Home Assistant extension keeps its token in the OS-encrypted extension vault and publishes aggregate counts plus bounded recent/top names—never source or destination paths.
+
 See the ordered [extension development roadmap](ROADMAP.md) for planned metadata, matching, quality-control, automation, and integration capabilities.
 
 ![An extension package passing through Media Renamer's security boundary and routing media to separate libraries](images/extension-security-routing.png)

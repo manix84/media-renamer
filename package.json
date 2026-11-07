@@ -19,6 +19,11 @@
     "check": "npm run test && npm run build"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "codemirror": "^6.0.2",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest"
@@ -48,6 +53,15 @@
       "dist-electron/**/*",
       "assets/app-icon.png",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "extensions-preinstalled",
+        "to": "extensions",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.utilities",

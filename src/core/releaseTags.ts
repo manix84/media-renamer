@@ -2,12 +2,25 @@ import type { ReleaseTags, Source } from './types';
 import { applyReleaseAliases, matchingEditionAliases, type ReleaseTagAlias } from './releaseAliases';
 
 const sources: Array<[RegExp, Source]> = [
-  [/\b(?:blu[ ._-]?ray|b[dr]rip|bd)\b/i, 'BluRay'],
-  [/\bweb[ ._-]?dl\b/i, 'WEB-DL'],
+  [/\b(?:blu[ ._-]?ray[ ._-]?disc[ ._-]?rip|bd[ ._-]?rip)\b/i, 'BDRip'],
+  [/\b(?:blu[ ._-]?ray[ ._-]?rip|br[ ._-]?rip)\b/i, 'BRRip'],
+  [/\b(?:blu[ ._-]?ray|bd)\b/i, 'BluRay'],
+  [/\b(?:high[ ._-]?definition[ ._-]?(?:digital[ ._-]?(?:versatile[ ._-]?)?)?disc|hd[ ._-]?dvd|hddvd)\b/i, 'HD-DVD'],
+  [/\b(?:dvd[ ._-]?rip|digital[ ._-]?(?:video|versatile)[ ._-]?disc[ ._-]?rip)\b/i, 'DVDRip'],
+  [/\b(?:dvd|digital[ ._-]?(?:video|versatile)[ ._-]?disc)\b/i, 'DVD'],
+  [/\b(?:web[ ._-]?(?:dl|download)|webrip[ ._-]?dl)\b/i, 'WEB-DL'],
   [/\bweb[ ._-]?rip\b/i, 'WEBRip'],
-  [/\bhdtv\b/i, 'HDTV'],
-  [/\bdvd[ ._-]?rip\b/i, 'DVDRip'],
-  [/\btv[ ._-]?rip\b/i, 'TVRip'],
+  [/\b(?:pdtv|pure[ ._-]?digital[ ._-]?(?:television|tv))\b/i, 'PDTV'],
+  [/\b(?:hdtv|high[ ._-]?definition[ ._-]?(?:television|tv))\b/i, 'HDTV'],
+  [/\b(?:ds[ ._-]?rip|digital[ ._-]?satellite[ ._-]?rip)\b/i, 'DSRip'],
+  [/\b(?:tv[ ._-]?rip|television[ ._-]?rip)\b/i, 'TVRip'],
+  [/\b(?:cam[ ._-]?rip|camera[ ._-]?rip|cam)\b/i, 'CAMRip'],
+  [/\b(?:telesync|tele[ ._-]?sync|hd[ ._-]?ts|ts)\b/i, 'TS'],
+  [/\b(?:work[ ._-]?print|wp)\b/i, 'WP'],
+  [/\b(?:ppv[ ._-]?rip|pay[ ._-]?per[ ._-]?view[ ._-]?rip)\b/i, 'PPVRip'],
+  [/\b(?:vod[ ._-]?rip|video[ ._-]?on[ ._-]?demand[ ._-]?rip)\b/i, 'VODRip'],
+  [/\b(?:laser[ ._-]?disc(?:[ ._-]?rip)?|ld[ ._-]?rip)\b/i, 'LaserDisc'],
+  [/\b(?:vhs(?:[ ._-]?rip)?|video[ ._-]?home[ ._-]?system[ ._-]?rip)\b/i, 'VHS'],
 ];
 
 const knownFlags = ['UNCENSORED', 'REPACK', 'REPACKED', 'PROPER', 'EXTENDED', 'REMASTERED', 'INTERNAL', 'LIMITED'];

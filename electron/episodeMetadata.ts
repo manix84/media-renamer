@@ -3,6 +3,7 @@ export type EpisodeMetadata = {
   season: number;
   number: number;
   title: string;
+  alternateTitles?: string[];
   overview?: string;
   imageUrl?: string;
 };
@@ -12,8 +13,14 @@ export function mergeEpisodeArtwork<T extends EpisodeMetadata>(primary: T[], art
   return primary.map((episode) => {
     const fallback = byNumber.get(`${episode.season}:${episode.number}`);
     if (!fallback) return episode;
+    const alternateTitles = [...new Set([
+      ...(episode.alternateTitles ?? []),
+      ...(fallback.alternateTitles ?? []),
+      fallback.title,
+    ].map((title) => title.trim()).filter((title) => title && title.localeCompare(episode.title, undefined, { sensitivity: 'accent' }) !== 0))];
     return {
       ...episode,
+      ...(alternateTitles.length ? { alternateTitles } : {}),
       ...(!episode.imageUrl && fallback.imageUrl ? { imageUrl: fallback.imageUrl } : {}),
       ...(!episode.overview && fallback.overview ? { overview: fallback.overview } : {}),
     };

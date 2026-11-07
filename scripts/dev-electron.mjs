@@ -30,13 +30,8 @@ async function compileAndRestart() {
   compiling = true;
   const code = await run(executable('tsc'), ['-p', 'electron/tsconfig.json']);
   if (code === 0) {
-    const previous = electron;
-    if (previous && previous.exitCode === null) {
-      previous.once('exit', launchElectron);
-      previous.kill('SIGTERM');
-    } else {
-      launchElectron();
-    }
+    if (!electron || electron.exitCode !== null) launchElectron();
+    else console.log('[media-renamer] Main-process changes compiled. The running app was not restarted because a file operation may be active. Restart it manually when rename:status reports running: false.');
   }
   compiling = false;
   if (compileAgain) {

@@ -7,9 +7,19 @@ describe('episode metadata enrichment', () => {
     const tmdb = [{ id: 'tmdb-1', season: 2, number: 1, title: 'TMDB title', imageUrl: 'https://image.tmdb.org/still.jpg', overview: 'TMDB plot' }, { id: 'tmdb-2', season: 2, number: 2, title: 'Other', imageUrl: 'https://image.tmdb.org/replace.jpg', overview: 'Replace plot' }];
 
     expect(mergeEpisodeArtwork(tvdb, tmdb)).toEqual([
-      { ...tvdb[0], imageUrl: 'https://image.tmdb.org/still.jpg', overview: 'TMDB plot' },
-      tvdb[1],
+      { ...tvdb[0], alternateTitles: ['TMDB title'], imageUrl: 'https://image.tmdb.org/still.jpg', overview: 'TMDB plot' },
+      { ...tvdb[1], alternateTitles: ['Other'] },
     ]);
+  });
+
+  it('preserves distinct provider titles as matching alternatives without replacing the preferred title', () => {
+    const tvdb = [{ id: 'tvdb-1', season: 1, number: 1, title: 'Chaos Control Freaks', alternateTitles: ['A third title'] }];
+    const tmdb = [{ id: 'tmdb-1', season: 1, number: 1, title: 'Enter the Supersonic Hero' }];
+
+    expect(mergeEpisodeArtwork(tvdb, tmdb)).toEqual([{
+      ...tvdb[0],
+      alternateTitles: ['A third title', 'Enter the Supersonic Hero'],
+    }]);
   });
 
   it('does not merge artwork from a different episode number', () => {
