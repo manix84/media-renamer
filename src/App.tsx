@@ -31,6 +31,7 @@ import { useTheme, type ThemePalette } from './theme';
 import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
 import { alternateLibraryRoots } from './core/libraryRoots';
+import { logoShadowForPixels, type LogoShadow } from './core/logoContrast';
 import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, resolveExtensionWarnings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
@@ -322,6 +323,47 @@ function SmoothProgress({ value, max, className = '', label, indeterminate = fal
   return <div className={`smooth-progress ${indeterminate ? 'indeterminate' : ''} ${active ? 'active-progress' : ''} ${className}`.trim()} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={indeterminate ? undefined : Math.min(value, max)} aria-valuetext={indeterminate ? 'Processing' : undefined}>
     <span style={{ width: `${(boundedValue / boundedMax) * 100}%` }}/>
   </div>;
+}
+
+const logoShadowCache = new Map<string, Promise<LogoShadow>>();
+
+function inspectLogoShadow(src: string, theme: 'light' | 'dark'): Promise<LogoShadow> {
+  const key = `${theme}:${src}`;
+  const cached = logoShadowCache.get(key);
+  if (cached) return cached;
+  const result = window.mediaRenamer?.loadArtwork
+    ? window.mediaRenamer.loadArtwork(src).then((dataUrl) => new Promise<LogoShadow>((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        if (!image.naturalWidth || !image.naturalHeight) return resolve('none');
+        const scale = Math.min(1, 160 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return resolve('none');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(logoShadowForPixels(context.getImageData(0, 0, canvas.width, canvas.height).data, theme === 'light' ? .92 : .015));
+      };
+      image.onerror = () => resolve('none');
+      image.src = dataUrl;
+    })).catch(() => 'none' as const)
+    : Promise.resolve('none' as const);
+  logoShadowCache.set(key, result);
+  return result;
+}
+
+function ContrastAwareLogo({ src, className, alt, title, theme }: { src: string; className: string; alt: string; title?: string; theme: 'light' | 'dark' }) {
+  const [shadow, setShadow] = useState<LogoShadow>('none');
+
+  useEffect(() => {
+    let active = true;
+    setShadow('none');
+    void inspectLogoShadow(src, theme).then((result) => { if (active) setShadow(result); });
+    return () => { active = false; };
+  }, [src, theme]);
+
+  return <img className={`${className} logo-shadow-${shadow}`} src={src} alt={alt} title={title}/>;
 }
 
 const PRESENCE_EXIT_MS = 280;
@@ -2559,11 +2601,12 @@ export default function App() {
             {activeTitle?.posterUrl && <button className="show-poster-button" aria-label={`View full poster for ${activeTitle.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreview({ url: activeTitle.posterUrl!, name: activeTitle.name, year: activeTitle.year }); }}><img className="show-poster" src={activeTitle.posterUrl} alt=""/></button>}
             <div>
               <p className="eyebrow">{activeMediaTab === 'movies' ? 'MOVIE BATCH' : t('hero.activeShow')}</p>
-              {activeTitle?.logoUrl && <img
+              {activeTitle?.logoUrl && <ContrastAwareLogo
                 className="show-logo"
                 src={resolvedTheme === 'light' ? activeTitle.lightBackgroundLogoUrl ?? activeTitle.logoUrl : activeTitle.logoUrl}
                 alt={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}
                 title={`${activeTitle.name}${activeTitle.year ? ` (${activeTitle.year})` : ''}`}
+                theme={resolvedTheme}
               />}
               {!activeTitle?.logoUrl && <h1>{activeMediaTab === 'movies' ? `${paths.length} imported movie${paths.length === 1 ? '' : 's'}` : activeTitle ? <>{activeTitle.name} {activeTitle.year && <span>({activeTitle.year})</span>}</> : t('hero.chooseShow')}</h1>}
               <p>{activeMediaTab === 'movies' ? paths.length ? `${movieMatchCounts.ready} matched · ${movieMatchCounts.review} review · ${movieMatchCounts.unmatched} unmatched${movieMatchCounts.deferred ? ` · ${movieMatchCounts.deferred} deferred to TV` : ''}${movieMatchCounts.detecting ? ` · ${movieMatchCounts.detecting} detecting` : ''}` : 'Add movie files to detect each title independently' : show ? `${episodes.length} episodes · ${show.seasons.length} seasons · ${activeShowMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}` : `Search for a show · episodes from ${showMetadataAgent === 'tvdb-aired' ? 'TVDB' : 'TMDB'}`}</p>
@@ -2706,7 +2749,7 @@ export default function App() {
                   <div className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : unchanged ? 'unchanged' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
                   {activeMediaTab === 'movies' && (movieFileMatch?.movie?.posterUrl ? <button className="movie-row-poster" aria-label={`View full poster for ${movieFileMatch.movie.name}`} title="View full poster" onClick={() => { setPosterCanZoom(false); setPosterZoomed(false); setPosterPreview({ url: movieFileMatch.movie!.posterUrl!, name: movieFileMatch.movie!.name, year: movieFileMatch.movie!.year }); }}><img src={movieFileMatch.movie.posterUrl} alt=""/></button> : <span className="movie-row-poster" aria-hidden="true"><Film size={18}/></span>)}
                   <div className="file-content" tabIndex={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 0 : undefined} role={activeMediaTab === 'shows' || fileViewMode !== 'detailed' ? 'button' : undefined} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={activeMediaTab === 'shows' ? `Highlight matched episodes for ${filename}` : fileViewMode === 'detailed' ? undefined : `Show complete filenames for ${filename}`} onClick={() => { if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if ((activeMediaTab === 'shows' || fileViewMode !== 'detailed') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); if (activeMediaTab === 'shows') selectLinkedEpisodes(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
-                    {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <img src={resolvedTheme === 'light' ? movieFileMatch.movie.lightBackgroundLogoUrl ?? movieFileMatch.movie.logoUrl : movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
+                    {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <ContrastAwareLogo className="movie-row-logo" src={resolvedTheme === 'light' ? movieFileMatch.movie.lightBackgroundLogoUrl ?? movieFileMatch.movie.logoUrl : movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name} theme={resolvedTheme}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
                     <div className="file-pair"><div className="original"><FileVideo size={15}/><span>{filename}</span></div><div className="arrow"><ChevronRight size={15}/></div><div className={`proposed ${matchExplanation ? 'has-match-tooltip' : ''} ${plannedTargetName && !deferredToTv ? 'editable' : ''}`} title={editingFilenamePath === path ? undefined : [matchExplanation, plannedTargetName && !deferredToTv ? 'Double-click to edit the proposed filename.' : undefined].filter(Boolean).join('\n') || undefined} onDoubleClick={(event) => { if (!plannedTargetName || deferredToTv) return; event.preventDefault(); event.stopPropagation(); startFilenameEditing(path, plannedTargetName); }}>{editingFilenamePath === path ? <><input autoFocus aria-label={`Edit proposed filename for ${filename}`} aria-invalid={Boolean(filenameDraftError)} value={filenameDraft} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { setFilenameDraft(event.target.value); setFilenameDraftError(undefined); }} onBlur={() => saveFilenameEditing(path)} onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } else if (event.key === 'Escape') { event.preventDefault(); cancelFilenameEditing(); } }}/><span>{extension}</span>{filenameDraftError && <em className="plan-error">{filenameDraftError}</em>}</> : <>{deferredToTv ? 'TV episode detected' : item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`}<span>{item?.match ? extension : ''}</span>{probeState === 'error' && <em className="probe-error">Media details unavailable</em>}{blockingIssue && <em className="plan-error">{blockingIssue.message}</em>}</>}</div></div>
                     <AnimatedPresence show={fileViewMode === 'detailed'} className="file-details-presence"><div className="file-details">
                       {planIssues.length > 0 && <span className={`match-reasons ${blockingIssue ? 'has-error' : ''}`}>{planIssues.map((issue) => issue.message).join(' ')}</span>}
