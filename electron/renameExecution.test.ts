@@ -253,11 +253,13 @@ describe('rename execution', () => {
     const root = await temporaryDirectory();
     const sourceDirectory = path.join(root, 'incoming', 'Movie');
     const nestedDirectory = path.join(sourceDirectory, 'Other');
+    const screensDirectory = path.join(sourceDirectory, 'Screens');
+    const artworkDirectory = path.join(sourceDirectory, 'Artwork');
     const subtitlesDirectory = path.join(sourceDirectory, 'Subs');
     const featurettesDirectory = path.join(sourceDirectory, 'Featurettes');
     const source = path.join(sourceDirectory, 'Movie.mp4');
     const target = path.join(root, 'library', 'Movie', 'Movie.mp4');
-    await Promise.all([fs.promises.mkdir(nestedDirectory, { recursive: true }), fs.promises.mkdir(subtitlesDirectory, { recursive: true }), fs.promises.mkdir(featurettesDirectory, { recursive: true })]);
+    await Promise.all([fs.promises.mkdir(nestedDirectory, { recursive: true }), fs.promises.mkdir(screensDirectory, { recursive: true }), fs.promises.mkdir(artworkDirectory, { recursive: true }), fs.promises.mkdir(subtitlesDirectory, { recursive: true }), fs.promises.mkdir(featurettesDirectory, { recursive: true })]);
     await Promise.all([
       fs.promises.writeFile(source, 'video'),
       fs.promises.writeFile(path.join(sourceDirectory, 'www.YTS.MX.jpg'), 'advert'),
@@ -290,6 +292,11 @@ describe('rename execution', () => {
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_1_1080p.jpg'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_2_1080p.jpg'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'screenshot_3_1080p.jpg'), 'advert'),
+      fs.promises.writeFile(path.join(screensDirectory, 'screen0001.png'), 'screenshot'),
+      fs.promises.writeFile(path.join(screensDirectory, 'screen0002.jpg'), 'screenshot'),
+      fs.promises.writeFile(path.join(screensDirectory, 'preview.webp'), 'screenshot'),
+      fs.promises.writeFile(path.join(screensDirectory, 'capture.avif'), 'screenshot'),
+      fs.promises.writeFile(path.join(artworkDirectory, 'screen0001.png'), 'keep artwork'),
       fs.promises.writeFile(path.join(nestedDirectory, '[TGx]Downloaded from torrentgalaxy.to .txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'NEW upcoming releases by Xclusive.txt'), 'advert'),
       fs.promises.writeFile(path.join(nestedDirectory, 'info.txt'), 'advert'),
@@ -315,7 +322,7 @@ describe('rename execution', () => {
       removeEmptySourceParents: true,
     });
 
-    expect(executed.operation.removedSourceJunkFiles).toHaveLength(42);
+    expect(executed.operation.removedSourceJunkFiles).toHaveLength(46);
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'Movie.mkv.!qB'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, 'desktop.ini'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(sourceDirectory, '249511327101773901412003621844249118140389.ico'));
@@ -329,7 +336,9 @@ describe('rename execution', () => {
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'How to play HEVC (THIS FILE).txt'));
     expect(executed.operation.removedSourceJunkFiles).toContain(path.join(nestedDirectory, 'Ninite K-Lite Codecs Unattended Silent Installer and Updater.website'));
     expect(executed.operation.removedSourceDirectories).toContain(nestedDirectory);
+    expect(executed.operation.removedSourceDirectories).toContain(screensDirectory);
     await expect(fs.promises.stat(nestedDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.stat(screensDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
     expect(executed.operation.removedSourceJunkFiles).toEqual(expect.arrayContaining([
       path.join(sourceDirectory, 'keep.txt'),
       path.join(sourceDirectory, 'Torrent downloaded from Example.com.txt'),
@@ -341,6 +350,7 @@ describe('rename execution', () => {
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Media.mkv.rejected.txt'), 'utf8')).resolves.toBe('Media Renamer diagnostic');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'www.example.com.jpg'), 'utf8')).resolves.toBe('keep');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'folder.jpg'), 'utf8')).resolves.toBe('keep');
+    await expect(fs.promises.readFile(path.join(artworkDirectory, 'screen0001.png'), 'utf8')).resolves.toBe('keep artwork');
     await expect(fs.promises.readFile(path.join(sourceDirectory, 'Movie.srt'), 'utf8')).resolves.toContain('Subtitle');
     await expect(fs.promises.readFile(path.join(subtitlesDirectory, 'English.srt'), 'utf8')).resolves.toBe('subtitle');
     await expect(fs.promises.readFile(path.join(featurettesDirectory, 'Making Of.mkv'), 'utf8')).resolves.toBe('extra video');

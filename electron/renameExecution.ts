@@ -51,6 +51,8 @@ const sourceJunkPatterns = [
 ];
 
 const sourceJunkDirectoryPattern = /^downloaded[ ._-]+at(?:[ ._-]+.+)?$/i;
+const screenshotDirectoryPattern = /^(?:screens?|screenshots?)$/i;
+const screenshotImagePattern = /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i;
 
 function isLooseTextJunk(filename: string): boolean {
   return /\.txt$/i.test(filename) && !/\.rejected\.txt$/i.test(filename);
@@ -287,11 +289,15 @@ async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: s
       return;
     }
     const junkDirectory = sourceJunkDirectoryPattern.test(path.basename(directory));
+    const screenshotDirectory = screenshotDirectoryPattern.test(path.basename(directory));
     for (const entry of entries) {
       const entryPath = path.join(directory, entry.name);
       if (entry.isDirectory()) await visit(entryPath, true);
       else if (entry.isFile()) {
-        let isJunk = junkDirectory || isLooseTextJunk(entry.name) || sourceJunkPatterns.some((pattern) => pattern.test(entry.name));
+        let isJunk = junkDirectory
+          || (screenshotDirectory && screenshotImagePattern.test(entry.name))
+          || isLooseTextJunk(entry.name)
+          || sourceJunkPatterns.some((pattern) => pattern.test(entry.name));
         if (!isJunk && /\.nfo$/i.test(entry.name)) {
           try { isJunk = await isPlaintextReleaseNfo(entryPath); }
           catch (error) { warnings.push(`Could not inspect possible release-info NFO ${entryPath}: ${error instanceof Error ? error.message : String(error)}`); }

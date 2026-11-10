@@ -31,7 +31,7 @@ const en = {
   'prefs.fileMoves': 'File moves', 'prefs.fileMovesHelp': 'Choose what happens to source folders after files are moved.', 'prefs.afterRename': 'After renaming',
   'prefs.afterRenameHelp': 'Choose what happens after every file in a batch is renamed successfully.', 'prefs.shows': 'Shows', 'prefs.movies': 'Movies',
   'prefs.close': 'Close preferences', 'prefs.removeEmpty': 'Remove empty source folders', 'prefs.removeEmptyHelp': 'Remove empty source folders left behind by moved media and companion files',
-  'prefs.clearJunk': 'Clear source junk after moving', 'prefs.clearJunkHelp': 'Delete loose text adverts, plaintext release-report NFOs, recognized promotions, and empty subtitles so source folders can be removed; this cannot be undone',
+  'prefs.clearJunk': 'Clear source junk after moving', 'prefs.clearJunkHelp': 'Delete loose text adverts, plaintext release-report NFOs, screenshot folders, recognized promotions, and empty subtitles so source folders can be removed; this cannot be undone',
   'prefs.autoClear': 'Clear completed batches automatically', 'prefs.autoClearHelp': 'Remove the finished batch from the workspace while keeping Undo available',
   'prefs.completionChime': 'Play a sound when finished', 'prefs.completionChimeHelp': 'Plays a distinct success or error sound after each rename operation',
   'prefs.completionReport': 'Show a completion report', 'prefs.completionReportHelp': 'Summarise processed files, removed folders, warnings, and logs',
