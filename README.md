@@ -157,7 +157,7 @@ Every operation is stored as a durable JSON record in Electron's application-dat
 | 6 — Media detection and subtitle organisation | Complete | 4 of 4 steps |
 | 7 — Versioning, developer tools, and personality | In progress | 9 of 11 steps |
 | 8 — Private-by-design error reporting | Planned | 0 of 39 steps |
-| 9 — Release readiness | Started | 1 of 7 steps |
+| 9 — Release readiness | Started | 1 of 17 steps |
 
 Milestones describe product capability rather than strict release boundaries. Work may cross milestone boundaries when a real-world batch exposes a more useful next step.
 
@@ -319,12 +319,24 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 ### Milestone 9 — release readiness (in progress)
 
 - [x] automated unsigned Linux, Windows, and macOS packages with tag-driven GitHub Releases
+- [ ] make TMDB the zero-configuration default provider for released builds, retain AniList where applicable, and keep TVDB optional rather than distributing a shared subscriber PIN
+- [ ] inject a dedicated, revocable TMDB application token only during trusted platform builds; keep it out of source, JavaScript, renderer IPC, logs, crash reports, and unpacked resources
+- [ ] move credential reconstruction and fixed-origin TMDB requests into a stripped native helper with a narrow command allowlist and normalized responses
+- [ ] randomize the token representation for each release, split reconstruction material, minify production code, and omit source maps while documenting that client-side protection delays rather than prevents determined extraction
+- [ ] extract and scan every finished installer for plaintext, encoded, or accidentally packaged credentials, `.env` files, source maps, and development assets; fail the release on a match
+- [ ] harden Electron production builds with explicit sandboxing, a restrictive Content Security Policy, navigation/window/permission guards, ASAR integrity, `OnlyLoadAppFromAsar`, and disabled RunAsNode, NODE_OPTIONS, and inspection fuses
+- [ ] bound and cache provider traffic, add local throttling and concurrency limits, identify credentials by non-secret release ID, and document monitoring, revocation, and rotation procedures
+- [ ] harden the release chain with immutable action pins, least-privilege job permissions, protected publishing, dependency and secret scanning, SBOMs, provenance attestations, and published checksums
+- [ ] optionally publish a signed, non-secret GitHub Pages manifest for supported/revoked versions, checksums, provider notices, public verification keys, and update metadata; never publish or relay credentials through Pages
+- [ ] complete provider attribution and licensing review, including required TMDB attribution and an explicit prohibition on shipping a shared TVDB subscriber PIN
 - [ ] signed and notarized macOS build
 - [ ] signed Windows build
 - [ ] update channel with release notes and safe migrations
-- [ ] in-app provider setup and first-run validation
+- [ ] zero-configuration provider validation plus optional advanced TVDB setup
 - [ ] keyboard, screen-reader, contrast, and reduced-motion audit
 - [ ] large-batch performance, interruption-recovery, and cross-platform integration testing
+
+The detailed threat model, acceptance criteria, and non-goals for these items live in [`docs/release-security.md`](docs/release-security.md). The release must work without purchasing or operating a Media Renamer server. A credential embedded in client software can be hardened against casual extraction but cannot be made secret from a determined user controlling the machine.
 
 ## Architecture boundary
 
@@ -336,7 +348,7 @@ Renderer (React)
 Electron preload exposes a deliberately small IPC surface to the renderer.
 ```
 
-Provider responses should be normalized immediately. API keys stay in the main process, paths are validated before filesystem operations, and renderer code never receives unrestricted Node access.
+Provider responses should be normalized immediately. Provider credentials never enter the renderer, paths are validated before filesystem operations, and renderer code never receives unrestricted Node access.
 
 ## Releases
 

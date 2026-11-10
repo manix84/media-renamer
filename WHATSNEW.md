@@ -26,6 +26,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Red warning treatment for the `UNCENSORED` media flag.
 - A clear restart prompt instead of a raw IPC error when a development renderer is newer than its running Electron host.
 - Rename execution on virtual and cloud-backed filesystems that do not support hard links, using native rename or temporary-copy publication instead.
+- A documented self-contained provider and release-security plan covering credential containment, Electron hardening, artifact inspection, provenance, and rotation.
 
 ## [0.1.0] - 2026-10-26
 
