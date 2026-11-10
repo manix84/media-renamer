@@ -1372,6 +1372,7 @@ export default function App() {
       if (!active || !status.running) return;
       recoveredRename.current = true;
       setActiveMediaTab(status.mediaKind);
+      setPaths((current) => current.length ? current : status.paths);
       setRenaming(true);
       setRenameControl(status.control);
       setRenameStartedAt(status.startedAt);
@@ -1390,6 +1391,7 @@ export default function App() {
       setWork(undefined);
       setRenameConfirmationOpen(false);
       if (finished.result) {
+        replaceBatchPaths(finished.result.operation.items, 'forward');
         setLastRename(finished.result);
         if (completionReport) setRenameReport({ result: finished.result, moved: finished.moved ?? false });
       } else if (finished.error) setError(finished.error);

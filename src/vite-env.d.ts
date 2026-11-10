@@ -113,7 +113,7 @@ declare global {
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>>;
       executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean }): Promise<RenameOperationRecord>;
       controlRename(control: 'stop' | 'undo'): Promise<boolean>;
-      getRenameStatus(): Promise<{ running: false } | { running: true; startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; control?: 'stop' | 'undo'; progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number } }>;
+      getRenameStatus(): Promise<{ running: false } | { running: true; startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; paths: string[]; control?: 'stop' | 'undo'; progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number } }>;
       getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
       undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;
       onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => void): () => void;

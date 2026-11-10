@@ -34,7 +34,14 @@ let preferenceWrite = Promise.resolve();
 let renameRunning = false;
 let activeRenameControl: 'stop' | 'undo' | undefined;
 type RenameProgressState = { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
-type ActiveRenameState = { startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; progress: RenameProgressState; control?: 'stop' | 'undo' };
+type ActiveRenameState = {
+  startedAt: number;
+  mediaKind: 'movies' | 'shows';
+  moved: boolean;
+  progress: RenameProgressState;
+  control?: 'stop' | 'undo';
+  recoveryItems: Array<{ sourcePath: string; targetPath: string }>;
+};
 let activeRenameState: ActiveRenameState | undefined;
 let renameCloseWarningOpen = false;
 let metadataStore: MetadataCache | undefined;
@@ -291,6 +298,7 @@ ipcMain.handle('files:expand-paths', (_event, values: unknown) => {
 ipcMain.handle('files:watch', async (_event, values: unknown) => {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid watched media paths.');
   watchedMediaPaths = values.map(mediaPathArgument);
+  if (renameRunning) return;
   await mediaFileMonitor.setPaths(watchedMediaPaths);
 });
 
@@ -422,6 +430,9 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       mediaKind: renameOptions.mediaKind,
       moved: renameOptions.moveFiles ?? false,
       progress: { operation: 'rename', completed: 0, total: items.filter((item) => item.sourcePath !== item.targetPath).length, ...renameGroupProgress(groupSizes, 0) },
+      recoveryItems: items
+        .filter((item) => isVideoFile(item.sourcePath) || isVideoFile(item.targetPath))
+        .map(({ sourcePath, targetPath }) => ({ sourcePath, targetPath })),
     };
     executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => {
       const progress = { operation, completed, total, ...(operation === 'rename' ? renameGroupProgress(groupSizes, completed) : {}) };
@@ -467,7 +478,15 @@ ipcMain.handle('rename:control', (_event, control: unknown) => {
   if (activeRenameState) activeRenameState.control = control;
   return true;
 });
-ipcMain.handle('rename:status', () => activeRenameState ? { running: true, ...activeRenameState } : { running: false });
+ipcMain.handle('rename:status', () => {
+  if (!activeRenameState) return { running: false };
+  const { recoveryItems, ...status } = activeRenameState;
+  return {
+    running: true,
+    ...status,
+    paths: [...new Set(recoveryItems.map((item) => fs.existsSync(item.targetPath) ? item.targetPath : item.sourcePath))],
+  };
+});
 ipcMain.handle('rename:last-operation', () => latestRename());
 ipcMain.handle('rename:undo', async (event, operationId: unknown) => {
   if (typeof operationId !== 'string') throw new Error('Invalid rename operation.');
