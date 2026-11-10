@@ -748,7 +748,8 @@ export default function App() {
   }, [reviewingAutomaticItem, reviewingItem]);
   const reviewCandidates = useMemo(() => {
     const search = reviewSearch.trim().toLocaleLowerCase();
-    if (!search) return suggestedCandidates;
+    if (!search && suggestedCandidates.length) return suggestedCandidates;
+    if (!search) return episodes.map((episode) => ({ episode, score: 1, reasons: ['manually selected'] }));
     return episodes.filter((episode) => `${episodeCode(episode)} ${episode.title}`.toLocaleLowerCase().includes(search)).slice(0, 100).map((episode) => suggestedCandidates.find((candidate) => candidate.episode.id === episode.id) ?? { episode, score: 1, reasons: ['manually selected'] });
   }, [episodes, reviewSearch, suggestedCandidates]);
   const formatError = templateError(episodeTemplate);
@@ -2973,7 +2974,7 @@ export default function App() {
           <div className="review-heading"><div><p className="eyebrow">MATCH REVIEW</p><h2>Choose an episode</h2></div><button className="icon-button" aria-label="Close match review" onClick={() => setReviewingPath(undefined)}><X size={18}/></button></div>
           <div className="review-file"><FileVideo size={17}/><span><strong>{reviewingItem.filename}</strong><small>Confirm the suggestion or search every episode in this show.</small></span></div>
           <label className="review-search"><Search size={15}/><input value={reviewSearch} onChange={(event) => setReviewSearch(event.target.value)} placeholder="Search by S03E12 or episode title" autoFocus/></label>
-          <div className="review-results-heading"><strong>{reviewSearch.trim() ? 'Search results' : 'Suggested matches'}</strong><small>{reviewCandidates.length} episode{reviewCandidates.length === 1 ? '' : 's'}</small></div>
+          <div className="review-results-heading"><strong>{reviewSearch.trim() ? 'Search results' : suggestedCandidates.length ? 'Suggested matches' : 'All episodes'}</strong><small>{reviewCandidates.length} episode{reviewCandidates.length === 1 ? '' : 's'}</small></div>
           <div className="review-candidates">
             {reviewCandidates.map((candidate) => {
               const selected = reviewCandidate ? candidateKey(reviewCandidate) === candidateKey(candidate) : false;
@@ -2985,7 +2986,7 @@ export default function App() {
                 {selected && <Check size={15}/>}
               </button>;
             })}
-            {reviewCandidates.length === 0 && <div className="review-empty">No episodes match that search.</div>}
+            {reviewCandidates.length === 0 && <div className="review-empty">{reviewSearch.trim() ? 'No episodes match that search.' : 'No episodes are available for this show.'}</div>}
           </div>
           <div className="review-footer"><span><FileCheck2 size={15}/> Double-click an episode to confirm it immediately.</span><button className="primary" disabled={!reviewCandidate} onClick={() => confirmMatchReview()}>Confirm match</button></div>
         </aside>

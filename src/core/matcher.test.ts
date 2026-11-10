@@ -350,6 +350,16 @@ describe('episode matcher', () => {
     expect(result.match?.reasons).toContain('absolute episode number');
   });
 
+  it('uses retained absolute order for an E-prefixed standalone episode number', () => {
+    const result = matchFile('The Real Ghostbusters - E093 (Flipside).mp4', [
+      { id: 's4e8', season: 4, number: 8, absoluteNumber: 93, title: 'Flipside' },
+      { id: 's5e5', season: 5, number: 5, absoluteNumber: 110, title: 'Future Episode' },
+    ], true, .8, 'The Real Ghostbusters');
+
+    expect(result.match?.episode.id).toBe('s4e8');
+    expect(result.match?.reasons).toContain('absolute episode number');
+  });
+
   it('does not use the show title as episode-title evidence', () => {
     const result = matchFile('His.Dark.Materials.S01E04.1080p.BluRay.x265-RARBG.mp4', [
       { id: 'special', season: 0, number: 1, title: 'Making His Dark Materials' },

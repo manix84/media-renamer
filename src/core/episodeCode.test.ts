@@ -42,6 +42,11 @@ describe('episode code parser', () => {
       .toMatchObject({ episode: 1 });
   });
 
+  it('recognises an E-prefixed standalone absolute episode number', () => {
+    expect(parseStandaloneEpisode('The Real Ghostbusters - E093 (Flipside).mp4')).toMatchObject({ episode: 93 });
+    expect(parseStandaloneEpisode('The Real Ghostbusters - Episode 093 - Flipside.mp4')).toMatchObject({ episode: 93 });
+  });
+
   it.each(['Show 07.mkv', 'Show - 2026 [1080p].mkv', 'Show_07.mkv', 'Show - v2 [1080p].mkv'])
     ('rejects an ambiguous bare number: %s', (filename) => {
       expect(parseStandaloneEpisode(filename)).toBeUndefined();
