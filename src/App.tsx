@@ -75,14 +75,6 @@ function summarizeBatchValues(values: Array<string | number | undefined>): { com
   return { common: unique.length === 1 ? unique[0] : undefined, mixed: unique.length > 1 };
 }
 
-function openExternalLink(url: string): void {
-  if (window.mediaRenamer?.openExternalLink) {
-    void window.mediaRenamer.openExternalLink(url);
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
-
 const TEMPLATE_FIELDS: Array<{ label: string; fields: TemplateField[] }> = [
   { label: 'Show', fields: [
     { name: 'show.name', description: 'Series title', example: 'Star Trek: The Next Generation' },
@@ -3167,7 +3159,7 @@ export default function App() {
             <section className="about-hero">
               <div className="about-logo-lockup">
                 <img className="about-app-logo" src="/media-renamer-icon.png" alt=""/>
-                <button className="about-author-badge" type="button" aria-label="View Rob's GitHub profile" onClick={() => openExternalLink('https://github.com/manix84')}><span aria-hidden="true"/></button>
+                <a className="about-author-badge" href="https://github.com/manix84" target="_blank" rel="noopener noreferrer" aria-label="View Rob's GitHub profile"><span aria-hidden="true"/></a>
               </div>
               <h3>Media Renamer</h3>
               <p>A confidence-first desktop renamer for TV episodes and movies.</p>
@@ -3185,8 +3177,8 @@ export default function App() {
                 <p>I’m Rob, a software engineer who likes building practical, focused tools that respect the people using them. Media Renamer is free to use, and optional sponsorship helps keep it maintained.</p>
               </div>
               <div className="about-actions">
-                <button className="primary" type="button" onClick={() => openExternalLink('https://github.com/manix84/media-renamer')}><ExternalLink size={14}/>View source</button>
-                <button className="secondary" type="button" onClick={() => openExternalLink('https://github.com/sponsors/manix84')}><Heart size={14}/>Sponsor Rob</button>
+                <a className="primary" href="https://github.com/manix84/media-renamer" target="_blank" rel="noopener noreferrer"><ExternalLink size={14}/>View source</a>
+                <a className="secondary" href="https://github.com/sponsors/manix84" target="_blank" rel="noopener noreferrer"><Heart size={14}/>Sponsor Rob</a>
               </div>
               <small className="about-sponsor-note">Sponsorship supports maintenance, releases and continued free access.</small>
             </section>
