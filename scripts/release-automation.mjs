@@ -28,7 +28,7 @@ export function updateWhatsNew(changelog, version, date) {
   const unreleased = changelog.slice(start + unreleasedHeading.length, firstRelease).trim();
   if (!unreleased) throw new Error('WHATSNEW.md has no entries beneath Unreleased.');
 
-  const released = `${unreleasedHeading}\n\n## [${version}] - ${date}\n\n${unreleased}\n`;
+  const released = `${unreleasedHeading}\n\n## [${version}] - ${date}\n\n${unreleased}\n\n`;
   let next = `${changelog.slice(0, start)}${released}${changelog.slice(firstRelease + 1)}`;
   const previousVersion = RELEASE_HEADING.exec(changelog)?.[1];
   if (!previousVersion) throw new Error('WHATSNEW.md has no previous semantic version heading.');

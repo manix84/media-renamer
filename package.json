@@ -1,6 +1,6 @@
 {
   "name": "media-renamer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A confidence-first TV episode and movie renamer",
   "author": "Rob <373278+manix84@users.noreply.github.com>",
