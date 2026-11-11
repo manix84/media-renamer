@@ -24,6 +24,11 @@ import { windowChromeOptions } from './windowChrome.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
+const allowedExternalUrls = new Set([
+  'https://github.com/manix84',
+  'https://github.com/manix84/media-renamer',
+  'https://github.com/sponsors/manix84',
+]);
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type DebugEntry = { id: number; timestamp: number; level: DebugLevel; message: string; detail?: string };
 
@@ -210,6 +215,10 @@ function createWindow() {
   });
   mainWindow = window;
   installTextEditContextMenu(window);
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (allowedExternalUrls.has(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   window.on('close', (event) => {
     if (!renameRunning) return;
     event.preventDefault();
@@ -351,12 +360,7 @@ ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_AC
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:open-external', async (_event, value: unknown) => {
   const url = textArgument(value, 'external URL');
-  const allowedUrls = new Set([
-    'https://github.com/manix84',
-    'https://github.com/manix84/media-renamer',
-    'https://github.com/sponsors/manix84',
-  ]);
-  if (!allowedUrls.has(url)) throw new Error('External URL is not allowed');
+  if (!allowedExternalUrls.has(url)) throw new Error('External URL is not allowed');
   await shell.openExternal(url);
 });
 ipcMain.handle('preferences:get', () => loadPreferences());
