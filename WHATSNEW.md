@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated About preferences tab now brings together Media Renamer's purpose, privacy details, author links, provider credits, and open-source licence acknowledgements.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

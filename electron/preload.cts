@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof i
 contextBridge.exposeInMainWorld('mediaRenamer', {
   platform: process.platform,
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  openExternalLink: (url: string): Promise<void> => ipcRenderer.invoke('app:open-external', url),
   loadPreferences: () => ipcRenderer.invoke('preferences:get'),
   savePreferences: (preferences: unknown) => ipcRenderer.invoke('preferences:set', preferences),
   listExtensions: () => ipcRenderer.invoke('extensions:list'),

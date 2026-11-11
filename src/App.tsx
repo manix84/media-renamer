@@ -3,7 +3,7 @@ import { basicSetup } from 'codemirror';
 import { EditorSelection, EditorState, Prec } from '@codemirror/state';
 import { crosshairCursor, Decoration, EditorView, keymap, MatchDecorator, rectangularSelection, ViewPlugin, type DecorationSet } from '@codemirror/view';
 import { selectNextOccurrence, selectSelectionMatches } from '@codemirror/search';
-import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
+import { AlertCircle, BellRing, Captions, Check, ChevronRight, Clock3, ExternalLink, FileCheck2, FileImage, FilePenLine, FileText, FileVideo, Film, FolderOpen, FolderPlus, FolderTree, Heart, Info, ListChecks, LoaderCircle, Monitor, Moon, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Square, SquareTerminal, Sun, Trash2, TriangleAlert, Tv, X } from 'lucide-react';
 import { prepareCompletionChime, prepareErrorChime } from './completionChime';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, PREVIOUS_DEFAULT_EPISODE_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE, PREVIOUS_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE, PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE, showFolderTemplateError, templateError } from './core/formatter';
 import { createRenamePlan, destinationDirectoryForSource, filenameProblem, unchangedRenameItemPaths } from './core/renamePlan';
@@ -41,7 +41,7 @@ type TemplateField = { name: string; description: string; example: string };
 type FileViewMode = 'detailed' | 'summary' | 'compact';
 type MediaTab = 'shows' | 'movies';
 type PreferenceMediaTab = MediaTab | `extension:${string}:${string}`;
-type PreferenceSection = 'general' | 'libraries' | 'renaming' | 'extensions' | 'advanced';
+type PreferenceSection = 'general' | 'libraries' | 'renaming' | 'extensions' | 'advanced' | 'about';
 type RenameReport = { result: RenameOperationRecord; moved: boolean };
 type BatchReleaseField = 'edition' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'webOrigin' | 'webOriginShort' | 'group' | 'flags';
 type BatchReleaseOverrides = Partial<Record<BatchReleaseField, string>>;
@@ -3033,9 +3033,11 @@ export default function App() {
                 ['extensions', Sparkles, 'Extensions', 'Optional integrations'],
                 ['advanced', SlidersHorizontal, 'Advanced', 'Aliases and developer tools'],
               ] as const).map(([section, Icon, label, description]) => <button key={section} className={preferenceSection === section ? 'active' : ''} aria-current={preferenceSection === section ? 'page' : undefined} onClick={() => { setPreferenceSection(section); if (section !== 'libraries') setTemplateReferenceOpen(false); }}><Icon size={16}/><span><strong>{label}</strong><small>{description}</small></span></button>)}
+              <div className="preferences-navigation-divider" aria-hidden="true"/>
+              <button className={preferenceSection === 'about' ? 'active' : ''} aria-current={preferenceSection === 'about' ? 'page' : undefined} onClick={() => { setPreferenceSection('about'); setTemplateReferenceOpen(false); }}><Info size={16}/><span><strong>About</strong><small>Credits, privacy and licences</small></span></button>
             </nav>
             <main className="preferences-content">
-              <header className="preferences-content-heading"><p className="eyebrow">{preferenceSection === 'general' ? 'APPLICATION' : preferenceSection === 'libraries' ? 'MEDIA LIBRARIES' : preferenceSection === 'renaming' ? 'FILE OPERATIONS' : preferenceSection === 'extensions' ? 'OPTIONAL FEATURES' : 'POWER USER'}</p><h2>{preferenceSection === 'general' ? 'General' : preferenceSection === 'libraries' ? 'Libraries & naming' : preferenceSection === 'renaming' ? 'Renaming' : preferenceSection === 'extensions' ? 'Extensions' : 'Advanced'}</h2></header>
+              <header className="preferences-content-heading"><p className="eyebrow">{preferenceSection === 'general' ? 'APPLICATION' : preferenceSection === 'libraries' ? 'MEDIA LIBRARIES' : preferenceSection === 'renaming' ? 'FILE OPERATIONS' : preferenceSection === 'extensions' ? 'OPTIONAL FEATURES' : preferenceSection === 'advanced' ? 'POWER USER' : 'MEDIA RENAMER'}</p><h2>{preferenceSection === 'general' ? 'General' : preferenceSection === 'libraries' ? 'Libraries & naming' : preferenceSection === 'renaming' ? 'Renaming' : preferenceSection === 'extensions' ? 'Extensions' : preferenceSection === 'advanced' ? 'Advanced' : 'About'}</h2></header>
           <section hidden={preferenceSection !== 'general'} className="preference-section language-settings"><h3>{t('prefs.language')}</h3><p>{t('prefs.languageHelp')}</p><label><span>{t('prefs.systemLanguage')}</span><select value={languagePreference} onChange={(event) => setLanguagePreference(event.target.value as LanguagePreference)}>{LANGUAGE_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.value === 'system' ? `${t('common.automatic')} — ${LANGUAGE_OPTIONS.find((candidate) => candidate.value === language)?.label ?? 'English'}` : option.label}</option>)}</select></label></section>
           <section hidden={preferenceSection !== 'general'} className="preference-section"><h3>{t('prefs.appearance')}</h3><p>{t('prefs.appearanceHelp')}</p><div className="theme-switcher" role="group" aria-label="Light and dark appearance">
             {([['system', Monitor, t('common.automatic')], ['light', Sun, t('common.light')], ['dark', Moon, t('common.dark')]] as const).map(([value, Icon, label]) => (
@@ -3047,7 +3049,6 @@ export default function App() {
               return <button key={value} className={`${palette === value ? 'active' : ''} ${seasonal ? 'seasonal' : ''}`.trim()} aria-pressed={palette === value} onClick={() => setPalette(value, developerMode)}><span className={`palette-swatch ${value === 'pride' ? 'pride-swatch' : ''}`.trim()} style={{ '--palette-swatch': colour } as CSSProperties}/><span>{label}</span>{seasonal && <small>Seasonal</small>}</button>;
             })}
           </div></section>
-          <section hidden={preferenceSection !== 'general'} className="preference-section provider-credits"><h3>Metadata credits</h3><p>Media Renamer uses independent metadata services and is not endorsed by them.</p><div className="provider-credit"><img src="/tmdb-logo.svg" alt="The Movie Database (TMDB)"/><span><strong>The Movie Database</strong><small>This product uses the TMDB API but is not endorsed or certified by TMDB.</small></span></div><div className="provider-credit"><span className="provider-wordmark">TheTVDB</span><span><strong>TheTVDB</strong><small>Optional TV episode metadata is supplied by TheTVDB only when the user configures eligible credentials. Media Renamer does not distribute a shared subscriber PIN.</small></span></div><div className="provider-credit"><span className="provider-wordmark">AniList</span><span><strong>AniList</strong><small>Enabled anime extensions may request public metadata from AniList after the user grants network access.</small></span></div></section>
           <section hidden={preferenceSection !== 'general'} className="preference-section"><h3>{t('prefs.fileList')}</h3><p>{t('prefs.fileListHelp')}</p><div className="view-mode-switcher" role="group" aria-label="File list view">
             {([['detailed', 'Detailed', 'Match evidence and detected media tags'], ['summary', 'Summary', 'Current filename and proposed filename'], ['compact', 'Compact', 'Short rows for larger batches']] as const).map(([value, label, description]) => (
               <button key={value} className={fileViewMode === value ? 'active' : ''} aria-pressed={fileViewMode === value} onClick={() => setFileViewMode(value)}><strong>{label}</strong><small>{description}</small></button>
@@ -3154,6 +3155,35 @@ export default function App() {
           </div>}
           </div>
           {developerMode && <section hidden={preferenceSection !== 'advanced'} className="preference-section developer-settings"><h3>Developer tools</h3><p>Diagnostic controls intended for development and troubleshooting.</p><div className="destination-row standalone"><span><strong>Debug console</strong><small>Inspect local provider, matching, and filesystem activity.</small></span><span className="destination-actions"><button className="secondary" onClick={() => { setDebugDocked(true); setPreferencesOpen(false); void window.mediaRenamer?.dockDebugConsole(); }}><SquareTerminal size={14}/>Open</button><button className="secondary" onClick={() => { setDeveloperMode(false); setDeveloperVersionClicks(0); setDeveloperUnlockMessage(undefined); setDebugDocked(false); }}>Disable developer mode</button></span></div></section>}
+          <div hidden={preferenceSection !== 'about'} className="about-preferences">
+            <section className="about-hero">
+              <div className="about-logo-lockup">
+                <img className="about-app-logo" src="/media-renamer-icon.png" alt=""/>
+                <button className="about-author-badge" type="button" aria-label="View Rob's GitHub profile" onClick={() => void window.mediaRenamer?.openExternalLink('https://github.com/manix84')}><span aria-hidden="true"/></button>
+              </div>
+              <h3>Media Renamer</h3>
+              <p>A confidence-first desktop renamer for TV episodes and movies.</p>
+              <dl className="about-details">
+                <div><dt>Version</dt><dd>{appVersion}</dd></div>
+                <div><dt>Platforms</dt><dd>Windows, macOS &amp; Linux</dd></div>
+                <div><dt>Built by</dt><dd>Rob</dd></div>
+                <div><dt>Cost</dt><dd>Free</dd></div>
+                <div><dt>Privacy</dt><dd>No ads, no tracking, local-first storage</dd></div>
+                <div><dt>Purpose</dt><dd>Preview, organise and safely rename personal TV and movie libraries.</dd></div>
+              </dl>
+              <div className="about-copy">
+                <p>Media Renamer turns inconsistent TV episode and movie filenames into clear, consistent library names. Every proposed change stays visible before anything moves, with collision checks, progress controls and undo support for completed work.</p>
+                <p>File paths, preferences, rename history and extensions stay on your computer. Metadata is requested only from the providers needed for the features you choose; the app contains no advertising or behavioural analytics.</p>
+                <p>I’m Rob, a software engineer who likes building practical, focused tools that respect the people using them. Media Renamer is free to use, and optional sponsorship helps keep it maintained.</p>
+              </div>
+              <div className="about-actions">
+                <button className="primary" type="button" onClick={() => void window.mediaRenamer?.openExternalLink('https://github.com/manix84/media-renamer')}><ExternalLink size={14}/>View source</button>
+                <button className="secondary" type="button" onClick={() => void window.mediaRenamer?.openExternalLink('https://github.com/sponsors/manix84')}><Heart size={14}/>Sponsor Rob</button>
+              </div>
+              <small className="about-sponsor-note">Sponsorship supports maintenance, releases and continued free access.</small>
+            </section>
+            <section className="preference-section provider-credits"><h3>Credits &amp; licences</h3><p>Media Renamer uses independent metadata services and open-source software. Provider names and logos remain the property of their respective owners.</p><div className="provider-credit"><img src="/tmdb-logo.svg" alt="The Movie Database (TMDB)"/><span><strong>The Movie Database</strong><small>This product uses the TMDB API but is not endorsed or certified by TMDB.</small></span></div><div className="provider-credit"><span className="provider-wordmark">TheTVDB</span><span><strong>TheTVDB</strong><small>Optional TV episode metadata is supplied by TheTVDB only when the user configures eligible credentials. Media Renamer does not distribute a shared subscriber PIN.</small></span></div><div className="provider-credit"><span className="provider-wordmark">AniList</span><span><strong>AniList</strong><small>Enabled anime extensions may request public metadata from AniList after the user grants network access.</small></span></div><div className="provider-credit open-source-credit"><span className="provider-wordmark">Open source</span><span><strong>Application foundations</strong><small>Built with Electron (MIT), React (MIT), TypeScript (Apache-2.0), Vite (MIT), CodeMirror (MIT) and Lucide (ISC). Dependency source and licence details are available from the project repository.</small></span></div></section>
+          </div>
             </main>
           </div>
           <div className="preferences-version"><button type="button" aria-label={`Media Renamer version ${appVersion}`} onClick={clickVersion}>Media Renamer {appVersion}</button>{developerUnlockMessage && <span className="preferences-version-message" role="status" key={developerUnlockMessage}>{developerUnlockMessage}</span>}</div>

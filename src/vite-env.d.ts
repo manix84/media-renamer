@@ -24,6 +24,7 @@ declare global {
     mediaRenamer?: {
       platform: string;
       getAppVersion(): Promise<string>;
+      openExternalLink(url: string): Promise<void>;
       listExtensions(): Promise<InstalledExtension[]>;
       installExtension(): Promise<InstalledExtension | undefined>;
       uninstallExtension(id: string): Promise<void>;
