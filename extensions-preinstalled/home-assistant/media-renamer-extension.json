@@ -2,17 +2,17 @@
   "apiVersion": 1,
   "id": "home-assistant-statistics",
   "name": "Home Assistant Statistics",
-  "version": "1.0.0",
-  "description": "Publishes privacy-conscious aggregate rename statistics as Home Assistant sensor entities.",
+  "version": "1.1.0",
+  "description": "Publishes aggregate rename statistics through Home Assistant MQTT Discovery. Requires the Home Assistant MQTT integration with discovery enabled.",
   "settings": [
     { "key": "baseUrl", "type": "text", "label": "Home Assistant URL", "description": "The local URL of your Home Assistant instance.", "placeholder": "http://homeassistant.local:8123" },
     { "key": "accessToken", "type": "secret", "label": "Long-lived access token", "description": "Create a long-lived access token in your Home Assistant profile. It is encrypted by the operating system and is never exposed to the extension." }
   ],
   "match": { "mediaKinds": ["show", "movie"] },
   "capabilities": [
-    { "id": "home-assistant.statistics", "reason": "Publish aggregate counters and recent/top media names directly to the configured Home Assistant instance. File paths and credentials are never included." }
+    { "id": "home-assistant.statistics", "reason": "Publish aggregate counters and recent/top media names as registered MQTT sensor entities grouped beneath one Media Renamer device. Requires Home Assistant's MQTT integration and MQTT discovery. File paths and credentials are never included." }
   ],
   "statisticsAdapters": [
-    { "id": "home-assistant", "label": "Home Assistant REST sensors", "capability": "home-assistant.statistics", "transport": "home-assistant-rest", "urlSettingKey": "baseUrl", "tokenSettingKey": "accessToken", "entityPrefix": "media_renamer" }
+    { "id": "home-assistant", "label": "Home Assistant MQTT Discovery", "capability": "home-assistant.statistics", "transport": "home-assistant-rest", "urlSettingKey": "baseUrl", "tokenSettingKey": "accessToken", "entityPrefix": "media_renamer" }
   ]
 }

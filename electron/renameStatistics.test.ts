@@ -18,7 +18,7 @@ describe('rename statistics', () => {
     expect(result.topShows[0]).toMatchObject({ name: 'Example', count: 2, lastSortedAt: '2026-10-31T10:00:00.000Z' });
   });
 
-  it('publishes bounded Home Assistant sensor states without exposing paths', async () => {
+  it('publishes retained MQTT discovery and state without exposing paths', async () => {
     const calls: Array<{ url: string; body: string }> = [];
     const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(input), body: String(init?.body) });
@@ -27,8 +27,15 @@ describe('rename statistics', () => {
     await publishRenameStatistics({ baseUrl: 'http://homeassistant.local:8123', token: 'secret', entityPrefix: 'media_renamer' }, {
       version: 1, updatedAt: '2026-10-31T10:00:00.000Z', totals: { operations: 1, files: 2, videos: 1, movies: 1, episodes: 0, shows: 0, subtitles: 1 }, shows: {}, movies: {}, topShows: [], recentShows: [], recentMovies: [],
     }, fetcher);
-    expect(calls).toHaveLength(8);
-    expect(calls[0].url).toBe('http://homeassistant.local:8123/api/states/sensor.media_renamer_files_renamed');
+    expect(calls).toHaveLength(2);
+    expect(calls[0].url).toBe('http://homeassistant.local:8123/api/services/mqtt/publish');
+    const discoveryRequest = JSON.parse(calls[0].body) as { topic: string; payload: string; retain: boolean };
+    const discovery = JSON.parse(discoveryRequest.payload) as { device: { identifiers: string[] }; components: Record<string, { unique_id: string }> };
+    expect(discoveryRequest).toMatchObject({ topic: 'homeassistant/device/media_renamer/config', retain: true });
+    expect(discovery.device.identifiers).toEqual(['media_renamer_statistics']);
+    expect(discovery.components.files_renamed.unique_id).toBe('media_renamer_files_renamed');
+    const stateRequest = JSON.parse(calls[1].body) as { topic: string; retain: boolean };
+    expect(stateRequest).toMatchObject({ topic: 'media_renamer/statistics/state', retain: true });
     expect(calls.map((call) => call.body).join(' ')).not.toContain('/TV/');
   });
 
@@ -36,6 +43,6 @@ describe('rename statistics', () => {
     const fetcher = (async () => new Response('{"message":"Invalid access token"}', { status: 401, statusText: 'Unauthorized' })) as typeof fetch;
     await expect(publishRenameStatistics({ baseUrl: 'https://example.ui.nabu.casa', token: 'invalid', entityPrefix: 'media_renamer' }, {
       version: 1, totals: { operations: 0, files: 0, videos: 0, movies: 0, episodes: 0, shows: 0, subtitles: 0 }, shows: {}, movies: {}, topShows: [], recentShows: [], recentMovies: [],
-    }, fetcher)).rejects.toThrow('Home Assistant rejected sensor.media_renamer_files_renamed (401 Unauthorized): {"message":"Invalid access token"}');
+    }, fetcher)).rejects.toThrow('Home Assistant could not publish the Media Renamer MQTT device discovery message (401 Unauthorized): {"message":"Invalid access token"} Make sure the MQTT integration is installed and MQTT discovery is enabled.');
   });
 });

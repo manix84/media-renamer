@@ -107,7 +107,7 @@ export function summarizeRenameStatistics(statistics: RenameStatistics): RenameS
   };
 }
 
-export interface HomeAssistantPublisherConfig { baseUrl: string; token: string; entityPrefix: string }
+export interface HomeAssistantPublisherConfig { baseUrl: string; token: string; entityPrefix: string; applicationVersion?: string }
 
 function homeAssistantBaseUrl(value: string): URL {
   let url: URL;
@@ -118,30 +118,71 @@ function homeAssistantBaseUrl(value: string): URL {
 
 export async function publishRenameStatistics(config: HomeAssistantPublisherConfig, summary: RenameStatisticsSummary, fetcher: typeof fetch = fetch): Promise<void> {
   const baseUrl = homeAssistantBaseUrl(config.baseUrl);
-  const common = { source: 'Media Renamer', last_updated: summary.updatedAt };
-  const entities: Array<[string, string | number, Record<string, unknown>]> = [
-    ['files_renamed', summary.totals.files, { friendly_name: 'Media Renamer files renamed', icon: 'mdi:file-move', state_class: 'total_increasing', unit_of_measurement: 'files' }],
-    ['videos_sorted', summary.totals.videos, { friendly_name: 'Media Renamer videos sorted', icon: 'mdi:video', state_class: 'total_increasing', unit_of_measurement: 'videos' }],
-    ['movies_sorted', summary.totals.movies, { friendly_name: 'Media Renamer movies sorted', icon: 'mdi:movie-open', state_class: 'total_increasing', unit_of_measurement: 'movies' }],
-    ['episodes_sorted', summary.totals.episodes, { friendly_name: 'Media Renamer episodes sorted', icon: 'mdi:television-classic', state_class: 'total_increasing', unit_of_measurement: 'episodes' }],
-    ['shows_sorted', summary.totals.shows, { friendly_name: 'Media Renamer unique shows sorted', icon: 'mdi:television', unit_of_measurement: 'shows' }],
-    ['subtitles_sorted', summary.totals.subtitles, { friendly_name: 'Media Renamer subtitles sorted', icon: 'mdi:subtitles', state_class: 'total_increasing', unit_of_measurement: 'subtitles' }],
-    ['operations', summary.totals.operations, { friendly_name: 'Media Renamer operations', icon: 'mdi:counter', state_class: 'total_increasing' }],
-    ['activity', summary.updatedAt ?? 'unknown', { friendly_name: 'Media Renamer activity', icon: 'mdi:history', device_class: 'timestamp', top_shows: summary.topShows, recent_shows: summary.recentShows, recent_movies: summary.recentMovies }],
-  ];
-  for (const [suffix, state, attributes] of entities) {
-    const endpoint = new URL(`/api/states/sensor.${config.entityPrefix}_${suffix}`, baseUrl);
-    const response = await fetcher(endpoint, {
+  const discoveryTopic = `homeassistant/device/${config.entityPrefix}/config`;
+  const stateTopic = `${config.entityPrefix}/statistics/state`;
+  const component = (suffix: string, name: string, valueTemplate: string, options: Record<string, unknown>) => ({
+    platform: 'sensor',
+    unique_id: `${config.entityPrefix}_${suffix}`,
+    default_entity_id: `sensor.${config.entityPrefix}_${suffix}`,
+    name,
+    value_template: valueTemplate,
+    ...options,
+  });
+  const discovery = {
+    device: {
+      identifiers: [`${config.entityPrefix}_statistics`],
+      name: 'Media Renamer',
+      manufacturer: 'Media Renamer',
+      model: 'Statistics Publisher',
+      ...(config.applicationVersion ? { sw_version: config.applicationVersion } : {}),
+    },
+    origin: {
+      name: 'Media Renamer',
+      ...(config.applicationVersion ? { sw_version: config.applicationVersion } : {}),
+      support_url: 'https://github.com/manix84/media-renamer',
+    },
+    state_topic: stateTopic,
+    components: {
+      files_renamed: component('files_renamed', 'Files renamed', '{{ value_json.files_renamed }}', { icon: 'mdi:file-move', state_class: 'total_increasing', unit_of_measurement: 'files' }),
+      videos_sorted: component('videos_sorted', 'Videos sorted', '{{ value_json.videos_sorted }}', { icon: 'mdi:video', state_class: 'total_increasing', unit_of_measurement: 'videos' }),
+      movies_sorted: component('movies_sorted', 'Movies sorted', '{{ value_json.movies_sorted }}', { icon: 'mdi:movie-open', state_class: 'total_increasing', unit_of_measurement: 'movies' }),
+      episodes_sorted: component('episodes_sorted', 'Episodes sorted', '{{ value_json.episodes_sorted }}', { icon: 'mdi:television-classic', state_class: 'total_increasing', unit_of_measurement: 'episodes' }),
+      shows_sorted: component('shows_sorted', 'Unique shows sorted', '{{ value_json.shows_sorted }}', { icon: 'mdi:television', state_class: 'total_increasing', unit_of_measurement: 'shows' }),
+      subtitles_sorted: component('subtitles_sorted', 'Subtitles sorted', '{{ value_json.subtitles_sorted }}', { icon: 'mdi:subtitles', state_class: 'total_increasing', unit_of_measurement: 'subtitles' }),
+      operations: component('operations', 'Rename operations', '{{ value_json.operations }}', { icon: 'mdi:counter', state_class: 'total_increasing' }),
+      activity: component('activity', 'Latest activity', '{{ value_json.activity }}', {
+        icon: 'mdi:history',
+        device_class: 'timestamp',
+        json_attributes_topic: stateTopic,
+        json_attributes_template: '{{ value_json.activity_attributes | tojson }}',
+      }),
+    },
+  };
+  const state = {
+    files_renamed: summary.totals.files,
+    videos_sorted: summary.totals.videos,
+    movies_sorted: summary.totals.movies,
+    episodes_sorted: summary.totals.episodes,
+    shows_sorted: summary.totals.shows,
+    subtitles_sorted: summary.totals.subtitles,
+    operations: summary.totals.operations,
+    activity: summary.updatedAt ?? null,
+    activity_attributes: { top_shows: summary.topShows, recent_shows: summary.recentShows, recent_movies: summary.recentMovies },
+  };
+  const publish = async (topic: string, payload: unknown, stage: string) => {
+    const response = await fetcher(new URL('/api/services/mqtt/publish', baseUrl), {
       method: 'POST',
       redirect: 'error',
       headers: { authorization: `Bearer ${config.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ state: String(state), attributes: { ...common, ...attributes } }),
+      body: JSON.stringify({ topic, payload: JSON.stringify(payload), retain: true }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
       const responseDetail = (await response.text().catch(() => '')).trim().replace(/\s+/g, ' ').slice(0, 300);
       const status = `${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
-      throw new Error(`Home Assistant rejected sensor.${config.entityPrefix}_${suffix} (${status})${responseDetail ? `: ${responseDetail}` : '.'}`);
+      throw new Error(`Home Assistant could not publish the Media Renamer ${stage} (${status})${responseDetail ? `: ${responseDetail}` : '.'} Make sure the MQTT integration is installed and MQTT discovery is enabled.`);
     }
-  }
+  };
+  await publish(discoveryTopic, discovery, 'MQTT device discovery message');
+  await publish(stateTopic, state, 'MQTT sensor state');
 }

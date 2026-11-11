@@ -93,7 +93,7 @@ async function publishStatisticsToEnabledExtensions(providedSummary?: ReturnType
       const baseUrl = preference.settings[adapter.urlSettingKey];
       const token = await extensionSecrets().get(extension.id, adapter.tokenSettingKey);
       if (!baseUrl || !token) continue;
-      await publishRenameStatistics({ baseUrl, token, entityPrefix: adapter.entityPrefix }, summary);
+      await publishRenameStatistics({ baseUrl, token, entityPrefix: adapter.entityPrefix, applicationVersion: app.getVersion() }, summary);
       published += 1;
     }
   }
