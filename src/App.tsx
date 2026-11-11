@@ -3026,15 +3026,19 @@ export default function App() {
           <div className="preferences-heading"><div><p className="eyebrow">{t('prefs.settings')}</p><h2>{t('prefs.title')}</h2></div><button className="icon-button" aria-label={t('prefs.close')} onClick={() => { setPreferencesOpen(false); setTemplateReferenceOpen(false); }}><X size={18}/></button></div>
           <div className="preferences-workspace">
             <nav className="preferences-navigation" aria-label="Preference sections">
-              {([
-                ['general', Settings, 'General', 'Appearance and file list'],
-                ['libraries', FolderTree, 'Libraries & naming', 'Destinations and templates'],
-                ['renaming', RefreshCw, 'Renaming', 'Moves, sidecars and completion'],
-                ['extensions', Sparkles, 'Extensions', 'Optional integrations'],
-                ['advanced', SlidersHorizontal, 'Advanced', 'Aliases and developer tools'],
-              ] as const).map(([section, Icon, label, description]) => <button key={section} className={preferenceSection === section ? 'active' : ''} aria-current={preferenceSection === section ? 'page' : undefined} onClick={() => { setPreferenceSection(section); if (section !== 'libraries') setTemplateReferenceOpen(false); }}><Icon size={16}/><span><strong>{label}</strong><small>{description}</small></span></button>)}
-              <div className="preferences-navigation-divider" aria-hidden="true"/>
-              <button className={preferenceSection === 'about' ? 'active' : ''} aria-current={preferenceSection === 'about' ? 'page' : undefined} onClick={() => { setPreferenceSection('about'); setTemplateReferenceOpen(false); }}><Info size={16}/><span><strong>About</strong><small>Credits, privacy and licences</small></span></button>
+              <div className="preferences-navigation-scroll">
+                {([
+                  ['general', Settings, 'General', 'Appearance and file list'],
+                  ['libraries', FolderTree, 'Libraries & naming', 'Destinations and templates'],
+                  ['renaming', RefreshCw, 'Renaming', 'Moves, sidecars and completion'],
+                  ['extensions', Sparkles, 'Extensions', 'Optional integrations'],
+                  ['advanced', SlidersHorizontal, 'Advanced', 'Aliases and developer tools'],
+                ] as const).map(([section, Icon, label, description]) => <button key={section} className={preferenceSection === section ? 'active' : ''} aria-current={preferenceSection === section ? 'page' : undefined} onClick={() => { setPreferenceSection(section); if (section !== 'libraries') setTemplateReferenceOpen(false); }}><Icon size={16}/><span><strong>{label}</strong><small>{description}</small></span></button>)}
+              </div>
+              <div className="preferences-navigation-footer">
+                <div className="preferences-navigation-divider" aria-hidden="true"/>
+                <button className={preferenceSection === 'about' ? 'active' : ''} aria-current={preferenceSection === 'about' ? 'page' : undefined} onClick={() => { setPreferenceSection('about'); setTemplateReferenceOpen(false); }}><Info size={16}/><span><strong>About</strong><small>Credits, privacy and licences</small></span></button>
+              </div>
             </nav>
             <main className="preferences-content">
               <header className="preferences-content-heading"><p className="eyebrow">{preferenceSection === 'general' ? 'APPLICATION' : preferenceSection === 'libraries' ? 'MEDIA LIBRARIES' : preferenceSection === 'renaming' ? 'FILE OPERATIONS' : preferenceSection === 'extensions' ? 'OPTIONAL FEATURES' : preferenceSection === 'advanced' ? 'POWER USER' : 'MEDIA RENAMER'}</p><h2>{preferenceSection === 'general' ? 'General' : preferenceSection === 'libraries' ? 'Libraries & naming' : preferenceSection === 'renaming' ? 'Renaming' : preferenceSection === 'extensions' ? 'Extensions' : preferenceSection === 'advanced' ? 'Advanced' : 'About'}</h2></header>
