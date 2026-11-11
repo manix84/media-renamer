@@ -31,7 +31,7 @@ declare global {
       extensionSecretStatus(extensionId: string, key: string): Promise<{ available: boolean; saved: boolean }>;
       setExtensionSecret(extensionId: string, key: string, value: string): Promise<void>;
       deleteExtensionSecret(extensionId: string, key: string): Promise<boolean>;
-      publishExtensionStatistics(): Promise<number>;
+      publishExtensionStatistics(extensionId?: string): Promise<number>;
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;

@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   extensionSecretStatus: (extensionId: string, key: string): Promise<{ available: boolean; saved: boolean }> => ipcRenderer.invoke('extensions:secret-status', extensionId, key),
   setExtensionSecret: (extensionId: string, key: string, value: string): Promise<void> => ipcRenderer.invoke('extensions:set-secret', extensionId, key, value),
   deleteExtensionSecret: (extensionId: string, key: string): Promise<boolean> => ipcRenderer.invoke('extensions:delete-secret', extensionId, key),
-  publishExtensionStatistics: (): Promise<number> => ipcRenderer.invoke('extensions:publish-statistics'),
+  publishExtensionStatistics: (extensionId?: string): Promise<number> => ipcRenderer.invoke('extensions:publish-statistics', extensionId),
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke('files:pick'),
   pickFolders: (): Promise<string[]> => ipcRenderer.invoke('folders:pick'),
   pickDestinationFolder: (kind?: 'TV' | 'Movie' | 'Log'): Promise<string | undefined> => ipcRenderer.invoke('destination:pick', kind),

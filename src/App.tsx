@@ -45,6 +45,7 @@ type PreferenceSection = 'general' | 'libraries' | 'renaming' | 'extensions' | '
 type RenameReport = { result: RenameOperationRecord; moved: boolean };
 type BatchReleaseField = 'edition' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'webOrigin' | 'webOriginShort' | 'group' | 'flags';
 type BatchReleaseOverrides = Partial<Record<BatchReleaseField, string>>;
+type ExtensionPublishState = { status: 'publishing' | 'success' | 'error'; message: string };
 
 const BATCH_RELEASE_FIELDS: Array<{ key: BatchReleaseField; label: string; placeholder: string }> = [
   { key: 'edition', label: 'Edition', placeholder: 'Optional' },
@@ -420,6 +421,8 @@ export default function App() {
   const [extensionOperation, setExtensionOperation] = useState(false);
   const [extensionSecretStatuses, setExtensionSecretStatuses] = useState<Record<string, { available: boolean; saved: boolean }>>({});
   const [extensionSecretDrafts, setExtensionSecretDrafts] = useState<Record<string, string>>({});
+  const [extensionPublishStates, setExtensionPublishStates] = useState<Record<string, ExtensionPublishState>>({});
+  const extensionPublishTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -578,6 +581,10 @@ export default function App() {
     ? (extension.mediaSettingsTabs ?? []).map((tab) => ({ extension, tab, preferenceKey: `extension:${extension.id}:${tab.id}` as PreferenceMediaTab }))
     : []);
   const selectedExtensionMediaTab = extensionMediaTabs.find((item) => item.preferenceKey === preferenceMediaTab);
+
+  useEffect(() => () => {
+    for (const timer of Object.values(extensionPublishTimers.current)) clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (preferenceMediaTab.startsWith('extension:') && !selectedExtensionMediaTab) setPreferenceMediaTab('shows');
@@ -2027,15 +2034,29 @@ export default function App() {
     }
   }
 
-  async function publishExtensionStatistics() {
+  async function publishExtensionStatistics(extensionId: string) {
+    const existingTimer = extensionPublishTimers.current[extensionId];
+    if (existingTimer) clearTimeout(existingTimer);
+    setExtensionPublishStates((current) => ({ ...current, [extensionId]: { status: 'publishing', message: 'Publishing statistics…' } }));
     try {
-      const count = await window.mediaRenamer?.publishExtensionStatistics() ?? 0;
-      addDebug('success', `Published statistics to ${count} extension adapter${count === 1 ? '' : 's'}`);
+      const count = await window.mediaRenamer?.publishExtensionStatistics(extensionId) ?? 0;
+      const message = `Published current statistics to Home Assistant`;
+      setExtensionPublishStates((current) => ({ ...current, [extensionId]: { status: 'success', message } }));
+      addDebug('success', `${message} (${count} adapter${count === 1 ? '' : 's'})`);
     } catch (reason) {
       const message = errorMessage(reason);
+      setExtensionPublishStates((current) => ({ ...current, [extensionId]: { status: 'error', message } }));
       setError(message);
       addDebug('error', 'Could not publish extension statistics', message);
     }
+    extensionPublishTimers.current[extensionId] = setTimeout(() => {
+      setExtensionPublishStates((current) => {
+        const next = { ...current };
+        delete next[extensionId];
+        return next;
+      });
+      delete extensionPublishTimers.current[extensionId];
+    }, 8_000);
   }
 
   async function addExtension() {
@@ -3035,6 +3056,7 @@ export default function App() {
           <section hidden={preferenceSection !== 'renaming'} className="preference-section"><h3>Plex metadata sidecars</h3><p>Create Plex NFO metadata and local artwork as part of the same reversible rename operation.</p><label className="preference-toggle"><span><FileText size={17}/><span><strong>Export NFO files</strong><small>Write movie, series, and episode NFOs, including multi-episode records.</small></span></span><input type="checkbox" checked={exportNfo} onChange={(event) => setExportNfo(event.target.checked)}/></label><label className="preference-toggle"><span><FileImage size={17}/><span><strong>Download Plex artwork</strong><small>Save every available provider poster, background, logo, and episode thumbnail using Plex names.</small></span></span><input type="checkbox" checked={exportPlexArtwork} onChange={(event) => setExportPlexArtwork(event.target.checked)}/></label></section>
           <section hidden={preferenceSection !== 'extensions'} className="preference-section extension-settings"><div className="extension-heading"><span><h3>Extensions</h3><p>Install optional packages that classify matched media and choose different destinations without changing the core renamer.</p></span><span className="destination-actions"><button className="secondary" disabled={extensionOperation || !window.mediaRenamer?.installExtension} onClick={() => void addExtension()}><FolderPlus size={14}/>Install extension</button><button className="icon-button" aria-label="Open extensions folder" title="Open extensions folder" disabled={!window.mediaRenamer?.openExtensionsDirectory} onClick={() => void window.mediaRenamer?.openExtensionsDirectory()}><FolderOpen size={15}/></button></span></div>{installedExtensions.length ? installedExtensions.map((extension) => {
             const extensionPreference = extensionPreferences[extension.id] ?? { enabled: false, settings: {} };
+            const publishState = extensionPublishStates[extension.id];
             const sourceLabel = extension.source === 'development' ? 'Development' : extension.source === 'preinstalled' ? 'Preinstalled' : 'Installed';
             const mediaTabSettingKeys = new Set((extension.mediaSettingsTabs ?? []).map((tab) => tab.baseFolderSettingKey));
             const localSettings = extension.settings.filter((setting) => !mediaTabSettingKeys.has(setting.key));
@@ -3050,7 +3072,7 @@ export default function App() {
               const status = extensionSecretStatuses[secretIdentity];
               const draft = extensionSecretDrafts[secretIdentity] ?? '';
               return <label className="extension-text-setting extension-secret-setting" key={setting.key}><span><strong>{setting.label}</strong><small>{status?.saved ? 'Saved securely in the operating system credential vault. Enter a new value only to replace it.' : status?.available === false ? 'Secure credential storage is unavailable.' : setting.description}</small></span><span className="extension-secret-control"><input type="password" autoComplete="new-password" value={draft} aria-label={setting.label} placeholder={status?.saved ? 'Saved — enter a replacement token' : setting.placeholder ?? 'Paste token'} disabled={status?.available === false} onChange={(event) => setExtensionSecretDrafts((current) => ({ ...current, [secretIdentity]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter' && draft.trim()) { event.preventDefault(); void saveExtensionSecret(extension.id, setting.key, setting.label, draft); } }}/><span className="destination-actions"><button type="button" className="secondary" disabled={status?.available === false || !draft.trim()} onClick={() => void saveExtensionSecret(extension.id, setting.key, setting.label, draft)}><ShieldCheck size={14}/>{status?.saved ? 'Replace' : 'Save'}</button>{status?.saved && <button type="button" className="icon-button" aria-label={`Remove ${setting.label}`} onClick={() => void deleteExtensionSecret(extension.id, setting.key, setting.label)}><Trash2 size={14}/></button>}</span></span></label>;
-            })}{(extension.statisticsAdapters?.length ?? 0) > 0 && <button className="secondary extension-publish" onClick={() => void publishExtensionStatistics()}><RefreshCw size={14}/>Publish current statistics</button>}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</fieldset></article>;
+            })}{(extension.statisticsAdapters?.length ?? 0) > 0 && <div className="extension-publish-row"><button className={`secondary extension-publish ${publishState?.status ?? ''}`.trim()} disabled={publishState?.status === 'publishing'} aria-live="polite" onClick={() => void publishExtensionStatistics(extension.id)}>{publishState?.status === 'success' ? <Check size={14}/> : publishState?.status === 'error' ? <AlertCircle size={14}/> : <RefreshCw className={publishState?.status === 'publishing' ? 'spin' : ''} size={14}/>}<span>{publishState?.status === 'publishing' ? 'Publishing…' : publishState?.status === 'success' ? 'Published successfully' : publishState?.status === 'error' ? 'Publish failed' : 'Publish current statistics'}</span></button>{publishState && publishState.status !== 'publishing' && <output className={`extension-publish-message ${publishState.status}`} role="status">{publishState.message}</output>}</div>}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</fieldset></article>;
           }) : <div className="extension-empty"><Sparkles size={18}/><span><strong>No extensions installed</strong><small>Media Renamer works normally without extensions. Install only the packages you want.</small></span></div>}<small>Extensions run only after metadata is matched. Invalid or incompatible packages are ignored, and normal TV or movie destinations remain available.</small></section>
           <section hidden={preferenceSection !== 'renaming'} className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>

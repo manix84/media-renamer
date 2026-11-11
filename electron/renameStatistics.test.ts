@@ -31,4 +31,11 @@ describe('rename statistics', () => {
     expect(calls[0].url).toBe('http://homeassistant.local:8123/api/states/sensor.media_renamer_files_renamed');
     expect(calls.map((call) => call.body).join(' ')).not.toContain('/TV/');
   });
+
+  it('includes Home Assistant response details when publishing fails', async () => {
+    const fetcher = (async () => new Response('{"message":"Invalid access token"}', { status: 401, statusText: 'Unauthorized' })) as typeof fetch;
+    await expect(publishRenameStatistics({ baseUrl: 'https://example.ui.nabu.casa', token: 'invalid', entityPrefix: 'media_renamer' }, {
+      version: 1, totals: { operations: 0, files: 0, videos: 0, movies: 0, episodes: 0, shows: 0, subtitles: 0 }, shows: {}, movies: {}, topShows: [], recentShows: [], recentMovies: [],
+    }, fetcher)).rejects.toThrow('Home Assistant rejected sensor.media_renamer_files_renamed (401 Unauthorized): {"message":"Invalid access token"}');
+  });
 });

@@ -80,11 +80,12 @@ function renameStatisticsFilePath(): string {
   return path.join(app.getPath('userData'), 'rename-statistics.json');
 }
 
-async function publishStatisticsToEnabledExtensions(providedSummary?: ReturnType<typeof summarizeRenameStatistics>): Promise<number> {
+async function publishStatisticsToEnabledExtensions(providedSummary?: ReturnType<typeof summarizeRenameStatistics>, requestedExtensionId?: string): Promise<number> {
   const summary = providedSummary ?? summarizeRenameStatistics(await readRenameStatistics(renameStatisticsFilePath()));
   const [extensions, preferences] = await Promise.all([discoverExtensions(extensionSources()), loadPreferences()]);
   let published = 0;
   for (const extension of extensions) {
+    if (requestedExtensionId && extension.id !== requestedExtensionId) continue;
     const preference = preferences.extensions?.[extension.id];
     if (!preference?.enabled) continue;
     for (const adapter of extension.statisticsAdapters ?? []) {
@@ -96,6 +97,7 @@ async function publishStatisticsToEnabledExtensions(providedSummary?: ReturnType
       published += 1;
     }
   }
+  if (requestedExtensionId && published === 0) throw new Error('Home Assistant publishing is not fully configured. Check that the extension, statistics access, URL, and access token are all enabled.');
   return published;
 }
 
@@ -398,7 +400,7 @@ ipcMain.handle('extensions:set-secret', async (_event, extensionId: unknown, key
   await extensionSecrets().set(id, secretKey, value.trim());
 });
 ipcMain.handle('extensions:delete-secret', async (_event, extensionId: unknown, key: unknown) => extensionSecrets().delete(textArgument(extensionId, 'extension ID'), textArgument(key, 'secret key')));
-ipcMain.handle('extensions:publish-statistics', () => publishStatisticsToEnabledExtensions());
+ipcMain.handle('extensions:publish-statistics', (_event, extensionId?: unknown) => publishStatisticsToEnabledExtensions(undefined, extensionId === undefined ? undefined : textArgument(extensionId, 'extension ID')));
 ipcMain.handle('media:probe', (_event, filePath: unknown) => probeMedia(mediaPathArgument(filePath), localEnv('FFPROBE_PATH')));
 ipcMain.handle('metadata:stage-sidecars', (_event, assets: unknown) => stageGeneratedAssets(assets, path.join(app.getPath('temp'), 'media-renamer-sidecars')));
 ipcMain.handle('metadata:load-artwork', (_event, url: unknown) => fetchArtworkDataUrl(url));

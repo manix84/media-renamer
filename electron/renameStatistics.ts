@@ -138,6 +138,10 @@ export async function publishRenameStatistics(config: HomeAssistantPublisherConf
       body: JSON.stringify({ state: String(state), attributes: { ...common, ...attributes } }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) throw new Error(`Home Assistant rejected sensor.${config.entityPrefix}_${suffix} (${response.status}).`);
+    if (!response.ok) {
+      const responseDetail = (await response.text().catch(() => '')).trim().replace(/\s+/g, ' ').slice(0, 300);
+      const status = `${response.status}${response.statusText ? ` ${response.statusText}` : ''}`;
+      throw new Error(`Home Assistant rejected sensor.${config.entityPrefix}_${suffix} (${status})${responseDetail ? `: ${responseDetail}` : '.'}`);
+    }
   }
 }
