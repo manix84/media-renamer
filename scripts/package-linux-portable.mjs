@@ -48,7 +48,9 @@ APPIMAGE_EXTRACT_AND_RUN=1 \\
 
 Run "Run Media Renamer.sh" to start the app. The launcher keeps preferences,
 rename history, caches, and installed extensions inside the adjacent data folder.
-Keep the entire folder together when moving it between machines.
+Keep the entire folder together when moving it between machines. This is the
+important difference from the standard AppImage, which stores its application
+data in the current computer's user profile instead.
 
 If your desktop will not launch the script, open a terminal in this folder and run:
   chmod +x "Run Media Renamer.sh" "Media Renamer.AppImage"

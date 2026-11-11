@@ -1,16 +1,22 @@
 # Install Media Renamer on Linux
 
-Linux releases are available in two formats. Both include Media Renamer and its application runtime; users do not need Node.js, npm, Electron, or the source code.
+Linux releases include the application runtime; users do not need Node.js, npm, Electron, or the source code. Choose the download based on where Media Renamer should keep its data:
 
-A third USB-portable bundle is available for users who want the application and its settings to travel together.
+| Download | Installation | Where preferences and extensions are stored | Best for |
+| --- | --- | --- | --- |
+| AppImage | None | The current computer's user profile | Running without installing on one computer |
+| Debian package | Installed through the system | The current computer's user profile | Normal Debian or Ubuntu desktop integration |
+| USB-portable bundle | None | The bundle's local `data` folder | Carrying the app, preferences, history, and extensions between computers |
 
-## AppImage (simplest)
+## AppImage — install-free, with machine-local data
 
 1. Download the `.AppImage` file for your release.
 2. In the file's **Properties**, allow it to run as a program. From a terminal, the equivalent is `chmod +x Media-Renamer-*.AppImage`.
 3. Double-click the AppImage to run Media Renamer.
 
-The AppImage is portable and does not require installation. A desktop integration tool such as AppImageLauncher may optionally add it to the application menu.
+The AppImage executable can be moved and does not require installation, but it is **not the data-portable edition**. Preferences, rename history, caches, and installed extensions are stored in the current computer's user profile. Moving the AppImage to another computer does not carry that data with it.
+
+A desktop integration tool such as AppImageLauncher may optionally add it to the application menu.
 
 ## Debian / Ubuntu package
 
@@ -20,13 +26,15 @@ The AppImage is portable and does not require installation. A desktop integratio
 
 The command-line equivalent is `sudo apt install ./Media-Renamer-*.deb`. Using `apt` this way lets the system install any required operating-system libraries.
 
-## USB-portable bundle
+## USB-portable bundle — carries its data
 
 1. Download and extract the `linux-x86_64-portable.tar.gz` file onto the USB stick.
 2. Keep **Media Renamer.AppImage**, **Run Media Renamer.sh**, and the **data** folder together.
 3. Run **Run Media Renamer.sh**. If needed, allow both the launcher and AppImage to run as programs in their file properties.
 
-No dependency installation is required: the launcher uses AppImage extract-and-run mode and does not need FUSE, `apt`, Node.js, or Electron. It stores preferences, rename history, caches, and installed extensions inside the bundle's `data` folder. Extension credentials use operating-system encryption and may need to be entered again on another computer. A USB drive mounted with execution disabled cannot run Linux applications directly; copy the folder to a Linux filesystem or remount the drive with execution allowed.
+No dependency installation is required: the launcher uses AppImage extract-and-run mode and does not need FUSE, `apt`, Node.js, or Electron. Unlike the standard AppImage, it stores preferences, rename history, caches, and installed extensions inside the adjacent `data` folder. Keep the whole extracted bundle together and those settings will be available when it is run on another supported Linux computer.
+
+Extension credentials are the exception: they use operating-system encryption and may need to be entered again on another computer. A USB drive mounted with execution disabled cannot run Linux applications directly; copy the folder to a Linux filesystem or remount the drive with execution allowed.
 
 ## Extensions
 
