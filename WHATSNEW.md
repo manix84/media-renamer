@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Fixed
+
+- Cross-platform release tests no longer apply POSIX file-mode expectations on Windows, where those permission bits are not supported.
+
 ## [0.2.0] - 2026-11-11
 
 ### Added

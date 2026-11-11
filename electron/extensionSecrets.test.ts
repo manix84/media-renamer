@@ -37,7 +37,7 @@ describe('extension credential vault', () => {
     expect(await store.keys('example.metadata')).toEqual(['api-token']);
     const contents = await fs.promises.readFile(filePath, 'utf8');
     expect(contents).not.toContain('very-secret');
-    expect((await fs.promises.stat(filePath)).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect((await fs.promises.stat(filePath)).mode & 0o777).toBe(0o600);
   });
 
   it('keeps extension credentials isolated and supports scoped deletion', async () => {
