@@ -4,6 +4,8 @@
   "private": true,
   "description": "A confidence-first TV episode and movie renamer",
   "author": "Rob <373278+manix84@users.noreply.github.com>",
+  "homepage": "https://github.com/manix84/media-renamer",
+  "desktopName": "io.github.manix84.media-renamer.desktop",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -53,7 +55,8 @@
       "dist/**/*",
       "dist-electron/**/*",
       "assets/app-icon.png",
-      "package.json"
+      "package.json",
+      "!node_modules/**/*"
     ],
     "extraResources": [
       {
@@ -85,6 +88,7 @@
       "executableName": "media-renamer",
       "maintainer": "Rob <373278+manix84@users.noreply.github.com>",
       "synopsis": "Confidence-first TV episode and movie renaming",
+      "syncDesktopName": true,
       "target": [
         "AppImage",
         "deb"
