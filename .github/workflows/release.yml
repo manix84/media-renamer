@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feat/zero-config-metadata-provider
 
 permissions:
   contents: write
