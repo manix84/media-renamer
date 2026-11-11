@@ -25,6 +25,7 @@ jobs:
         with:
           node-version: 22
       - name: Validate version and release notes
+        if: github.ref == 'refs/heads/main'
         run: node scripts/check-release.mjs
       - name: Read version
         id: release
@@ -98,6 +99,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
+    if: github.ref == 'refs/heads/main'
     needs: [validate, build]
     runs-on: ubuntu-latest
     steps:
