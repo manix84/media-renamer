@@ -6,7 +6,10 @@ Linux releases include the application runtime; users do not need Node.js, npm, 
 | --- | --- | --- | --- |
 | AppImage | None | The current computer's user profile | Running without installing on one computer |
 | Debian package | Installed through the system | The current computer's user profile | Normal Debian or Ubuntu desktop integration |
+| RPM package | Installed through the system | The current computer's user profile | Normal Fedora, RHEL, or openSUSE desktop integration |
 | USB-portable bundle | None | The bundle's local `data` folder | Carrying the app, preferences, history, and extensions between computers |
+
+The initial packaged-distribution support covers Debian/Ubuntu derivatives, Fedora/RHEL derivatives, and openSUSE. The AppImage remains the fallback for other x86-64 desktop distributions. Additional native package formats can be considered in response to user requests.
 
 ## AppImage — install-free, with machine-local data
 
@@ -25,6 +28,14 @@ A desktop integration tool such as AppImageLauncher may optionally add it to the
 3. Start **Media Renamer** from the application menu.
 
 The command-line equivalent is `sudo apt install ./Media-Renamer-*.deb`. Using `apt` this way lets the system install any required operating-system libraries.
+
+## Fedora / RHEL / openSUSE package
+
+1. Download the `.rpm` file for your release.
+2. Open it with the system's software installer and select **Install**.
+3. Start **Media Renamer** from the application menu.
+
+On Fedora or RHEL, the command-line equivalent is `sudo dnf install ./Media-Renamer-*.rpm`. On openSUSE, use `sudo zypper install ./Media-Renamer-*.rpm`. Both commands allow the system package manager to install required operating-system libraries.
 
 ## USB-portable bundle — carries its data
 
@@ -52,4 +63,4 @@ npm run package:linux
 npm run package:linux:portable
 ```
 
-The AppImage, Debian package, and portable archive are written to `release/`. The tagged GitHub release workflow runs the same packaging stack on Ubuntu and publishes all three formats.
+The AppImage, Debian package, RPM package, and portable archive are written to `release/`. The tagged GitHub release workflow runs the same packaging stack on Ubuntu and publishes all four formats.
