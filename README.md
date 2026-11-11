@@ -56,7 +56,7 @@ This first scaffold includes:
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - automated coverage for matching, formatting, metadata providers and caching, file monitoring, preflight, rename execution, rollback, and undo.
 
-The UI uses TMDB for search, artwork, movies, and show cross-references. TV shows use TVDB's English aired-order episode numbers and titles for Plex-oriented sorting. Disabled metadata-agent selectors in each Preferences tab reserve the provider boundary for future alternatives.
+The UI uses TMDB by default for search, artwork, movies, show cross-references, and TV episode ordering. Users with eligible TVDB credentials can opt into TVDB's English aired-order episode numbers and titles for Plex-oriented sorting under **Preferences → Libraries & naming → Shows**. AniList remains available to approved anime extensions.
 
 ## Run it
 
@@ -70,7 +70,7 @@ npm run dev
 
 `npm run dev:electron` is also available as an explicit alias for the complete desktop development stack. Both commands compile the Electron main/preload code, start Vite, and launch the app. Changes under `electron/` automatically recompile and restart Electron so the renderer and preload bridge cannot drift out of sync.
 
-Add a TMDB v4 API Read Access Token and TVDB v4 API key to `.env` before starting the app:
+Development builds currently read provider credentials from `.env`. Add a TMDB v4 API Read Access Token before starting the app; TVDB is optional and required only when its advanced episode agent is selected:
 
 ```dotenv
 TMDB_ACCESS_TOKEN=your_long_read_access_token_here
@@ -83,7 +83,7 @@ Create or retrieve the token under your TMDB account's **Settings → API** page
 
 Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are resolved to the corresponding TMDB record for artwork and show details, while episode numbering and names come directly from TVDB.
 
-This product uses the TMDB API but is not endorsed or certified by TMDB.
+The application includes TMDB's approved logo and required notice under **Preferences → General → Metadata credits**: “This product uses the TMDB API but is not endorsed or certified by TMDB.” Media Renamer does not distribute a shared TVDB subscriber PIN; optional TVDB use requires the user's own eligible credentials.
 
 ## Local metadata cache
 

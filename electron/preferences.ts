@@ -35,6 +35,7 @@ export type PersistedPreferences = {
   showRules?: ShowRule[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
+  showMetadataAgent?: 'tmdb-aired' | 'tvdb-aired';
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
   themePreference?: 'system' | 'light' | 'dark';
   titleMatching?: boolean;
@@ -69,6 +70,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'valentines' || source.themePalette === 'pride' || source.themePalette === 'bonfire' || source.themePalette === 'new-year' || source.themePalette === 'spring' || source.themePalette === 'summer' || source.themePalette === 'autumn' || source.themePalette === 'winter' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
+  if (source.showMetadataAgent === 'tmdb-aired' || source.showMetadataAgent === 'tvdb-aired') result.showMetadataAgent = source.showMetadataAgent;
   if (source.extensions && typeof source.extensions === 'object' && !Array.isArray(source.extensions)) {
     result.extensions = Object.fromEntries(Object.entries(source.extensions as Record<string, unknown>).slice(0, 100).flatMap(([id, value]) => {
       if (!/^[a-z0-9][a-z0-9.-]{0,199}$/i.test(id) || !value || typeof value !== 'object' || Array.isArray(value)) return [];

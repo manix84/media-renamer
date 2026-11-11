@@ -4,6 +4,11 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- TMDB is now the default source for TV episode ordering, with persisted optional TVDB aired ordering for users who configure their own eligible credentials.
+- Provider credits now include TMDB's approved logo and required notice, alongside clear TVDB and AniList usage disclosures.
+
 ## [0.2.2] - 2026-11-11
 
 ### Fixed

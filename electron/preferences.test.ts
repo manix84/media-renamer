@@ -21,6 +21,12 @@ describe('persistent preferences', () => {
     expect(normalizePreferences({ tvBaseFolder: '/Media/TV', unknown: 'value', matchConfidenceThreshold: 12, removeEmptySourceParents: 'yes', savedMatchDecisions: [{ showId: '', filenameKey: '03', episodeIds: [], updatedAt: 'yesterday' }] })).toEqual({ tvBaseFolder: '/Media/TV', savedMatchDecisions: [] });
   });
 
+  it('persists only supported show metadata agents', () => {
+    expect(normalizePreferences({ showMetadataAgent: 'tmdb-aired' })).toEqual({ showMetadataAgent: 'tmdb-aired' });
+    expect(normalizePreferences({ showMetadataAgent: 'tvdb-aired' })).toEqual({ showMetadataAgent: 'tvdb-aired' });
+    expect(normalizePreferences({ showMetadataAgent: 'unknown' })).toEqual({});
+  });
+
   it('keeps metadata exports disabled unless explicitly enabled', () => {
     const preferences = normalizePreferences({});
     expect(preferences.exportNfo).toBeUndefined();

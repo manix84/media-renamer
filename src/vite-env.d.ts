@@ -60,6 +60,7 @@ declare global {
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
+        showMetadataAgent?: ShowMetadataAgent;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
@@ -93,6 +94,7 @@ declare global {
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
+        showMetadataAgent?: ShowMetadataAgent;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
