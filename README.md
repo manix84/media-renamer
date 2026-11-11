@@ -352,17 +352,15 @@ Provider responses should be normalized immediately. Provider credentials never 
 
 ## Releases
 
-GitHub Actions builds unsigned AppImage and Debian packages for Linux, NSIS and portable executables for Windows, and DMG and ZIP packages for macOS. Run **Build releases** manually to produce workflow artifacts without publishing a release.
+GitHub Actions builds unsigned AppImage, Debian, RPM, and USB-portable packages for Linux, NSIS and portable executables for Windows, and DMG and ZIP packages for macOS.
 
 For Linux, choose the standard AppImage for install-free use with preferences stored on the current computer, the Debian package for Debian/Ubuntu/Mint, the RPM package for Fedora/RHEL/openSUSE, or the USB-portable archive to keep preferences, history, caches, and extensions beside the app so they travel between computers. These are the initial supported distribution families; additional native packages can be added in response to user requests. All variants bundle the application runtime, so users do not need Node.js or Electron. See the [Linux installation guide](docs/linux-installation.md) for the full comparison and instructions.
 
-Tagged builds also create a GitHub Release. To prepare one:
+Pushes to `main` now build every platform and create or refresh the GitHub Release matching `package.json`. The repository pre-push hook prepares that release before `main` is published: it updates `package.json` and its lockfile, moves **Unreleased** notes into a dated version, and creates a `chore(release): vX.Y.Z` commit. The first push stops so that generated commit can be reviewed; pushing again runs the release workflow.
 
-1. Move the relevant entries in `WHATSNEW.md` from **Unreleased** into a heading matching the package version, such as `## [0.2.0] - 2026-11-01`.
-2. Update `package.json` and its lockfile to the same version.
-3. Merge and tag that commit as `v0.2.0`, then push the tag.
+Version selection follows semantic commit intent: `BREAKING CHANGE` or a conventional `type!:` commit increments the major version; `feat:`, `feature:`, `remove:`, or a subject beginning with Add, Introduce, Support, or Remove increments the minor version; other changes increment the patch version. Run `npm run release:prepare` manually to prepare the same release without starting a push. `npm install` and `npm ci` configure the versioned hook automatically through the package `prepare` script.
 
-The workflow refuses to publish when the matching `WHATSNEW.md` section is absent. Windows signing and macOS signing/notarization are intentionally deferred until their credentials are configured.
+The workflow refuses to publish unless `package.json`, its lockfile, the release commit, and the matching `WHATSNEW.md` section agree. Running **Build releases** manually rebuilds the current version and refreshes its existing GitHub Release. Windows signing and macOS signing/notarization are intentionally deferred until their credentials are configured.
 
 Optional features use the [installable extension system](extensions/README.md). Media Renamer runs normally without extensions; users can install packages after release, administrators can provide preinstalled packages, and developers can load local packages without copying them. The Anime library router is the first development example. Extensions remain disabled by default and cannot bypass the rename planner, preflight checks, execution log, or undo support.
 

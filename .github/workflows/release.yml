@@ -3,8 +3,8 @@ name: Build releases
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -14,8 +14,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate version and release notes
+        run: node scripts/check-release.mjs
+      - name: Read version
+        id: release
+        run: node -e "console.log('version=' + require('./package.json').version)" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.name }}
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -63,8 +80,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [validate, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +88,7 @@ jobs:
         with:
           node-version: 22
       - name: Extract release notes
-        run: node scripts/release-notes.mjs "${GITHUB_REF_NAME}" /tmp/release-notes.md
+        run: node scripts/release-notes.mjs "${{ needs.validate.outputs.version }}" /tmp/release-notes.md
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -80,6 +96,9 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Media Renamer v${{ needs.validate.outputs.version }}
           body_path: /tmp/release-notes.md
           files: artifacts/*
           fail_on_unmatched_files: true

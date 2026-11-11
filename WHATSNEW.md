@@ -6,7 +6,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ### Added
 
-- Cross-platform packaging for Linux, Windows, and macOS through GitHub Actions.
+- Cross-platform packaging for Linux, Windows, and macOS through GitHub Actions, including AppImage, Debian, RPM, USB-portable, NSIS, DMG, and ZIP releases.
+- Automatic semantic version selection, release-note rollover, and regenerated GitHub Releases whenever a prepared change reaches `main`.
 - Community health files for contribution, support, security, and issue reporting.
 - Nested rename progress for movie batches, showing both overall file progress and progress through each movie's video and associated sidecars.
 - Clickable movie-row posters using the same full-size, zoomable preview as TV-show artwork.
