@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-11
+
 ### Fixed
 
 - Windows releases now publish distinct installer and portable executable filenames instead of allowing one target to overwrite the other.
@@ -56,7 +58,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/manix84/media-renamer/releases/tag/v0.2.2
 [0.2.1]: https://github.com/manix84/media-renamer/releases/tag/v0.2.1
 [0.2.0]: https://github.com/manix84/media-renamer/releases/tag/v0.2.0
 [0.1.0]: https://github.com/manix84/media-renamer/releases/tag/v0.1.0
