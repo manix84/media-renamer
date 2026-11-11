@@ -419,6 +419,7 @@ export default function App() {
   const [installedExtensions, setInstalledExtensions] = useState<InstalledExtension[]>([]);
   const [extensionOperation, setExtensionOperation] = useState(false);
   const [extensionSecretStatuses, setExtensionSecretStatuses] = useState<Record<string, { available: boolean; saved: boolean }>>({});
+  const [extensionSecretDrafts, setExtensionSecretDrafts] = useState<Record<string, string>>({});
   const [showRules, setShowRules] = useState<ShowRule[]>([]);
   const [aiUpscaleOverride, setAiUpscaleOverride] = useState<'auto' | 'on' | 'off'>('auto');
   const [moveFiles, setMoveFiles] = useState(true);
@@ -1999,12 +2000,13 @@ export default function App() {
     }
   }
 
-  async function saveExtensionSecret(extensionId: string, settingKey: string, label: string) {
-    const value = window.prompt(`Enter ${label}. It will be stored using the operating system's encrypted credential storage.`)?.trim();
+  async function saveExtensionSecret(extensionId: string, settingKey: string, label: string, draft: string) {
+    const value = draft.trim();
     if (!value || !window.mediaRenamer?.setExtensionSecret) return;
     try {
       await window.mediaRenamer.setExtensionSecret(extensionId, settingKey, value);
       setExtensionSecretStatuses((current) => ({ ...current, [`${extensionId}:${settingKey}`]: { available: true, saved: true } }));
+      setExtensionSecretDrafts((current) => ({ ...current, [`${extensionId}:${settingKey}`]: '' }));
       addDebug('success', `${label} saved securely`);
     } catch (reason) {
       const message = errorMessage(reason);
@@ -3044,8 +3046,10 @@ export default function App() {
               const value = extensionPreference.settings[setting.key] ?? '';
               if (setting.type === 'directory') return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{value || setting.description}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseExtensionFolder(extension.id, setting.key, setting.pickerKind)}><FolderTree size={14}/>{value ? 'Change' : 'Choose'}</button>{value && <button className="icon-button" aria-label={`Clear ${setting.label}`} onClick={() => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: current[extension.id]?.enabled ?? false, settings: Object.fromEntries(Object.entries(current[extension.id]?.settings ?? {}).filter(([key]) => key !== setting.key)) } }))}><X size={14}/></button>}</span></div>;
               if (setting.type === 'text') return <label className="extension-text-setting" key={setting.key}><span><strong>{setting.label}</strong><small>{setting.description}</small></span><input type="url" value={value} placeholder={setting.placeholder} onChange={(event) => setExtensionPreferences((current) => ({ ...current, [extension.id]: { ...current[extension.id], enabled: current[extension.id]?.enabled ?? false, settings: { ...(current[extension.id]?.settings ?? {}), [setting.key]: event.target.value } } }))}/></label>;
-              const status = extensionSecretStatuses[`${extension.id}:${setting.key}`];
-              return <div className="destination-row standalone" key={setting.key}><span><strong>{setting.label}</strong><small>{status?.saved ? 'Saved securely in the operating system credential vault.' : status?.available === false ? 'Secure credential storage is unavailable.' : setting.description}</small></span><span className="destination-actions"><button className="secondary" disabled={status?.available === false} onClick={() => void saveExtensionSecret(extension.id, setting.key, setting.label)}><ShieldCheck size={14}/>{status?.saved ? 'Replace' : 'Save'}</button>{status?.saved && <button className="icon-button" aria-label={`Remove ${setting.label}`} onClick={() => void deleteExtensionSecret(extension.id, setting.key, setting.label)}><Trash2 size={14}/></button>}</span></div>;
+              const secretIdentity = `${extension.id}:${setting.key}`;
+              const status = extensionSecretStatuses[secretIdentity];
+              const draft = extensionSecretDrafts[secretIdentity] ?? '';
+              return <label className="extension-text-setting extension-secret-setting" key={setting.key}><span><strong>{setting.label}</strong><small>{status?.saved ? 'Saved securely in the operating system credential vault. Enter a new value only to replace it.' : status?.available === false ? 'Secure credential storage is unavailable.' : setting.description}</small></span><span className="extension-secret-control"><input type="password" autoComplete="new-password" value={draft} aria-label={setting.label} placeholder={status?.saved ? 'Saved — enter a replacement token' : setting.placeholder ?? 'Paste token'} disabled={status?.available === false} onChange={(event) => setExtensionSecretDrafts((current) => ({ ...current, [secretIdentity]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter' && draft.trim()) { event.preventDefault(); void saveExtensionSecret(extension.id, setting.key, setting.label, draft); } }}/><span className="destination-actions"><button type="button" className="secondary" disabled={status?.available === false || !draft.trim()} onClick={() => void saveExtensionSecret(extension.id, setting.key, setting.label, draft)}><ShieldCheck size={14}/>{status?.saved ? 'Replace' : 'Save'}</button>{status?.saved && <button type="button" className="icon-button" aria-label={`Remove ${setting.label}`} onClick={() => void deleteExtensionSecret(extension.id, setting.key, setting.label)}><Trash2 size={14}/></button>}</span></span></label>;
             })}{(extension.statisticsAdapters?.length ?? 0) > 0 && <button className="secondary extension-publish" onClick={() => void publishExtensionStatistics()}><RefreshCw size={14}/>Publish current statistics</button>}{extension.canUninstall && <button className="clear-overrides" disabled={extensionOperation} onClick={() => void removeExtension(extension)}><Trash2 size={14}/>Uninstall extension</button>}</fieldset></article>;
           }) : <div className="extension-empty"><Sparkles size={18}/><span><strong>No extensions installed</strong><small>Media Renamer works normally without extensions. Install only the packages you want.</small></span></div>}<small>Extensions run only after metadata is matched. Invalid or incompatible packages are ignored, and normal TV or movie destinations remain available.</small></section>
           <section hidden={preferenceSection !== 'renaming'} className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
