@@ -28,6 +28,9 @@ const allowedExternalUrls = new Set([
   'https://github.com/manix84',
   'https://github.com/manix84/media-renamer',
   'https://github.com/sponsors/manix84',
+  'https://www.themoviedb.org/',
+  'https://thetvdb.com/',
+  'https://anilist.co/',
 ]);
 type DebugLevel = 'info' | 'success' | 'warning' | 'error';
 type DebugEntry = { id: number; timestamp: number; level: DebugLevel; message: string; detail?: string };

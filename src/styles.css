@@ -605,7 +605,12 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 .tmdb-attribution { margin-left: 18px; color: #4f586a; }
 .provider-credits { gap: 14px; }
 .provider-credit { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 18px; padding: 14px; border: 1px solid #303747; border-radius: 12px; background: #111620; }
-.provider-credit img { display: block; width: 132px; height: auto; }
+.provider-credit img { display: block; max-width: 132px; max-height: 58px; width: auto; height: auto; object-fit: contain; }
+.provider-logo-link { width: 132px; min-height: 58px; display: grid; place-items: center; border-radius: 8px; }
+.provider-logo-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.provider-logo-link:active { filter: brightness(.82); transform: translateY(1px) scale(.985); }
+.provider-logo-link .light-theme-logo { display: none; }
+.provider-logo-link .anilist-logo { width: 58px; height: 58px; border-radius: 10px; }
 .provider-credit > span:last-child { display: grid; gap: 4px; }
 .provider-credit small { line-height: 1.45; color: #858fa3; }
 .provider-wordmark { font-size: 18px; font-weight: 750; letter-spacing: -.02em; color: #eef2ff; }
@@ -880,6 +885,8 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .provider-credit { border-color: #d7ddea; background: #f8faff; }
 [data-theme="light"] .provider-credit small { color: #667286; }
 [data-theme="light"] .provider-wordmark { color: #172033; }
+[data-theme="light"] .provider-logo-link .dark-theme-logo { display: none; }
+[data-theme="light"] .provider-logo-link .light-theme-logo { display: block; }
 [data-theme="light"] .about-app-logo { filter: drop-shadow(0 14px 22px #26344c2b); }
 [data-theme="light"] .about-author-badge { border-color: #fff; box-shadow: 0 7px 18px #26344c38; }
 [data-theme="light"] .about-hero > h3 { color: #172033; }
