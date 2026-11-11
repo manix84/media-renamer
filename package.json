@@ -16,6 +16,7 @@
     "build": "tsc -b && vite build && npm run build:electron",
     "package": "npm run build && electron-builder",
     "package:linux": "npm run build && electron-builder --linux AppImage deb --x64 --publish never",
+    "package:linux:portable": "npm run build && electron-builder --linux AppImage --x64 --publish never && node scripts/package-linux-portable.mjs",
     "release:notes": "node scripts/release-notes.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

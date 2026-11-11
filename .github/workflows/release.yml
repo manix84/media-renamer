@@ -42,12 +42,16 @@ jobs:
       - run: npm test
       - name: Package ${{ matrix.name }}
         run: npm run package -- --${{ matrix.target }} --publish never
+      - name: Create USB-portable Linux bundle
+        if: matrix.target == 'linux'
+        run: node scripts/package-linux-portable.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: media-renamer-${{ matrix.target }}
           path: |
             release/*.AppImage
             release/*.deb
+            release/*.tar.gz
             release/*.dmg
             release/*.zip
             release/*.exe
