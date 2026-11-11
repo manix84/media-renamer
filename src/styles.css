@@ -33,6 +33,10 @@ button, [role="button"] { user-select: none; -webkit-user-select: none; }
 .seasonal-effects { position: fixed; z-index: 19; inset: 64px 0 0; pointer-events: none; }
 .app-shell.preferences-open .topbar > :not(.topbar-actions), .app-shell.preferences-open .topbar-actions button:not(:first-child) { pointer-events: none; }
 .platform-darwin .topbar { padding-left: 104px; }
+.platform-win32 .topbar, .platform-linux .topbar {
+  padding-left: max(28px, calc(env(titlebar-area-x, 0px) + 28px));
+  padding-right: max(28px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 28px));
+}
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 730; letter-spacing: -.02em; }
 .brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: linear-gradient(135deg, #7c5cff, #4d8dff); box-shadow: 0 0 24px #735cff44; }
 .beta, .soon { border: 1px solid #5447a4; background: #29214d; color: #bdb3ff; border-radius: 5px; padding: 2px 6px; font-size: 9px; letter-spacing: .08em; }

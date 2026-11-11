@@ -19,6 +19,7 @@ import { mergeEpisodeArtwork } from './episodeMetadata.js';
 import { ExtensionSecretVault } from './extensionSecrets.js';
 import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, summarizeRenameStatistics } from './renameStatistics.js';
 import { textEditContextMenu } from './editContextMenu.js';
+import { windowChromeOptions } from './windowChrome.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -194,7 +195,7 @@ function createWindow() {
     height: 900,
     minWidth: 980,
     minHeight: 640,
-    titleBarStyle: 'hiddenInset',
+    ...windowChromeOptions(process.platform),
     backgroundColor: '#0b0e14',
     icon: appIconPath,
     webPreferences: {
