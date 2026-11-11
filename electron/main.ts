@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ import { discoverExtensions, inspectExtensionPackage, installExtension, uninstal
 import { mergeEpisodeArtwork } from './episodeMetadata.js';
 import { ExtensionSecretVault } from './extensionSecrets.js';
 import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, summarizeRenameStatistics } from './renameStatistics.js';
+import { textEditContextMenu } from './editContextMenu.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -203,6 +204,7 @@ function createWindow() {
     },
   });
   mainWindow = window;
+  installTextEditContextMenu(window);
   window.on('close', (event) => {
     if (!renameRunning) return;
     event.preventDefault();
@@ -244,11 +246,19 @@ function createDebugWindow() {
       nodeIntegration: false,
     },
   });
+  installTextEditContextMenu(debugWindow);
   debugWindow.on('closed', () => { debugWindow = undefined; });
 
   const devUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
   if (!app.isPackaged) void debugWindow.loadURL(`${devUrl}#debug`);
   else void debugWindow.loadFile(path.join(here, '../dist/index.html'), { hash: 'debug' });
+}
+
+function installTextEditContextMenu(window: BrowserWindow): void {
+  window.webContents.on('context-menu', (_event, context) => {
+    const template = textEditContextMenu(context);
+    if (template) Menu.buildFromTemplate(template).popup({ window });
+  });
 }
 
 function publishDebugEntries() {

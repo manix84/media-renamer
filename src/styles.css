@@ -19,6 +19,7 @@ html, body, #root { height: 100%; }
 body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; background: radial-gradient(circle at 50% -20%, #1b2642 0, #0c1019 38%, #080a0f 70%); }
 button, input { font: inherit; }
 button { color: inherit; }
+button, [role="button"] { user-select: none; -webkit-user-select: none; }
 .app-shell { --footer-height: 77px; height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .app-shell.debug-docked { height: 100vh; overflow: hidden; display: grid; }
 .app-shell.debug-docked.dock-bottom { --panel-sticky-top: 14px; --panel-viewport-height: calc(100dvh - 64px - 77px - var(--debug-size) - 28px); grid-template-columns: minmax(0, 1fr); grid-template-rows: 64px minmax(0, 1fr) auto var(--debug-size); grid-template-areas: "header" "main" "footer" "debug"; }
