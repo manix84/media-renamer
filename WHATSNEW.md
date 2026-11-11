@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows releases now publish distinct installer and portable executable filenames instead of allowing one target to overwrite the other.
+
 ## [0.2.1] - 2026-11-11
 
 ### Fixed
