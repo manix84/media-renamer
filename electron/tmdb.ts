@@ -190,7 +190,7 @@ function mergeAndRank(query: string, groups: TmdbShowSearchResult[][]): TmdbShow
 
 export class TmdbClient {
   constructor(
-    private readonly accessToken: string,
+    private readonly accessToken: string | undefined,
     private readonly fetcher: typeof fetch = fetch,
     private readonly logoLuminance?: (url: string) => Promise<number | undefined>,
   ) {}
@@ -214,14 +214,9 @@ export class TmdbClient {
   private async request<T>(pathname: string, params?: URLSearchParams): Promise<T> {
     const url = new URL(`${API_ROOT}${pathname}`);
     if (params) url.search = params.toString();
-    const response = await this.fetcher(url, {
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${this.accessToken}`,
-      },
-    });
+    const response = await this.fetcher(url, { headers: { accept: 'application/json', ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}) } });
     if (!response.ok) {
-      if (response.status === 401) throw new Error('TMDB rejected the access token. Check TMDB_ACCESS_TOKEN in .env.');
+      if (response.status === 401) throw new Error('TMDB rejected the configured access token.');
       throw new Error(`TMDB request failed (${response.status}).`);
     }
     return response.json() as Promise<T>;

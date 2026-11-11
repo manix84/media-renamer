@@ -24,6 +24,12 @@ It does not claim that a shared client-side credential is cryptographically secr
 5. Assign each credential a non-secret release identifier so abnormal use can be traced and the correct token revoked without exposing it.
 6. Cache responses and impose bounded concurrency and local request throttling to prevent accidental provider abuse. Treat these as safety controls, not an unbypassable security boundary.
 
+### Implemented credential boundary
+
+Release builds compile the protected `TMDB_ACCESS_TOKEN` Actions secret into a small platform-native helper. A fresh random mask produces a different split representation for every platform build, debug symbols and source paths are stripped, and the build fails if the finished binary contains the literal token. The helper accepts only the TMDB v3 GET routes Media Renamer uses, fixes the remote origin to `https://api.themoviedb.org`, rejects unknown query parameters, bounds response size and duration, and returns JSON without returning the credential. Development builds continue to use the ignored local `.env` file.
+
+This prevents accidental disclosure through the JavaScript bundle, renderer IPC, ordinary string searches, `.env` packaging, and unpacked application resources. It does not prevent a determined local user from instrumenting the helper or reusing it to call its narrow route allowlist; rotation, throttling, monitoring, and signed binaries remain required defence-in-depth work.
+
 ## Application hardening
 
 - Explicit Chromium sandboxing, context isolation, no renderer Node integration, strict IPC schemas, and a narrow preload surface.

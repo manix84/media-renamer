@@ -55,11 +55,29 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: false
       - name: Install RPM build tools
         if: matrix.target == 'linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
       - run: npm ci
       - run: npm test
+      - name: Build native TMDB credential helper
+        run: npm run build:tmdb-helper -- ${{ matrix.target }}
+        env:
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+      - name: Verify native TMDB helper
+        shell: bash
+        run: |
+          test -f "native-helper-dist/tmdb-helper${{ matrix.target == 'win' && '.exe' || '' }}"
+          if grep -aFq "$TMDB_ACCESS_TOKEN" "native-helper-dist/tmdb-helper${{ matrix.target == 'win' && '.exe' || '' }}"; then
+            echo "The native helper contains the plaintext TMDB token." >&2
+            exit 1
+          fi
+        env:
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
       - name: Package ${{ matrix.name }}
         run: npm run package -- --${{ matrix.target }} --publish never
       - name: Create USB-portable Linux bundle

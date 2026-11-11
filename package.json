@@ -21,6 +21,7 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:check": "node scripts/check-release.mjs",
     "release:notes": "node scripts/release-notes.mjs",
+    "build:tmdb-helper": "node scripts/build-tmdb-helper.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run test && npm run build"
@@ -49,6 +50,7 @@
     "wait-on": "latest"
   },
   "build": {
+    "beforePack": "scripts/verify-tmdb-helper.mjs",
     "appId": "io.github.manix84.media-renamer",
     "productName": "Media Renamer",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
@@ -63,6 +65,13 @@
       "!node_modules/**/*"
     ],
     "extraResources": [
+      {
+        "from": "native-helper-dist",
+        "to": "bin",
+        "filter": [
+          "tmdb-helper*"
+        ]
+      },
       {
         "from": "extensions-preinstalled",
         "to": "extensions",

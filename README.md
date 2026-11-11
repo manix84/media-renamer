@@ -81,6 +81,8 @@ TVDB_SUBSCRIBER_PIN=
 
 Create or retrieve the token under your TMDB account's **Settings → API** page. Do not add a `Bearer ` prefix. The token is read only by Electron's main process and is not exposed to the renderer. `.env` is ignored by Git.
 
+Published builds use the repository Actions secret `TMDB_ACCESS_TOKEN`. Each platform job compiles that credential into a stripped native helper using a fresh split representation, verifies that the finished binary does not contain the literal token, and packages the helper outside the application archive. The helper accepts only the TMDB v3 routes used by Media Renamer, fixes the destination to `https://api.themoviedb.org`, and returns JSON without exposing the bearer token to Electron's JavaScript or renderer IPC. Local development continues to read `TMDB_ACCESS_TOKEN` from `.env`; release artifacts never package that file.
+
 Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are resolved to the corresponding TMDB record for artwork and show details, while episode numbering and names come directly from TVDB.
 
 The application includes TMDB's approved logo and required notice under **Preferences → General → Metadata credits**: “This product uses the TMDB API but is not endorsed or certified by TMDB.” Media Renamer does not distribute a shared TVDB subscriber PIN; optional TVDB use requires the user's own eligible credentials.

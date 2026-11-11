@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AniListClient } from './anilist.js';
 import { TmdbClient } from './tmdb.js';
+import { hasTmdbHelper, nativeTmdbFetch } from './tmdbNative.js';
 import { directTvdbShow, directTvdbShowDetails, selectTvdbSeriesMatch, TvdbClient, tvdbLanguageCode } from './tvdb.js';
 import { expandMediaPaths, isImportableVideoFile, isVideoFile, VIDEO_FILE_EXTENSIONS } from './mediaFiles.js';
 import { probeMedia } from './mediaProbe.js';
@@ -169,8 +170,9 @@ async function tmdbLogoLuminance(value: string): Promise<number | undefined> {
 
 function tmdb(): TmdbClient {
   const token = localEnv('TMDB_ACCESS_TOKEN');
-  if (!token) throw new Error('TMDB is not configured. Add TMDB_ACCESS_TOKEN to .env and restart the app.');
-  return new TmdbClient(token, fetch, tmdbLogoLuminance);
+  if (token) return new TmdbClient(token, fetch, tmdbLogoLuminance);
+  if (app.isPackaged && hasTmdbHelper(process.resourcesPath)) return new TmdbClient(undefined, nativeTmdbFetch(process.resourcesPath), tmdbLogoLuminance);
+  throw new Error('TMDB is not configured. Add TMDB_ACCESS_TOKEN to .env and restart the app.');
 }
 
 let tvdbClient: TvdbClient | undefined;
@@ -345,7 +347,7 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
   publishDebugEntries();
 });
 
-ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
+ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) || (app.isPackaged && hasTmdbHelper(process.resourcesPath)), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('preferences:get', () => loadPreferences());
 ipcMain.handle('preferences:set', async (_event, value: unknown) => {
