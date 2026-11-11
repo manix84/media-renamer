@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { discoverExtensions, installExtension, normalizeExtensionManifest, uninstallExtension } from './extensions';
+import { discoverExtensions, ensureExtensionWorkspace, installExtension, normalizeExtensionManifest, uninstallExtension } from './extensions';
 
 const temporaryDirectories: string[] = [];
 const validManifest = {
@@ -99,6 +99,18 @@ describe('extension packages', () => {
     expect(await discoverExtensions([{ directory: installed, source: 'installed' }])).toHaveLength(1);
     await uninstallExtension('example.router', installed);
     expect(await discoverExtensions([{ directory: installed, source: 'installed' }])).toEqual([]);
+  });
+
+  it('creates a friendly extension workspace without installing the starter', async () => {
+    const installed = await temporaryDirectory();
+    await ensureExtensionWorkspace(installed);
+    expect(await fs.promises.readFile(path.join(installed, 'README.md'), 'utf8')).toContain('Preferences > Extensions > Install extension');
+    expect(await fs.promises.readFile(path.join(installed, 'extension-starter', 'media-renamer-extension.json.example'), 'utf8')).toContain('example.my-extension');
+    expect(await discoverExtensions([{ directory: installed, source: 'installed' }])).toEqual([]);
+
+    await fs.promises.writeFile(path.join(installed, 'README.md'), 'Keep my changes.');
+    await ensureExtensionWorkspace(installed);
+    expect(await fs.promises.readFile(path.join(installed, 'README.md'), 'utf8')).toBe('Keep my changes.');
   });
 
   it('lets later sources override the same extension ID for development', async () => {

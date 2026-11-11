@@ -14,7 +14,7 @@ import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
 import { MetadataCache } from './metadataCache.js';
-import { discoverExtensions, inspectExtensionPackage, installExtension, uninstallExtension } from './extensions.js';
+import { discoverExtensions, ensureExtensionWorkspace, inspectExtensionPackage, installExtension, uninstallExtension } from './extensions.js';
 import { mergeEpisodeArtwork } from './episodeMetadata.js';
 import { ExtensionSecretVault } from './extensionSecrets.js';
 import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, summarizeRenameStatistics } from './renameStatistics.js';
@@ -384,7 +384,7 @@ ipcMain.handle('extensions:uninstall', async (_event, id: unknown) => {
   await extensionSecrets().delete(extensionId);
 });
 ipcMain.handle('extensions:open-directory', async () => {
-  await fs.promises.mkdir(installedExtensionsDirectory(), { recursive: true });
+  await ensureExtensionWorkspace(installedExtensionsDirectory());
   const error = await shell.openPath(installedExtensionsDirectory());
   if (error) throw new Error(error);
 });

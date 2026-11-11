@@ -4,6 +4,32 @@ import path from 'node:path';
 const MANIFEST_NAME = 'media-renamer-extension.json';
 const MAX_PACKAGE_FILES = 200;
 const MAX_PACKAGE_BYTES = 10 * 1024 * 1024;
+const EXTENSION_WORKSPACE_README = `# Media Renamer extensions
+
+This is your personal extensions folder. Media Renamer keeps it separate from the application so upgrades do not remove your packages.
+
+## Install an extension
+
+The easiest option is **Preferences > Extensions > Install extension**, then choose the extension folder containing \`media-renamer-extension.json\`.
+
+You can also copy a complete extension folder here and restart Media Renamer. Each extension needs its own folder and a \`media-renamer-extension.json\` manifest.
+
+## Make your own
+
+The \`extension-starter\` folder contains a safe declarative example. Copy that folder, rename \`media-renamer-extension.json.example\` to \`media-renamer-extension.json\`, then edit its name, ID, description, and matching rules.
+
+Extensions are disabled until you enable them in **Preferences > Extensions**.
+`;
+const EXTENSION_STARTER_MANIFEST = `${JSON.stringify({
+  apiVersion: 1,
+  id: 'example.my-extension',
+  name: 'My extension',
+  version: '1.0.0',
+  description: 'Describe what this extension identifies or routes.',
+  settings: [],
+  match: { genres: undefined, mediaKinds: ['show'] },
+  badges: [{ label: 'My extension', tone: 'info' }],
+}, (_key, value) => value === undefined ? undefined : value, 2)}\n`;
 
 export type ExtensionSource = 'installed' | 'preinstalled' | 'development';
 interface ExtensionMatchClause {
@@ -308,6 +334,22 @@ export async function discoverExtensions(sources: Array<{ directory: string; sou
     }
   }
   return [...extensions.values()].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function ensureExtensionWorkspace(directory: string): Promise<void> {
+  const starterDirectory = path.join(directory, 'extension-starter');
+  await fs.promises.mkdir(starterDirectory, { recursive: true });
+  const files = [
+    [path.join(directory, 'README.md'), EXTENSION_WORKSPACE_README],
+    [path.join(starterDirectory, `${MANIFEST_NAME}.example`), EXTENSION_STARTER_MANIFEST],
+  ] as const;
+  await Promise.all(files.map(async ([filePath, content]) => {
+    try {
+      await fs.promises.writeFile(filePath, content, { flag: 'wx' });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }));
 }
 
 async function validatePackageTree(directory: string): Promise<void> {

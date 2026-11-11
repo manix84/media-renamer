@@ -354,6 +354,8 @@ Provider responses should be normalized immediately. Provider credentials never 
 
 GitHub Actions builds unsigned AppImage and Debian packages for Linux, NSIS and portable executables for Windows, and DMG and ZIP packages for macOS. Run **Build releases** manually to produce workflow artifacts without publishing a release.
 
+For Linux, the AppImage is the simplest portable download and the Debian package integrates with Debian and Ubuntu application menus. Both bundle the application runtime; users do not need Node.js or Electron. See the [Linux installation guide](docs/linux-installation.md) for install, extension, and build instructions.
+
 Tagged builds also create a GitHub Release. To prepare one:
 
 1. Move the relevant entries in `WHATSNEW.md` from **Unreleased** into a heading matching the package version, such as `## [0.2.0] - 2026-11-01`.
