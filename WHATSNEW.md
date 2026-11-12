@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-12
+
 ### Added
 
 - A dedicated Media Renamer website now introduces the confidence-first workflow, provides current platform downloads, and documents privacy, verification, and the pending SignPath Foundation signing programme.
@@ -82,7 +84,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/manix84/media-renamer/releases/tag/v0.5.0
 [0.4.1]: https://github.com/manix84/media-renamer/releases/tag/v0.4.1
 [0.4.0]: https://github.com/manix84/media-renamer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/manix84/media-renamer/releases/tag/v0.3.0
