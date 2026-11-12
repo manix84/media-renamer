@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated Media Renamer website now introduces the confidence-first workflow, provides current platform downloads, and documents privacy, verification, and the pending SignPath Foundation signing programme.
+
 ## [0.4.1] - 2026-11-12
 
 ### Added

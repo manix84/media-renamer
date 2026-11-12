@@ -2,6 +2,8 @@
 
 A confidence-first desktop renamer for TV episodes and movies, designed as a modern replacement for Rename My TV Series with a shared metadata, formatting, and reversible-execution foundation.
 
+Visit the [Media Renamer website](https://manix84.github.io/media-renamer/) for downloads, platform choices, and release verification guidance.
+
 ![Early matching workspace](docs/mockup.svg)
 
 ## Product principles
