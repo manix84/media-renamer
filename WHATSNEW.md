@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- Media Renamer is now published under the MIT License, with SHA-256 checksums, verifiable GitHub build provenance, and clear installation guidance for unsigned macOS and Windows releases.
+
 ## [0.4.0] - 2026-11-12
 
 ### Added

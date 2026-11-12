@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -34,6 +34,10 @@ jobs:
   build:
     name: Build ${{ matrix.name }}
     needs: validate
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +88,18 @@ jobs:
       - name: Create USB-portable Linux bundle
         if: matrix.target == 'linux'
         run: node scripts/package-linux-portable.mjs
+      - name: Attest release artifacts
+        if: github.ref == 'refs/heads/main'
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/*.tar.gz
+            release/*.dmg
+            release/*.zip
+            release/*.exe
       - uses: actions/upload-artifact@v4
         with:
           name: media-renamer-${{ matrix.target }}
@@ -102,6 +118,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: [validate, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,6 +131,8 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: Generate SHA-256 checksums
+        run: node scripts/generate-checksums.mjs artifacts
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:

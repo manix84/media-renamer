@@ -3176,6 +3176,7 @@ export default function App() {
                 <div><dt>Platforms</dt><dd>Windows, macOS &amp; Linux</dd></div>
                 <div><dt>Built by</dt><dd>Rob</dd></div>
                 <div><dt>Cost</dt><dd>Free</dd></div>
+                <div><dt>Licence</dt><dd>MIT</dd></div>
                 <div><dt>Privacy</dt><dd>No ads, no tracking, local-first storage</dd></div>
                 <div><dt>Purpose</dt><dd>Preview, organise and safely rename personal TV and movie libraries.</dd></div>
               </dl>

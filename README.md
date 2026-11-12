@@ -340,6 +340,10 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 
 The detailed threat model, acceptance criteria, and non-goals for these items live in [`docs/release-security.md`](docs/release-security.md). The release must work without purchasing or operating a Media Renamer server. A credential embedded in client software can be hardened against casual extraction but cannot be made secret from a determined user controlling the machine.
 
+Current releases are unsigned. See [`docs/installing-unsigned-releases.md`](docs/installing-unsigned-releases.md) for the expected macOS and Windows warnings and instructions for verifying downloads.
+
+Media Renamer is released under the [MIT License](LICENSE). The proposed free Windows signing process and maintainer responsibilities are documented in the [code signing policy](docs/code-signing-policy.md).
+
 ## Architecture boundary
 
 ```text
