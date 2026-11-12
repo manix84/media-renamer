@@ -195,11 +195,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .preferences-content-heading h2 { font-size: 17px; }
 .preferences-library-settings { min-height: 0; }
 .preference-section { margin: 0; padding: 21px 22px; border: 0; border-bottom: 1px solid #252c39; border-radius: 0; background: transparent; }
-.preferences-version { position: relative; min-height: 36px; padding: 7px 22px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-top: 1px solid #252c39; color: #626d81; font-size: 9px; }
+.preferences-version { position: relative; min-height: 36px; padding: 7px 22px; display: flex; align-items: center; justify-content: center; overflow: visible; border-top: 1px solid #252c39; color: #626d81; font-size: 9px; }
 .preferences-version button { padding: 5px 7px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: 600 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; cursor: default; }
 .preferences-version button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.preferences-version-message { position: absolute; left: 50%; bottom: 5px; padding: 4px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-weight: 700; white-space: nowrap; animation: developer-hint-in .22s cubic-bezier(.2, .8, .2, 1) both; }
-@keyframes developer-hint-in { from { transform: translate(-50%, calc(100% + 10px)); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.preferences-version-message { position: absolute; left: 50%; bottom: calc(100% + 6px); padding: 4px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-weight: 700; white-space: nowrap; pointer-events: none; animation: developer-hint-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes developer-hint-in { from { transform: translate(-50%, 6px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 .developer-settings { background: color-mix(in srgb, var(--accent-soft) 22%, transparent); }
 .extension-settings { display: grid; gap: 0; }
 .extension-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
