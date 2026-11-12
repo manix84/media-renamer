@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
 ### Added
 
 - A dedicated About preferences tab now brings together Media Renamer's purpose, privacy details, author links, provider credits, and open-source licence acknowledgements.
@@ -70,7 +72,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/manix84/media-renamer/releases/tag/v0.4.0
 [0.3.0]: https://github.com/manix84/media-renamer/releases/tag/v0.3.0
 [0.2.2]: https://github.com/manix84/media-renamer/releases/tag/v0.2.2
 [0.2.1]: https://github.com/manix84/media-renamer/releases/tag/v0.2.1
