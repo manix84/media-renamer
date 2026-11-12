@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-12
+
 ### Added
 
 - The project website now offers Light, Dark, and automatic system themes, with a matching genuine app screenshot populated from real Severance artwork and Season 1–2 episode metadata.
@@ -92,7 +94,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/manix84/media-renamer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/manix84/media-renamer/releases/tag/v0.5.0
 [0.4.1]: https://github.com/manix84/media-renamer/releases/tag/v0.4.1
 [0.4.0]: https://github.com/manix84/media-renamer/releases/tag/v0.4.0
