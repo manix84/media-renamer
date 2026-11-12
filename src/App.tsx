@@ -431,6 +431,7 @@ export default function App() {
   const [completionChime, setCompletionChime] = useState(false);
   const [completionReport, setCompletionReport] = useState(true);
   const [completionReportAutoClose, setCompletionReportAutoClose] = useState(true);
+  const [confirmBeforeRename, setConfirmBeforeRename] = useState(true);
   const [showRenameProgressModal, setShowRenameProgressModal] = useState(true);
   const [autoScrollRenameProgress, setAutoScrollRenameProgress] = useState(false);
   const [clearSourceJunk, setClearSourceJunk] = useState(false);
@@ -1149,6 +1150,7 @@ export default function App() {
       if (saved.completionChime !== undefined) setCompletionChime(saved.completionChime);
       if (saved.completionReport !== undefined) setCompletionReport(saved.completionReport);
       if (saved.completionReportAutoClose !== undefined) setCompletionReportAutoClose(saved.completionReportAutoClose);
+      if (saved.confirmBeforeRename !== undefined) setConfirmBeforeRename(saved.confirmBeforeRename);
       if (saved.showRenameProgressModal !== undefined) setShowRenameProgressModal(saved.showRenameProgressModal);
       if (saved.autoScrollRenameProgress !== undefined) setAutoScrollRenameProgress(saved.autoScrollRenameProgress);
       if (saved.clearSourceJunk !== undefined) setClearSourceJunk(saved.clearSourceJunk);
@@ -1224,6 +1226,7 @@ export default function App() {
       completionChime,
       completionReport,
       completionReportAutoClose,
+      confirmBeforeRename,
       showRenameProgressModal,
       autoScrollRenameProgress,
       clearSourceJunk,
@@ -1250,7 +1253,7 @@ export default function App() {
       titleMatching,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, autoScrollRenameProgress, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showMetadataAgent, showRenameProgressModal, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, autoScrollRenameProgress, clearSourceJunk, completionChime, completionReport, completionReportAutoClose, confirmBeforeRename, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showMetadataAgent, showRenameProgressModal, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     void window.mediaRenamer?.getAppVersion().then((version) => {
@@ -2169,7 +2172,7 @@ export default function App() {
     const initialProgress: WorkProgress = { operation: 'Renaming', completed: 0, total: executableFileCount + generatedSidecars.length, groupCompleted: 0, groupTotal: executableGroups[0]?.items.length, groupIndex: 0, groupsTotal: executableGroups.length };
     renameProgressRef.current = initialProgress;
     setWork(initialProgress);
-    if (!showRenameProgressModal) setRenameConfirmationOpen(false);
+    setRenameConfirmationOpen(showRenameProgressModal);
     addDebug('info', `Renaming ${executableFileCount} file${executableFileCount === 1 ? '' : 's'}`, `${executableGroups.length} ${activeMediaTab === 'movies' ? 'movie' : 'episode'}${executableGroups.length === 1 ? '' : 's'} passed preflight.`);
     try {
       const stagedSidecars = generatedSidecars.length && window.mediaRenamer.stageGeneratedSidecars
@@ -2825,7 +2828,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer><div><span className="legend confident"></span>{t('footer.ready', { count: preflightPlan.readyCount })} <span className="legend review"></span>{preflightError ? 'preflight failed' : t('footer.blocked', { count: preflightPlan.blockedCount })} <span className="tmdb-attribution">{activeMediaTab === 'shows' && activeShowMetadataAgent === 'tvdb-aired' ? 'Episode metadata supplied by TheTVDB. ' : ''}This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename && ['completed', 'stopped'].includes(lastRename.operation.status) && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} {t('footer.undo')}</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>{t('footer.export')}</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => setRenameConfirmationOpen(true)}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} {t('footer.rename', { count: preflightPlan.readyCount })} <ChevronRight size={16}/></button></div></footer>
+      <footer><div><span className="legend confident"></span>{t('footer.ready', { count: preflightPlan.readyCount })} <span className="legend review"></span>{preflightError ? 'preflight failed' : t('footer.blocked', { count: preflightPlan.blockedCount })} <span className="tmdb-attribution">{activeMediaTab === 'shows' && activeShowMetadataAgent === 'tvdb-aired' ? 'Episode metadata supplied by TheTVDB. ' : ''}This product uses the TMDB API but is not endorsed or certified by TMDB.</span></div><div>{lastRename && ['completed', 'stopped'].includes(lastRename.operation.status) && <button className="secondary" disabled={renaming || undoing} onClick={() => setUndoConfirmationOpen(true)}>{undoing ? <LoaderCircle className="spin" size={15}/> : <RotateCcw size={15}/>} {t('footer.undo')}</button>}<button className="secondary" disabled={!paths.length || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => void exportPlan()}>{t('footer.export')}</button><button className="primary" title={checkingPlan ? 'Waiting for the filesystem collision check' : preflightError ? 'Retry the failed preflight check before renaming' : undefined} disabled={!executableGroups.length || preflightPlan.blockedCount > 0 || checkingPlan || Boolean(preflightError) || renaming || undoing} onClick={() => confirmBeforeRename ? setRenameConfirmationOpen(true) : void executeRenames()}>{renaming ? <LoaderCircle className="spin" size={16}/> : null} {t('footer.rename', { count: preflightPlan.readyCount })} <ChevronRight size={16}/></button></div></footer>
 
       {posterPreview && <div className="poster-preview-layer">
         <button className="poster-preview-backdrop" aria-label="Close poster preview" onClick={() => { setPosterPreview(undefined); setPosterZoomed(false); }}/>
@@ -3085,6 +3088,7 @@ export default function App() {
           <section hidden={preferenceSection !== 'renaming'} className="preference-section after-rename-settings"><h3>{t('prefs.afterRename')}</h3><p>{t('prefs.afterRenameHelp')}</p>
             <label className="preference-toggle"><span><Trash2 size={17}/><span><strong>{t('prefs.autoClear')}</strong><small>{t('prefs.autoClearHelp')}</small></span></span><input type="checkbox" checked={autoClearCompletedBatch} onChange={(event) => setAutoClearCompletedBatch(event.target.checked)}/></label>
             <label className="preference-toggle"><span><BellRing size={17}/><span><strong>{t('prefs.completionChime')}</strong><small>{t('prefs.completionChimeHelp')}</small></span></span><input type="checkbox" checked={completionChime} onChange={(event) => setCompletionChimeEnabled(event.target.checked)}/></label>
+            <label className="preference-toggle"><span><FileCheck2 size={17}/><span><strong>{t('prefs.confirmBeforeRename')}</strong><small>{t('prefs.confirmBeforeRenameHelp')}</small></span></span><input type="checkbox" checked={confirmBeforeRename} onChange={(event) => setConfirmBeforeRename(event.target.checked)}/></label>
             <label className="preference-toggle"><span><Monitor size={17}/><span><strong>{t('prefs.renameProgressModal')}</strong><small>{t('prefs.renameProgressModalHelp')}</small></span></span><input type="checkbox" checked={showRenameProgressModal} onChange={(event) => setShowRenameProgressModal(event.target.checked)}/></label>
             <label className="preference-toggle"><span><ListChecks size={17}/><span><strong>{t('prefs.completionReport')}</strong><small>{t('prefs.completionReportHelp')}</small></span></span><input type="checkbox" checked={completionReport} onChange={(event) => setCompletionReport(event.target.checked)}/></label>
             <label className="preference-toggle"><span><Clock3 size={17}/><span><strong>{t('prefs.completionReportAutoClose')}</strong><small>{t('prefs.completionReportAutoCloseHelp')}</small></span></span><input type="checkbox" checked={completionReportAutoClose} onChange={(event) => setCompletionReportAutoClose(event.target.checked)}/></label>

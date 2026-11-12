@@ -37,6 +37,7 @@ declare global {
         completionChime?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        confirmBeforeRename?: boolean;
         showRenameProgressModal?: boolean;
         autoScrollRenameProgress?: boolean;
         clearSourceJunk?: boolean;
@@ -71,6 +72,7 @@ declare global {
         completionChime?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        confirmBeforeRename?: boolean;
         showRenameProgressModal?: boolean;
         autoScrollRenameProgress?: boolean;
         clearSourceJunk?: boolean;

@@ -36,6 +36,7 @@ const en = {
   'prefs.completionChime': 'Play a sound when finished', 'prefs.completionChimeHelp': 'Plays a distinct success or error sound after each rename operation',
   'prefs.completionReport': 'Show a completion report', 'prefs.completionReportHelp': 'Summarise processed files, removed folders, warnings, and logs',
   'prefs.completionReportAutoClose': 'Close completion reports automatically', 'prefs.completionReportAutoCloseHelp': 'Dismiss the completion report after 30 seconds unless you close it or add more media first',
+  'prefs.confirmBeforeRename': 'Confirm before renaming', 'prefs.confirmBeforeRenameHelp': 'Show a final summary and require approval before any files are renamed or moved',
   'prefs.renameProgressModal': 'Show detailed progress while renaming', 'prefs.renameProgressModalHelp': 'Open the progress dialog automatically; turn this off to watch progress directly in the file list',
   'prefs.autoScrollRenameProgress': 'Follow rename progress in the file list', 'prefs.autoScrollRenameProgressHelp': 'Keep the file currently being processed near the middle of the list; off by default',
   'prefs.saveLog': 'Save a timestamped operation log', 'prefs.saveLogHelp': 'Off by default; rename success is not blocked if this optional log cannot be written',

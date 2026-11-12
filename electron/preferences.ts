@@ -12,6 +12,7 @@ export type PersistedPreferences = {
   completionChime?: boolean;
   completionReport?: boolean;
   completionReportAutoClose?: boolean;
+  confirmBeforeRename?: boolean;
   showRenameProgressModal?: boolean;
   autoScrollRenameProgress?: boolean;
   clearSourceJunk?: boolean;
@@ -60,6 +61,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.completionChime === 'boolean') result.completionChime = source.completionChime;
   if (typeof source.completionReport === 'boolean') result.completionReport = source.completionReport;
   if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
+  if (typeof source.confirmBeforeRename === 'boolean') result.confirmBeforeRename = source.confirmBeforeRename;
   if (typeof source.showRenameProgressModal === 'boolean') result.showRenameProgressModal = source.showRenameProgressModal;
   if (typeof source.autoScrollRenameProgress === 'boolean') result.autoScrollRenameProgress = source.autoScrollRenameProgress;
   if (typeof source.clearSourceJunk === 'boolean') result.clearSourceJunk = source.clearSourceJunk;
