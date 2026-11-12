@@ -85,6 +85,13 @@ jobs:
           TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
       - name: Package ${{ matrix.name }}
         run: npm run package -- --${{ matrix.target }} --publish never
+      - name: Verify macOS application signature
+        if: matrix.target == 'mac'
+        shell: bash
+        run: |
+          app_path="$(find release -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          codesign --verify --deep --strict --verbose=4 "$app_path"
       - name: Create USB-portable Linux bundle
         if: matrix.target == 'linux'
         run: node scripts/package-linux-portable.mjs

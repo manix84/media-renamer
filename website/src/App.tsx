@@ -14,6 +14,8 @@ type Release = {
 }
 
 type Platform = 'Windows' | 'macOS' | 'Linux'
+type ThemePreference = 'auto' | 'light' | 'dark'
+type ResolvedTheme = Exclude<ThemePreference, 'auto'>
 
 const REPOSITORY = 'https://github.com/manix84/media-renamer'
 const LATEST_RELEASE = `${REPOSITORY}/releases/latest`
@@ -58,6 +60,12 @@ function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
 }
 
+function ThemeIcon({ theme }: { theme: ThemePreference }) {
+  if (theme === 'light') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+  if (theme === 'dark') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+}
+
 function App() {
   const [release, setRelease] = useState<Release | null>(null)
   const [releaseError, setReleaseError] = useState(false)
@@ -67,6 +75,27 @@ function App() {
     if (platform.includes('win')) return 'Windows'
     return 'Linux'
   })
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
+    const saved = localStorage.getItem('media-renamer-site-theme')
+    return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'auto'
+  })
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+  )
+  const resolvedTheme: ResolvedTheme = themePreference === 'auto' ? systemTheme : themePreference
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)')
+    const update = (event: MediaQueryListEvent) => setSystemTheme(event.matches ? 'dark' : 'light')
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme
+    document.documentElement.style.colorScheme = resolvedTheme
+    localStorage.setItem('media-renamer-site-theme', themePreference)
+  }, [resolvedTheme, themePreference])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -102,6 +131,11 @@ function App() {
           <a href="#downloads">Downloads</a>
           <a href="#trust">Trust &amp; privacy</a>
           <a className="nav-source" href={REPOSITORY}>View source <ArrowIcon /></a>
+          <div className="theme-switcher" role="group" aria-label="Website colour theme">
+            {(['auto', 'light', 'dark'] as ThemePreference[]).map((theme) => (
+              <button key={theme} type="button" aria-pressed={themePreference === theme} aria-label={`${theme[0].toUpperCase()}${theme.slice(1)} theme`} title={`${theme[0].toUpperCase()}${theme.slice(1)} theme`} onClick={() => setThemePreference(theme)}><ThemeIcon theme={theme}/></button>
+            ))}
+          </div>
         </nav>
       </header>
 
@@ -122,32 +156,9 @@ function App() {
             </ul>
           </div>
 
-          <div className="product-stage" aria-label="Example Media Renamer workflow">
+          <div className="product-stage" aria-label={`Media Renamer running in ${resolvedTheme} mode`}>
             <div className="stage-glow" />
-            <div className="app-window">
-              <div className="window-bar">
-                <div className="window-dots"><i/><i/><i/></div>
-                <span>Match &amp; review</span>
-                <b>3 files ready</b>
-              </div>
-              <div className="window-body">
-                <div className="source-panel">
-                  <p className="mini-label">Original files</p>
-                  <div className="file-row"><span className="file-icon">01</span><div><strong>Severance.S02E01.2160p.WEB</strong><small>Unsorted downloads</small></div></div>
-                  <div className="file-row"><span className="file-icon">02</span><div><strong>severance 2x02 hdr x265</strong><small>Unsorted downloads</small></div></div>
-                  <div className="file-row"><span className="file-icon">03</span><div><strong>Severance - Chikhai Bardo</strong><small>Unsorted downloads</small></div></div>
-                </div>
-                <div className="flow-column"><span>→</span><span>→</span><span>→</span></div>
-                <div className="result-panel">
-                  <p className="mini-label">Proposed names</p>
-                  <div className="result-row"><span className="confidence">98%</span><div><strong>Severance - S02E01 - Hello, Ms. Cobel</strong><small>Confident match</small></div></div>
-                  <div className="result-row"><span className="confidence">96%</span><div><strong>Severance - S02E02 - Goodbye, Mrs. Selvig</strong><small>Confident match</small></div></div>
-                  <div className="result-row review"><span className="confidence">82%</span><div><strong>Severance - S02E07 - Chikhai Bardo</strong><small>Review before renaming</small></div></div>
-                </div>
-              </div>
-              <div className="window-footer"><span>Nothing moves until you approve it.</span><button type="button">Review &amp; rename</button></div>
-            </div>
-            <div className="floating-note"><span>✓</span><div><strong>Collision checks passed</strong><small>Every destination is safe</small></div></div>
+            <img className="app-screenshot" src={`${import.meta.env.BASE_URL}media-renamer-app-${resolvedTheme}.png`} alt="Media Renamer showing three fake Severance episode files matched to clean names" />
           </div>
         </section>
 
@@ -236,7 +247,7 @@ function App() {
       <footer>
         <div className="section-wrap footer-inner">
           <div><strong>Media Renamer</strong><p>Built by Rob. Free, open source, and focused.</p></div>
-          <div className="footer-links"><a href={REPOSITORY}>GitHub</a><a href={`${REPOSITORY}/blob/main/LICENSE`}>MIT License</a><a href={`${REPOSITORY}/blob/main/SECURITY.md`}>Security</a><a href={`${REPOSITORY}/releases`}>All releases</a></div>
+          <div className="footer-links"><a href={REPOSITORY}>GitHub</a><a href={`${REPOSITORY}/blob/main/LICENSE`}>MIT License</a><a href={`${REPOSITORY}/blob/main/PRIVACY.md`}>Privacy</a><a href={`${REPOSITORY}/blob/main/SECURITY.md`}>Security</a><a href={`${REPOSITORY}/releases`}>All releases</a></div>
           <p className="provider-note">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
         </div>
       </footer>

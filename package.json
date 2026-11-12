@@ -51,6 +51,7 @@
     "wait-on": "latest"
   },
   "build": {
+    "afterPack": "scripts/adhoc-sign-macos.mjs",
     "beforePack": "scripts/verify-tmdb-helper.mjs",
     "appId": "io.github.manix84.media-renamer",
     "productName": "Media Renamer",
@@ -78,6 +79,7 @@
     "mac": {
       "category": "public.app-category.utilities",
       "icon": "assets/app-icon.png",
+      "identity": null,
       "target": [
         "dmg",
         "zip"

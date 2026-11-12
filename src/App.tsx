@@ -371,6 +371,47 @@ const PRESENCE_EXIT_MS = 280;
 const PRESENCE_HANDOFF_MS = 140;
 const GROUP_PROGRESS_COMPLETION_HOLD_MS = 350;
 
+const WEBSITE_SCREENSHOT_PATHS = [
+  '/Demo/Severance.S02E01.2160p.WEB-DL.DDP5.1.H.265-DEMO.mkv',
+  '/Demo/severance 2x02 hdr x265.mkv',
+  '/Demo/Severance - Chikhai Bardo.mkv',
+];
+const WEBSITE_SCREENSHOT_EPISODES: Episode[] = [
+  { id: 'demo-s01e01', season: 1, number: 1, title: 'Good News About Hell' },
+  { id: 'demo-s01e02', season: 1, number: 2, title: 'Half Loop' },
+  { id: 'demo-s01e03', season: 1, number: 3, title: 'In Perpetuity' },
+  { id: 'demo-s01e04', season: 1, number: 4, title: 'The You You Are' },
+  { id: 'demo-s01e05', season: 1, number: 5, title: 'The Grim Barbarity of Optics and Design' },
+  { id: 'demo-s01e06', season: 1, number: 6, title: 'Hide and Seek' },
+  { id: 'demo-s01e07', season: 1, number: 7, title: 'Defiant Jazz' },
+  { id: 'demo-s01e08', season: 1, number: 8, title: "What's for Dinner?" },
+  { id: 'demo-s01e09', season: 1, number: 9, title: 'The We We Are' },
+  { id: 'demo-s02e01', season: 2, number: 1, title: 'Hello, Ms. Cobel' },
+  { id: 'demo-s02e02', season: 2, number: 2, title: 'Goodbye, Mrs. Selvig' },
+  { id: 'demo-s02e03', season: 2, number: 3, title: 'Who Is Alive?' },
+  { id: 'demo-s02e04', season: 2, number: 4, title: "Woe's Hollow" },
+  { id: 'demo-s02e05', season: 2, number: 5, title: "Trojan's Horse" },
+  { id: 'demo-s02e06', season: 2, number: 6, title: 'Attila' },
+  { id: 'demo-s02e07', season: 2, number: 7, title: 'Chikhai Bardo' },
+  { id: 'demo-s02e08', season: 2, number: 8, title: 'Sweet Vitriol' },
+  { id: 'demo-s02e09', season: 2, number: 9, title: 'The After Hours' },
+  { id: 'demo-s02e10', season: 2, number: 10, title: 'Cold Harbor' },
+];
+const WEBSITE_SCREENSHOT_SHOW: ShowDetails = {
+  id: 'demo-severance',
+  name: 'Severance',
+  year: 2022,
+  overview: 'Development-only sample metadata used to create the website screenshots.',
+  posterUrl: 'https://image.tmdb.org/t/p/w500/pPHpeI2X1qEd1CS1SeyrdhZ4qnT.jpg',
+  logoUrl: 'https://image.tmdb.org/t/p/w500/yyS1tALk7t3YdTNMOvR5gsnXINA.png',
+  lightBackgroundLogoUrl: 'https://image.tmdb.org/t/p/w500/ygo4s437axWFO04ksOX0kAexi2n.png',
+  backgroundUrl: 'https://image.tmdb.org/t/p/original/ixgFmf1X59PUZam2qbAfskx2gQr.jpg',
+  seasons: [
+    { number: 1, name: 'Season 1', episodeCount: 9 },
+    { number: 2, name: 'Season 2', episodeCount: 10 },
+  ],
+};
+
 function AnimatedPresence({ show, className = '', children }: { show: boolean; className?: string; children: ReactNode }) {
   const [mounted, setMounted] = useState(show);
   const [visible, setVisible] = useState(show);
@@ -558,6 +599,7 @@ export default function App() {
       };
     } catch { return { left: 420, right: 420, bottom: 270 }; }
   });
+  const websiteScreenshotMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('demo') === 'website';
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const movieBatchSequence = useRef(0);
@@ -568,6 +610,23 @@ export default function App() {
   const posterPreviewDialog = useRef<HTMLElement>(null);
   const posterPreviewImage = useRef<HTMLImageElement>(null);
   const probedPaths = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!websiteScreenshotMode) return;
+    const screenshotTheme = new URLSearchParams(window.location.search).get('theme');
+    if (screenshotTheme === 'light' || screenshotTheme === 'dark') setPreference(screenshotTheme);
+    setPaths(WEBSITE_SCREENSHOT_PATHS);
+    setQuery('Severance');
+    setShow(WEBSITE_SCREENSHOT_SHOW);
+    setEpisodes(WEBSITE_SCREENSHOT_EPISODES);
+    setActiveShowMetadataAgent('tmdb-aired');
+    setTechnicalTags(Object.fromEntries(WEBSITE_SCREENSHOT_PATHS.map((path) => [path, {
+      resolution: '2160p',
+      videoCodec: 'H.265',
+      audioCodec: 'E-AC-3',
+      channels: '5.1',
+    }])));
+  }, [setPreference, websiteScreenshotMode]);
   const probeRuns = useRef<Record<string, number>>({});
   const reportedSavedDecisionConflicts = useRef(new Set<string>());
   const matchRowElements = useRef(new Map<string, HTMLElement>());
@@ -1638,6 +1697,23 @@ export default function App() {
   }, [episodes, matchConfidenceThreshold, titleMatching]);
 
   useEffect(() => {
+    if (websiteScreenshotMode) {
+      setMatches(WEBSITE_SCREENSHOT_PATHS.map((path, index): FileMatch => ({
+        path,
+        filename: filenameFromPath(path),
+        tags: parseReleaseTags(path, releaseAliases),
+        match: {
+          episode: WEBSITE_SCREENSHOT_EPISODES[[9, 10, 15][index]],
+          score: [0.98, 0.96, 0.92][index],
+          reasons: index === 2 ? ['episode title'] : ['season and episode number'],
+        },
+        alternatives: [],
+        status: 'confident',
+      })));
+      setConfirmedPaths(new Set(WEBSITE_SCREENSHOT_PATHS));
+      setWork(undefined);
+      return;
+    }
     if (activeMediaTab === 'movies') {
       setMatchOverrides({});
       setConfirmedPaths(new Set());
@@ -1700,7 +1776,7 @@ export default function App() {
       worker.postMessage({ paths, episodes, titleMatching: effectiveTitleMatching, confidenceThreshold: effectiveConfidenceThreshold / 100, showTitle: show?.name, durationsByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.durationSeconds])), embeddedTitlesByPath: Object.fromEntries(paths.map((path) => [path, technicalTags[path]?.embeddedTitle])) });
     }, 120);
     return () => { window.clearTimeout(start); worker?.terminate(); };
-  }, [activeMediaTab, addDebug, movieMatches, paths, releaseAliases, episodes, show?.name, technicalTags, effectiveTitleMatching, effectiveConfidenceThreshold]);
+  }, [activeMediaTab, addDebug, movieMatches, paths, releaseAliases, episodes, show?.name, technicalTags, effectiveTitleMatching, effectiveConfidenceThreshold, websiteScreenshotMode]);
 
   useEffect(() => {
     const trimmed = query.trim();

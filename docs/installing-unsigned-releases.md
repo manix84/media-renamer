@@ -6,7 +6,7 @@ Every release includes `SHA256SUMS.txt` and GitHub build provenance. Checksums d
 
 ## macOS
 
-macOS will report that it cannot verify the developer because the app is not notarised. Do not disable Gatekeeper globally and do not run copied `xattr` commands.
+macOS will report that it cannot verify the developer because the app is ad-hoc signed and not notarised. Do not disable Gatekeeper globally and do not run copied `xattr` commands. A correctly packaged release may still require explicit approval, but it should not be reported as damaged; report that message as a packaging bug.
 
 1. Move **Media Renamer** into Applications and try to open it once.
 2. Open **System Settings → Privacy & Security**.

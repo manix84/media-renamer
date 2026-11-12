@@ -344,7 +344,7 @@ The detailed threat model, acceptance criteria, and non-goals for these items li
 
 Current releases are unsigned. See [`docs/installing-unsigned-releases.md`](docs/installing-unsigned-releases.md) for the expected macOS and Windows warnings and instructions for verifying downloads.
 
-Media Renamer is released under the [MIT License](LICENSE). The proposed free Windows signing process and maintainer responsibilities are documented in the [code signing policy](docs/code-signing-policy.md).
+Media Renamer is released under the [MIT License](LICENSE). Its local-first data practices are documented in the [privacy policy](PRIVACY.md), and the proposed free Windows signing process and maintainer responsibilities are documented in the [code signing policy](docs/code-signing-policy.md).
 
 ## Architecture boundary
 

@@ -4,6 +4,14 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- The project website now offers Light, Dark, and automatic system themes, with a matching genuine app screenshot populated from real Severance artwork and Season 1–2 episode metadata.
+
+### Fixed
+
+- macOS release bundles now receive a complete ad-hoc signature so Gatekeeper no longer misidentifies the unsigned application as damaged.
+
 ## [0.5.0] - 2026-11-12
 
 ### Added
