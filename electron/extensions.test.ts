@@ -32,11 +32,12 @@ describe('extension packages', () => {
     expect(normalizeExtensionManifest(validManifest, 'installed')).toMatchObject({ id: 'example.router', source: 'installed', canUninstall: true });
   });
 
-  it('keeps the bundled Home Assistant extension compatible with the manifest API', async () => {
-    const manifestPath = path.join(process.cwd(), 'extensions-preinstalled', 'home-assistant', 'media-renamer-extension.json');
+  it('keeps the development Home Assistant extension compatible with the manifest API', async () => {
+    const manifestPath = path.join(process.cwd(), 'extensions-dev', 'home-assistant', 'media-renamer-extension.json');
     const manifest = JSON.parse(await fs.promises.readFile(manifestPath, 'utf8')) as unknown;
-    expect(normalizeExtensionManifest(manifest, 'preinstalled')).toMatchObject({
+    expect(normalizeExtensionManifest(manifest, 'development')).toMatchObject({
       id: 'home-assistant-statistics',
+      source: 'development',
       settings: [{ type: 'text' }, { type: 'secret' }],
       capabilities: [{ id: 'home-assistant.statistics' }],
       statisticsAdapters: [{ transport: 'home-assistant-rest' }],

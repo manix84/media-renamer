@@ -71,13 +71,6 @@
         "filter": [
           "tmdb-helper*"
         ]
-      },
-      {
-        "from": "extensions-preinstalled",
-        "to": "extensions",
-        "filter": [
-          "**/*"
-        ]
       }
     ],
     "mac": {

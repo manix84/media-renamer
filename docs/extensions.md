@@ -6,4 +6,4 @@ The complete authoring guide, manifest reference, installation layouts, developm
 
 Version 1 packages are declarative rather than executable. They may classify normalized provider metadata, display host-rendered badges and settings, and route shows or movies to a selected library root. They cannot run JavaScript or shell commands, use Electron, access the network or filesystem, or bypass preview, preflight, collision handling, logging, and undo.
 
-The working Anime example is a development package at [`extensions-dev/anime`](../extensions-dev/anime/). It is not statically compiled into the core extension runtime and is not required in a normal release.
+The working Anime example and optional Home Assistant integration are development packages at [`extensions-dev/anime`](../extensions-dev/anime/) and [`extensions-dev/home-assistant`](../extensions-dev/home-assistant/). They are not preloaded in normal releases. Users who want either package can download its directory and install it through **Preferences → Extensions**.
