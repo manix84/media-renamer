@@ -34,6 +34,7 @@ import { LANGUAGE_OPTIONS, useI18n, type LanguagePreference } from './i18n';
 import { registerDeveloperVersionClick } from './core/developerMode';
 import { logoShadowForPixels, type LogoShadow } from './core/logoContrast';
 import { episodeTemplateFavouriteName } from './core/episodeTemplateFavourites';
+import { DEBUG_DEMO_MOVIE_SAMPLE, DEBUG_DEMO_SHOW_SAMPLE, parseDebugDemo, type DebugDemoItem, type DebugDemoMediaKind } from './core/debugDemo';
 import { resolveExtensionBadges, resolveExtensionDestination, resolveExtensionMediaSettings, resolveExtensionWarnings, type ExtensionMediaContext, type InstalledExtension } from './extensions';
 
 type WorkProgress = { operation: 'Scanning' | 'Importing' | 'Renaming' | 'Undoing'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: RenameFileProgressView; batchPhase?: 'preparing' | 'processing' | 'finalising'; updatedAt?: number };
@@ -54,6 +55,7 @@ const DEFAULT_TEMPLATE_FAVOURITES: SavedEpisodeTemplate[] = [
 type BatchReleaseField = 'edition' | 'resolution' | 'videoCodec' | 'audioCodec' | 'channels' | 'webOrigin' | 'webOriginShort' | 'group' | 'flags';
 type BatchReleaseOverrides = Partial<Record<BatchReleaseField, string>>;
 type ExtensionPublishState = { status: 'publishing' | 'success' | 'error'; message: string };
+type ActiveDebugDemo = { mediaKind: DebugDemoMediaKind; items: DebugDemoItem[]; paths: string[]; stepMilliseconds: number };
 
 const BATCH_RELEASE_FIELDS: Array<{ key: BatchReleaseField; label: string; placeholder: string }> = [
   { key: 'edition', label: 'Edition', placeholder: 'Optional' },
@@ -583,6 +585,10 @@ export default function App() {
   const [companionScan, setCompanionScan] = useState<CompanionScan>({ byVideo: {}, ambiguous: [] });
   const [probeStates, setProbeStates] = useState<Record<string, 'loading' | 'complete' | 'error'>>({});
   const [work, setWork] = useState<WorkProgress>();
+  const [debugDemoKind, setDebugDemoKind] = useState<DebugDemoMediaKind>('shows');
+  const [debugDemoText, setDebugDemoText] = useState(DEBUG_DEMO_SHOW_SAMPLE);
+  const [debugDemoStepMilliseconds, setDebugDemoStepMilliseconds] = useState(500);
+  const [activeDebugDemo, setActiveDebugDemo] = useState<ActiveDebugDemo>();
   const [groupProgressVisible, setGroupProgressVisible] = useState(false);
   const [renameStartedAt, setRenameStartedAt] = useState<number>();
   const [renameClock, setRenameClock] = useState(0);
@@ -614,6 +620,7 @@ export default function App() {
     } catch { return { left: 420, right: 420, bottom: 270 }; }
   });
   const websiteScreenshotMode = import.meta.env.DEV && new URLSearchParams(window.location.search).get('demo') === 'website';
+  const debugDemoStopRequested = useRef(false);
   const searchSequence = useRef(0);
   const seasonSequence = useRef(0);
   const movieBatchSequence = useRef(0);
@@ -833,6 +840,7 @@ export default function App() {
     return episodes.filter((episode) => `${episodeCode(episode)} ${episode.title}`.toLocaleLowerCase().includes(search)).slice(0, 100).map((episode) => suggestedCandidates.find((candidate) => candidate.episode.id === episode.id) ?? { episode, score: 1, reasons: ['manually selected'] });
   }, [episodes, reviewSearch, suggestedCandidates]);
   const formatError = templateError(episodeTemplate);
+  const parsedDebugDemo = useMemo(() => parseDebugDemo(debugDemoText, debugDemoKind), [debugDemoKind, debugDemoText]);
   const folderFormatError = showFolderTemplateError(showFolderTemplate);
   const movieFolderFormatError = movieFolderTemplateError(movieFolderTemplate);
   const movieFormatError = movieTemplateError(movieTemplate);
@@ -1438,6 +1446,13 @@ export default function App() {
   }, [centerPosterPreview, posterZoomed]);
 
   useEffect(() => {
+    if (activeDebugDemo) {
+      setFilesystemIssues([]);
+      setResolvedTargets({});
+      setCheckingPlan(false);
+      setPreflightError(undefined);
+      return;
+    }
     if (!window.mediaRenamer?.preflightRenamePlan || !window.mediaRenamer.resolveRenameCollisions || !renameGroups.length) {
       setFilesystemIssues([]);
       setResolvedTargets({});
@@ -1467,7 +1482,7 @@ export default function App() {
       addDebug('error', 'Rename preflight failed', message);
     }).finally(() => { if (active) setCheckingPlan(false); });
     return () => { active = false; };
-  }, [addDebug, preflightAttempt, renameGroups]);
+  }, [activeDebugDemo, addDebug, preflightAttempt, renameGroups]);
 
   useEffect(() => window.mediaRenamer?.onRenameProgress((progress) => {
     const next: WorkProgress = { operation: progress.operation === 'undo' ? 'Undoing' : 'Renaming', completed: progress.completed, total: progress.total, groupCompleted: progress.groupCompleted, groupTotal: progress.groupTotal, groupIndex: progress.groupIndex, groupsTotal: progress.groupsTotal, file: progress.file, batchPhase: progress.batchPhase, updatedAt: progress.updatedAt ?? Date.now() };
@@ -1544,8 +1559,9 @@ export default function App() {
   }, [addDebug, paths]);
 
   useEffect(() => {
+    if (activeDebugDemo) return;
     window.mediaRenamer?.watchFiles(paths).catch((reason) => addDebug('warning', 'Could not monitor imported files', errorMessage(reason)));
-  }, [addDebug, paths]);
+  }, [activeDebugDemo, addDebug, paths]);
 
   useEffect(() => window.mediaRenamer?.onWatchedFilesChanged((changes) => {
     const moved = new Map(changes.flatMap((change) => change.type === 'moved' ? [[change.previousPath, change.path] as const] : []));
@@ -1584,11 +1600,12 @@ export default function App() {
   }), [addDebug, releaseAliases]);
 
   useEffect(() => {
+    if (activeDebugDemo) return;
     if (!window.mediaRenamer?.probeMedia) return;
     const pending = paths.filter((path) => !probedPaths.current.has(path));
     if (!pending.length) return;
     void inspectMedia(pending);
-  }, [inspectMedia, paths]);
+  }, [activeDebugDemo, inspectMedia, paths]);
 
   useEffect(() => {
     if (!preferencesOpen && !templateRenameTarget && !refreshConfirmation && !clearConfirmation && !confirmAllOpen && !renameConfirmationOpen && !undoConfirmationOpen && !renameReport && !batchMetadataOpen && !posterPreview && !reviewingPath && !movieReviewPath && !pinnedPreviewPath) return;
@@ -1626,7 +1643,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
+    if (activeDebugDemo || activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
     const inferred = inferShowQuery(paths);
     if (!inferred) {
       addDebug('warning', 'Could not infer a show name', 'No supported episode marker or Show/Season/Episode folder structure was found.');
@@ -1635,10 +1652,10 @@ export default function App() {
     addDebug('info', `Inferred show query: ${inferred}`, `Derived from ${paths.length} imported file${paths.length === 1 ? '' : 's'}.`);
     autoSelectResult.current = true;
     setQuery(inferred);
-  }, [activeMediaTab, addDebug, paths, provider?.configured, query, show]);
+  }, [activeDebugDemo, activeMediaTab, addDebug, paths, provider?.configured, query, show]);
 
   useEffect(() => {
-    if (activeMediaTab !== 'movies' || !provider?.configured || paths.length === 0) return;
+    if (activeDebugDemo || activeMediaTab !== 'movies' || !provider?.configured || paths.length === 0) return;
     const eligiblePaths = paths.filter((path) => classifyMediaFile(path) !== 'shows');
     const sequence = ++movieBatchSequence.current;
     let cancelled = false;
@@ -1713,7 +1730,7 @@ export default function App() {
     });
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
-  }, [activeMediaTab, addDebug, movieDetectionAttempt, movieVideoRoles, paths, provider?.configured]);
+  }, [activeDebugDemo, activeMediaTab, addDebug, movieDetectionAttempt, movieVideoRoles, paths, provider?.configured]);
 
   useEffect(() => {
     setMovieMatches((current) => {
@@ -2307,7 +2324,115 @@ export default function App() {
     }
   }
 
+  function loadDebugDemo() {
+    if (parsedDebugDemo.errors.length || !parsedDebugDemo.items.length) return;
+    clearBatch();
+    const demoPaths = parsedDebugDemo.items.map((item, index) => `/Media Renamer Demo/${String(index + 1).padStart(2, '0')}-${item.sourceName}`);
+    const companionsByVideo: CompanionScan['byVideo'] = {};
+    const tagsByPath: Record<string, MediaTechnicalTags> = {};
+    for (const [index, path] of demoPaths.entries()) {
+      const item = parsedDebugDemo.items[index];
+      tagsByPath[path] = { resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '5.1' };
+      companionsByVideo[path] = Array.from({ length: item.sidecars }, (_, sidecarIndex) => ({
+        path: `/Media Renamer Demo/${String(index + 1).padStart(2, '0')}-${item.sourceName.replace(/\.[^.]+$/, '')}.${sidecarIndex ? `commentary-${sidecarIndex + 1}` : 'en'}.srt`,
+        suffix: sidecarIndex ? `.commentary-${sidecarIndex + 1}.srt` : '.en.srt',
+        kind: 'subtitle' as const,
+      }));
+    }
+    setActiveMediaTab(debugDemoKind);
+    setPaths(demoPaths);
+    setTechnicalTags(tagsByPath);
+    setProbeStates(Object.fromEntries(demoPaths.map((path) => [path, 'complete' as const])));
+    setCompanionScan({ byVideo: companionsByVideo, ambiguous: [] });
+    setMoveFiles(true);
+    if (debugDemoKind === 'shows') {
+      const demoEpisodes: Episode[] = parsedDebugDemo.items.map((item, index) => ({ id: `debug-episode-${index + 1}`, season: item.season, number: item.episode, title: item.title, overview: 'Editable demonstration metadata. No file exists on disk.' }));
+      const seasons = [...new Set(demoEpisodes.map((episode) => episode.season))].map((number) => ({ number, name: number === 0 ? 'Specials' : `Season ${number}`, episodeCount: demoEpisodes.filter((episode) => episode.season === number).length }));
+      setShow({ id: 'debug-demo-show', tvdbId: '999999', name: 'Debug Demo Show', year: 2024, overview: 'A synthetic show used to exercise Media Renamer without touching the filesystem.', seasons });
+      setEpisodes(demoEpisodes);
+      setMatches(demoPaths.map((path, index) => ({ path, filename: filenameFromPath(path), tags: parseReleaseTags(path), match: { episode: demoEpisodes[index], score: 1, reasons: ['debug demo'] }, alternatives: [], status: 'confident' })));
+      setConfirmedPaths(new Set(demoPaths));
+      setMovieMatches({});
+      setQuery('Debug Demo Show');
+    } else {
+      setShow(undefined);
+      setEpisodes([]);
+      setMatches([]);
+      setQuery('');
+      setMovieMatches(Object.fromEntries(demoPaths.map((path, index) => {
+        const item = parsedDebugDemo.items[index];
+        const movie: MovieSearchResult = { id: `debug-movie-${index + 1}`, name: item.title, year: item.year, overview: 'Editable demonstration metadata. No file exists on disk.', runtimeMinutes: 100 + index };
+        return [path, { path, query: item.title, movie, candidates: [movie], status: 'confident', confidence: 1, reasons: ['debug demo'] } satisfies MovieFileMatch];
+      })));
+    }
+    setActiveDebugDemo({ mediaKind: debugDemoKind, items: parsedDebugDemo.items, paths: demoPaths, stepMilliseconds: debugDemoStepMilliseconds });
+    setPreferencesOpen(false);
+    addDebug('info', `Loaded ${parsedDebugDemo.items.length}-row debug demo`, `${debugDemoKind === 'shows' ? 'TV' : 'Movie'} simulation · ${debugDemoStepMilliseconds} ms per step · no filesystem access`);
+  }
+
+  async function executeDebugDemo() {
+    if (!activeDebugDemo || !executableGroups.length || renaming) return;
+    const wait = () => new Promise<void>((resolve) => window.setTimeout(resolve, activeDebugDemo.stepMilliseconds));
+    debugDemoStopRequested.current = false;
+    setRenaming(true);
+    setFailedRenameGroupIndex(undefined);
+    setRenameControl(undefined);
+    setRenameStartedAt(Date.now());
+    setRenameClock(Date.now());
+    setError(undefined);
+    setRenameConfirmationOpen(showRenameProgressModal);
+    const total = executableFileCount;
+    let completed = 0;
+    try {
+      let progress: WorkProgress = { operation: 'Renaming', completed, total, groupsTotal: executableGroups.length, batchPhase: 'preparing', updatedAt: Date.now() };
+      renameProgressRef.current = progress;
+      setWork(progress);
+      await wait();
+      for (const [groupIndex, group] of executableGroups.entries()) {
+        const scenario = activeDebugDemo.items[groupIndex];
+        const video = group.items[0];
+        if (!scenario || !video || debugDemoStopRequested.current) break;
+        const phases: RenameFileProgressView['phase'][] = scenario.moveMethod === 'rename' ? ['preparing', 'renaming'] : ['preparing', 'copying', 'flushing', 'publishing', 'removing-source'];
+        for (const phase of phases) {
+          const fractions = phase === 'copying' ? [.15, .55, 1] : [1];
+          for (const fraction of fractions) {
+            if (debugDemoStopRequested.current) break;
+            progress = { operation: 'Renaming', completed, total, groupIndex, groupsTotal: executableGroups.length, groupCompleted: Math.min(group.items.length, fraction), groupTotal: group.items.length, batchPhase: 'processing', file: { phase, sourcePath: video.sourcePath, targetPath: video.targetPath, fraction, bytesCopied: phase === 'copying' ? Math.round(2_000_000_000 * fraction) : undefined, totalBytes: phase === 'copying' || phase === 'flushing' ? 2_000_000_000 : undefined }, updatedAt: Date.now() };
+            renameProgressRef.current = progress;
+            setWork(progress);
+            await wait();
+          }
+          if (scenario.failurePhase === phase) throw new Error(`Simulated ${phase.replace('-', ' ')} failure for ${scenario.sourceName}`);
+          if (debugDemoStopRequested.current) break;
+        }
+        if (debugDemoStopRequested.current) break;
+        completed += group.items.length;
+      }
+      if (!debugDemoStopRequested.current) {
+        progress = { operation: 'Renaming', completed: total, total, groupsTotal: executableGroups.length, batchPhase: 'finalising', updatedAt: Date.now() };
+        renameProgressRef.current = progress;
+        setWork(progress);
+        await wait();
+        setBatchRenameCompleted(true);
+        addDebug('success', 'Debug rename simulation completed', `${activeDebugDemo.items.length} demo row${activeDebugDemo.items.length === 1 ? '' : 's'} exercised; no files were changed.`);
+      } else addDebug('warning', 'Debug rename simulation stopped', 'The simulated operation stopped after the current step. No files were changed.');
+      setRenameConfirmationOpen(false);
+    } catch (reason) {
+      setFailedRenameGroupIndex(renameProgressRef.current?.groupIndex);
+      const message = errorMessage(reason);
+      setError(message);
+      addDebug('error', 'Debug rename simulation failed', message);
+    } finally {
+      setRenaming(false);
+      setRenameControl(undefined);
+      setRenameStartedAt(undefined);
+      setWork(undefined);
+      renameProgressRef.current = undefined;
+    }
+  }
+
   async function executeRenames() {
+    if (activeDebugDemo) return executeDebugDemo();
     if (!window.mediaRenamer?.executeRenamePlan || !executableGroups.length || preflightPlan.blockedCount || checkingPlan || preflightError || renaming) return;
     const preparedChime = completionChime ? prepareCompletionChime(palette) : undefined;
     const preparedErrorChime = completionChime ? prepareErrorChime(palette) : undefined;
@@ -2419,6 +2544,11 @@ export default function App() {
   }
 
   async function controlActiveRename(control: 'stop' | 'undo') {
+    if (activeDebugDemo && renaming && !renameControl) {
+      debugDemoStopRequested.current = true;
+      setRenameControl(control);
+      return;
+    }
     if (!renaming || renameControl || !window.mediaRenamer?.controlRename) return;
     setRenameControl(control);
     try {
@@ -2473,6 +2603,7 @@ export default function App() {
     for (const path of paths) probeRuns.current[path] = (probeRuns.current[path] ?? 0) + 1;
     probedPaths.current.clear();
     setPaths([]);
+    setActiveDebugDemo(undefined);
     searchSequence.current += 1;
     seasonSequence.current += 1;
     autoSelectResult.current = false;
@@ -2875,7 +3006,7 @@ export default function App() {
                 </div></AnimatedPresence>
               <AnimatedPresence show={paths.length > 0} className="status-presence"><div className={`plan-status ${preflightPlan.blockedCount || preflightError ? 'blocked' : 'ready'}`}>
                   {checkingPlan ? <LoaderCircle className="spin" size={18}/> : preflightPlan.blockedCount || preflightError ? <TriangleAlert size={18}/> : <ShieldCheck size={18}/>}
-                  <span role={paths.length > 0 ? 'status' : undefined} aria-live={paths.length > 0 ? 'polite' : undefined}><strong>{checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
+                  <span role={paths.length > 0 ? 'status' : undefined} aria-live={paths.length > 0 ? 'polite' : undefined}><strong>{activeDebugDemo ? 'Debug simulation ready' : checkingPlan ? 'Checking destination files…' : preflightError ? 'Could not verify rename destinations' : preflightPlan.blockedCount ? `${preflightPlan.blockedCount} file${preflightPlan.blockedCount === 1 ? '' : 's'} blocked` : 'Rename plan passed preflight'}</strong><small>{activeDebugDemo ? `${preflightPlan.readyCount} demo row${preflightPlan.readyCount === 1 ? '' : 's'} · ${companionCount} simulated sidecar${companionCount === 1 ? '' : 's'} · ${activeDebugDemo.stepMilliseconds} ms steps · no disk access` : checkingPlan ? 'Duplicate names will be numbered automatically. Rename unlocks when the filesystem check finishes.' : preflightError ?? `${preflightPlan.readyCount} ready · ${companionCount} companion${companionCount === 1 ? '' : 's'} · ${preflightPlan.warningCount} warning${preflightPlan.warningCount === 1 ? '' : 's'}${preflightPlan.destinationDirectories.length ? ` · ${preflightPlan.destinationDirectories.length} destination folder${preflightPlan.destinationDirectories.length === 1 ? '' : 's'}` : ''}${preflightPlan.blockedCount ? ' · Review or ambiguous files must be resolved' : ' · No collisions detected'}`}</small></span>
                   {preflightError && paths.length > 0 && <button className="secondary" onClick={() => setPreflightAttempt((attempt) => attempt + 1)}>Retry</button>}
                   {!preflightError && unchangedPaths.length > 0 && <button className="secondary clear-unchanged" onClick={clearUnchangedFiles}><Trash2 size={14}/> Clear {unchangedPaths.length} unchanged</button>}
                   {!preflightError && preflightPlan.blockedCount > 0 && <button className="secondary show-blocked" onClick={showFirstBlockedFile}><Search size={14}/> Show blocked file</button>}
@@ -3378,6 +3509,29 @@ export default function App() {
             </section>
           </div>}
           </div>
+          <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings debug-demo-builder">
+            <div className="format-heading"><span><h3>Workspace simulation</h3><p>Populate the normal TV or movie workspace with editable demo rows and simulate rename progress without touching disk.</p></span>{activeDebugDemo && <span className="debug-demo-active"><Bug size={13}/>Demo loaded</span>}</div>
+            <div className="debug-demo-controls">
+              <label><span>Workspace</span><select value={debugDemoKind} onChange={(event) => { const kind = event.target.value as DebugDemoMediaKind; setDebugDemoKind(kind); setDebugDemoText(kind === 'shows' ? DEBUG_DEMO_SHOW_SAMPLE : DEBUG_DEMO_MOVIE_SAMPLE); }}><option value="shows">TV shows</option><option value="movies">Movies</option></select></label>
+              <label className="debug-demo-speed"><span>Step speed <strong>{debugDemoStepMilliseconds} ms</strong></span><input type="range" min="100" max="3000" step="100" value={debugDemoStepMilliseconds} onChange={(event) => { const milliseconds = Number(event.target.value); setDebugDemoStepMilliseconds(milliseconds); setActiveDebugDemo((current) => current ? { ...current, stepMilliseconds: milliseconds } : current); }}/></label>
+              <button className="primary" disabled={Boolean(parsedDebugDemo.errors.length) || !parsedDebugDemo.items.length || renaming} onClick={loadDebugDemo}><Bug size={14}/>Load demo workspace</button>
+            </div>
+            <label className="debug-demo-script"><span>Scenario rows</span><textarea rows={7} spellCheck={false} value={debugDemoText} onChange={(event) => setDebugDemoText(event.target.value)}/></label>
+            {parsedDebugDemo.errors.length > 0 && <div className="debug-demo-errors" role="alert">{parsedDebugDemo.errors.map((message) => <span key={message}><AlertCircle size={13}/>{message}</span>)}</div>}
+            <div className="debug-demo-legend" aria-label="Demo scenario legend">
+              <strong>Legend</strong>
+              <code>source filename | display title | flags</code>
+              <dl>
+                <div><dt><code>success</code></dt><dd>Complete this row normally (the default).</dd></div>
+                <div><dt><code>fail=copying</code></dt><dd>Fail at preparing, copying, flushing, publishing, or removing-source.</dd></div>
+                <div><dt><code>copy</code> / <code>rename</code></dt><dd>Show a staged cross-storage copy or a single atomic rename.</dd></div>
+                <div><dt><code>sidecars=2</code></dt><dd>Add zero to twenty simulated companion subtitle files.</dd></div>
+                <div><dt><code>year=2024</code></dt><dd>Set movie metadata; TV rows take season and episode from SxxExx.</dd></div>
+                <div><dt><code># note</code></dt><dd>Add a comment; blank lines are ignored.</dd></div>
+              </dl>
+              <small><ShieldCheck size={13}/>Safe simulation: loading and running demo data never creates, renames, copies, or deletes a real file. After loading, use the normal inline filename and metadata editors to make further changes.</small>
+            </div>
+          </section>
           <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings"><h3>Manual notification tests</h3><p>Send fixed test notifications without renaming files. Your operating system may suppress them according to its notification or focus settings.</p><div className="destination-row standalone"><span><BellRing size={17}/><span><strong>Native system notifications</strong><small>Test each outcome displayed after a rename operation.</small></span></span><span className="destination-actions"><button className="secondary" onClick={() => void testSystemNotification('success')}>Success</button><button className="secondary" onClick={() => void testSystemNotification('stopped')}>Stopped</button><button className="secondary" onClick={() => void testSystemNotification('error')}>Failure</button></span></div>{debugTestResult && <div className={`debug-test-status ${debugTestResult.status}`} role={debugTestResult.status === 'error' ? 'alert' : 'status'}>{debugTestResult.status === 'success' ? <Check size={13}/> : debugTestResult.status === 'warning' ? <TriangleAlert size={13}/> : <AlertCircle size={13}/>}<span>{debugTestResult.message}</span></div>}</section>
           <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings"><h3>Audio tests</h3><p>Play the same sounds used when a rename finishes or fails.</p><div className="destination-row standalone"><span><Volume2 size={17}/><span><strong>Completion chimes</strong><small>Uses the current colour theme’s success and error tones.</small></span></span><span className="destination-actions"><button className="secondary" onClick={() => prepareCompletionChime(palette)?.play()}>Success sound</button><button className="secondary" onClick={() => prepareErrorChime(palette)?.play()}>Error sound</button></span></div></section>
           <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings"><h3>Diagnostic tools</h3><p>Inspect local provider, matching, and filesystem activity while reproducing a problem.</p><div className="destination-row standalone"><span><SquareTerminal size={17}/><span><strong>Debug console</strong><small>Session-local diagnostic events; no logs are uploaded.</small></span></span><span className="destination-actions"><button className="secondary" onClick={() => { setDebugDocked(true); setPreferencesOpen(false); void window.mediaRenamer?.dockDebugConsole(); }}><SquareTerminal size={14}/>Open</button><button className="secondary" onClick={() => { setDeveloperMode(false); setDeveloperVersionClicks(0); setDeveloperUnlockMessage(undefined); setDebugDocked(false); setPreferenceSection('advanced'); }}>Disable developer mode</button></span></div></section>
