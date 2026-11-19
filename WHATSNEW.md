@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-19
+
 ### Fixed
 
 - Updated a vulnerable build-time dependency to prevent excessive resource use when processing malicious glob patterns.
@@ -153,7 +155,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/manix84/media-renamer/releases/tag/v0.9.2
 [0.9.1]: https://github.com/manix84/media-renamer/releases/tag/v0.9.1
 [0.9.0]: https://github.com/manix84/media-renamer/releases/tag/v0.9.0
 [0.8.1]: https://github.com/manix84/media-renamer/releases/tag/v0.8.1
