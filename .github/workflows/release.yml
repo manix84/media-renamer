@@ -45,12 +45,29 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             target: linux
+            helper_target: linux
+            package_args: --linux --x64
+            artifact_name: linux
           - name: Windows
             os: windows-latest
             target: win
-          - name: macOS
+            helper_target: win
+            package_args: --win --x64
+            artifact_name: win
+          - name: macOS Apple silicon
             os: macos-latest
             target: mac
+            helper_target: mac-arm64
+            package_args: --mac --arm64
+            artifact_name: mac-arm64
+            architecture: arm64
+          - name: macOS Universal
+            os: macos-latest
+            target: mac
+            helper_target: mac-universal
+            package_args: --mac --universal
+            artifact_name: mac-universal
+            architecture: universal
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -70,7 +87,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Build native TMDB credential helper
-        run: npm run build:tmdb-helper -- ${{ matrix.target }}
+        run: npm run build:tmdb-helper -- ${{ matrix.helper_target }}
         env:
           TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
       - name: Verify native TMDB helper
@@ -84,7 +101,7 @@ jobs:
         env:
           TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
       - name: Package ${{ matrix.name }}
-        run: npm run package -- --${{ matrix.target }} --publish never
+        run: npm run package -- ${{ matrix.package_args }} --publish never
       - name: Verify macOS application signature
         if: matrix.target == 'mac'
         shell: bash
@@ -97,9 +114,9 @@ jobs:
         run: node scripts/package-linux-portable.mjs
       - name: Create portable macOS bundle
         if: matrix.target == 'mac'
-        run: node scripts/package-macos-portable.mjs
+        run: node scripts/package-macos-portable.mjs ${{ matrix.architecture }}
       - name: Verify expected release formats
-        run: node scripts/verify-release-artifacts.mjs ${{ matrix.target }}
+        run: node scripts/verify-release-artifacts.mjs ${{ matrix.target }} ${{ matrix.architecture }}
       - name: Attest release artifacts
         if: github.ref == 'refs/heads/main'
         uses: actions/attest@v4
@@ -115,7 +132,7 @@ jobs:
             release/*.msi
       - uses: actions/upload-artifact@v4
         with:
-          name: media-renamer-${{ matrix.target }}
+          name: media-renamer-${{ matrix.artifact_name }}
           path: |
             release/*.AppImage
             release/*.deb

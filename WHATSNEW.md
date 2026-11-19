@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- macOS releases now include universal installer and data-portable downloads that run natively on both Apple silicon and Intel Macs, alongside the smaller Apple silicon editions.
+
 ## [0.8.1] - 2026-11-19
 
 ### Fixed

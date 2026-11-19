@@ -39,7 +39,7 @@ function formatBytes(bytes: number) {
 }
 
 function friendlyAssetName(name: string) {
-  const architecture = /(?:^|-)(arm64)(?:-|\.)/i.test(name) ? 'Apple silicon' : /(?:^|-)(x64|x86_64|amd64)(?:-|\.)/i.test(name) ? '64-bit' : undefined
+  const architecture = /(?:^|-)(universal)(?:-|\.)/i.test(name) ? 'Universal (Apple silicon + Intel)' : /(?:^|-)(arm64)(?:-|\.)/i.test(name) ? 'Apple silicon' : /(?:^|-)(x64|x86_64|amd64)(?:-|\.)/i.test(name) ? '64-bit' : undefined
   const suffix = architecture ? ` · ${architecture}` : ''
   if (/unsigned-installer\.msi$/i.test(name)) return `Windows MSI installer · unsigned${suffix}`
   if (/unsigned-portable\.exe$/i.test(name)) return `Windows portable · unsigned${suffix}`

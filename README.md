@@ -362,7 +362,7 @@ Provider responses should be normalized immediately. Provider credentials never 
 
 ## Releases
 
-GitHub Actions builds AppImage, Debian, RPM, and data-portable packages for Linux; explicitly unsigned MSI installers and portable executables for Windows; and explicitly unsigned DMG installers and data-portable ZIP bundles for macOS.
+GitHub Actions builds AppImage, Debian, RPM, and data-portable packages for Linux; explicitly unsigned MSI installers and portable executables for Windows; and explicitly unsigned DMG installers and data-portable ZIP bundles for macOS in Apple Silicon and universal Apple Silicon/Intel editions.
 
 All variants bundle the application runtime, so users do not need Node.js or Electron. Installed editions store application data in the operating-system user profile. Portable editions on all three systems keep preferences, history, caches, and extensions beside the app so they can travel together. See the [Installation guide](INSTALLATION.md) for the full comparison and instructions.
 

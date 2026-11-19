@@ -7,7 +7,9 @@ const root = process.cwd();
 const packageJson = JSON.parse(await fs.promises.readFile(path.join(root, 'package.json'), 'utf8'));
 const releaseDirectory = path.join(root, 'release');
 const releaseEntries = await fs.promises.readdir(releaseDirectory, { withFileTypes: true });
-const appParents = releaseEntries.filter((entry) => entry.isDirectory() && entry.name.startsWith('mac'));
+const requestedArchitecture = process.argv[2]?.replace(/^--/, '');
+const requestedParent = requestedArchitecture ? `mac-${requestedArchitecture}` : undefined;
+const appParents = releaseEntries.filter((entry) => entry.isDirectory() && (requestedParent ? entry.name === requestedParent : entry.name.startsWith('mac')));
 let sourceApp;
 for (const parent of appParents) {
   const candidate = path.join(releaseDirectory, parent.name, `${packageJson.build.productName}.app`);
@@ -17,7 +19,7 @@ for (const parent of appParents) {
     break;
   } catch { /* Try the next Electron Builder output directory. */ }
 }
-if (!sourceApp) throw new Error('Could not find the packaged macOS application in release/mac*.');
+if (!sourceApp) throw new Error(`Could not find the packaged macOS application in release/${requestedParent ?? 'mac*'}.`);
 
 const parentName = path.basename(path.dirname(sourceApp));
 const architecture = parentName === 'mac' ? process.arch : parentName.replace(/^mac-/, '');

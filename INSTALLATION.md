@@ -37,7 +37,7 @@ The word `unsigned` in the filename is intentional. It means the installer does 
 
 ## macOS installer
 
-Download the file ending in **`mac-arm64-unsigned-installer.dmg`** on Apple silicon, or **`mac-x64-unsigned-installer.dmg`** on an Intel Mac.
+Download the smaller **`mac-arm64-unsigned-installer.dmg`** on Apple silicon. Download **`mac-universal-unsigned-installer.dmg`** if you need one copy that runs natively on both Apple silicon and Intel Macs.
 
 1. Open the DMG and drag **Media Renamer** into **Applications**.
 2. Try to open Media Renamer once. macOS may say it cannot verify the developer.
@@ -111,7 +111,7 @@ Do not run the portable EXE from a read-only location. It is unsigned and shows 
 
 ## macOS portable
 
-Download the matching **`mac-*-unsigned-portable.zip`** and extract it.
+Download the matching **`mac-arm64-unsigned-portable.zip`** for Apple silicon, or **`mac-universal-unsigned-portable.zip`** for a portable folder that runs natively on both Apple silicon and Intel Macs, then extract it.
 
 1. Keep **Media Renamer.app**, **Run Media Renamer.command**, and **data** together.
 2. Double-click **Run Media Renamer.command**. The launcher—not the app icon—selects the adjacent portable data folder.
