@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-19
+
 ### Fixed
 
 - Fresh and upgraded portable profiles now use the bundled TMDB episode provider by default instead of showing a developer-only TVDB `.env` warning; TVDB remains an optional advanced agent only when credentials are configured.
@@ -147,7 +149,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/manix84/media-renamer/releases/tag/v0.9.1
 [0.9.0]: https://github.com/manix84/media-renamer/releases/tag/v0.9.0
 [0.8.1]: https://github.com/manix84/media-renamer/releases/tag/v0.8.1
 [0.8.0]: https://github.com/manix84/media-renamer/releases/tag/v0.8.0
