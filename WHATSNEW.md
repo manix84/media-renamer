@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Fixed
+
+- Fresh and upgraded portable profiles now use the bundled TMDB episode provider by default instead of showing a developer-only TVDB `.env` warning; TVDB remains an optional advanced agent only when credentials are configured.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added
