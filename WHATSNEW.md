@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-19
+
 ### Fixed
 
 - Stopping a cross-device move now cancels the active copy immediately, removes its partial temporary file, and preserves every file that already completed; later per-file failures likewise keep successful renames in place instead of rolling the batch back.
@@ -135,7 +137,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/manix84/media-renamer/releases/tag/v0.8.1
 [0.8.0]: https://github.com/manix84/media-renamer/releases/tag/v0.8.0
 [0.7.0]: https://github.com/manix84/media-renamer/releases/tag/v0.7.0
 [0.6.0]: https://github.com/manix84/media-renamer/releases/tag/v0.6.0
