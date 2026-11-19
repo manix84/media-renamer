@@ -205,6 +205,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .favourite-template-apply svg, .favourite-template-list > div.active .favourite-template-apply strong { color: var(--accent-text); }
 .favourite-template-actions { flex: 0 0 auto; display: flex; gap: 2px; }
 .favourite-template-actions .icon-button { width: 25px; height: 25px; }
+.favourite-template-actions .icon-button[title="Rename favourite"] { width: auto; padding: 5px 8px; font-size: 8px; }
+.favourite-template-actions .icon-button[title="Rename favourite"]::after { content: "Rename"; }
 .format-preview { min-width: 0; margin-top: 9px; padding-top: 9px; border-top: 1px solid #272e3c; display: flex; align-items: baseline; gap: 9px; font-size: 10px; }
 .format-preview span { flex: 0 0 auto; color: #687287; text-transform: uppercase; letter-spacing: .08em; font-size: 8px; font-weight: 760; }
 .format-preview strong { min-width: 0; overflow: hidden; color: #cdd4e2; font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
