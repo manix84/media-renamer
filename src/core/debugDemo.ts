@@ -4,10 +4,8 @@ export type DebugDemoFailurePhase = 'preparing' | 'copying' | 'flushing' | 'publ
 
 export interface DebugDemoItem {
   sourceName: string;
-  title: string;
   season: number;
   episode: number;
-  year?: number;
   moveMethod: DebugDemoMoveMethod;
   sidecars: number;
   failurePhase?: DebugDemoFailurePhase;
@@ -18,16 +16,16 @@ export interface DebugDemoParseResult {
   errors: string[];
 }
 
-export const DEBUG_DEMO_SHOW_SAMPLE = `# source filename | episode title | flags
-Demo.Show.S01E01.1080p.WEB-DL.mkv | A Promising Beginning | success copy sidecars=2
-Demo.Show.S01E02.1080p.WEB-DL.mkv | The Slow Destination | success copy sidecars=1
-Demo.Show.S01E03.1080p.WEB-DL.mkv | Something Goes Wrong | fail=publishing copy
-Demo.Show.S01E04.1080p.WEB-DL.mkv | Back on Track | success rename`;
+export const DEBUG_DEMO_SHOW_SAMPLE = `# fake filename | simulation flags
+Severance.S02E01.2160p.WEB-DL.DDP5.1.H.265-DEMO.mkv | success copy sidecars=2
+Severance.S02E02.2160p.WEB-DL.DDP5.1.H.265-DEMO.mkv | success copy sidecars=1
+Severance.S02E03.2160p.WEB-DL.DDP5.1.H.265-DEMO.mkv | fail=publishing copy
+Severance.S02E04.2160p.WEB-DL.DDP5.1.H.265-DEMO.mkv | success rename`;
 
-export const DEBUG_DEMO_MOVIE_SAMPLE = `# source filename | movie title | flags
-The.Demo.Movie.2024.1080p.WEB-DL.mkv | The Demo Movie | success copy sidecars=2 year=2024
-An.Atomic.Example.1999.BluRay.mkv | An Atomic Example | success rename year=1999
-The.Unlucky.Move.2021.1080p.mkv | The Unlucky Move | fail=copying copy sidecars=1 year=2021`;
+export const DEBUG_DEMO_MOVIE_SAMPLE = `# fake filename | simulation flags
+Blade.Runner.2049.2017.2160p.BluRay.H.265.mkv | success copy sidecars=2
+The.Matrix.1999.1080p.BluRay.H.264.mkv | success rename
+Arrival.2016.1080p.BluRay.H.264.mkv | fail=copying copy sidecars=1`;
 
 const failurePhases = new Set<DebugDemoFailurePhase>(['preparing', 'copying', 'flushing', 'publishing', 'removing-source']);
 
@@ -38,16 +36,15 @@ export function parseDebugDemo(text: string, mediaKind: DebugDemoMediaKind): Deb
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const parts = line.split('|').map((part) => part.trim());
-    if (parts.length < 2 || !parts[0] || !parts[1]) {
-      errors.push(`Line ${index + 1}: expected source filename | title | flags`);
+    if (!parts[0] || parts.length > 2) {
+      errors.push(`Line ${index + 1}: expected fake filename | simulation flags`);
       continue;
     }
-    const flags = (parts[2] ?? '').split(/[\s,]+/).filter(Boolean);
+    const flags = (parts[1] ?? '').split(/[\s,]+/).filter(Boolean);
     let moveMethod: DebugDemoMoveMethod = 'copy';
     let sidecars = 0;
     let failurePhase: DebugDemoFailurePhase | undefined;
     let genericFailure = false;
-    let year: number | undefined;
     for (const flag of flags) {
       if (flag === 'success') continue;
       if (flag === 'copy' || flag === 'rename') { moveMethod = flag; continue; }
@@ -64,12 +61,6 @@ export function parseDebugDemo(text: string, mediaKind: DebugDemoMediaKind): Deb
         else errors.push(`Line ${index + 1}: sidecars must be between 0 and 20`);
         continue;
       }
-      if (flag.startsWith('year=')) {
-        const parsedYear = Number(flag.slice(5));
-        if (Number.isInteger(parsedYear) && parsedYear >= 1870 && parsedYear <= 2200) year = parsedYear;
-        else errors.push(`Line ${index + 1}: year must be between 1870 and 2200`);
-        continue;
-      }
       errors.push(`Line ${index + 1}: unknown flag “${flag}”`);
     }
     if (genericFailure && !failurePhase) failurePhase = moveMethod === 'copy' ? 'copying' : 'preparing';
@@ -80,10 +71,8 @@ export function parseDebugDemo(text: string, mediaKind: DebugDemoMediaKind): Deb
     }
     items.push({
       sourceName: parts[0],
-      title: parts[1],
       season: episodeCode ? Number(episodeCode[1]) : 0,
       episode: episodeCode ? Number(episodeCode[2]) : items.length + 1,
-      year,
       moveMethod,
       sidecars,
       failurePhase,

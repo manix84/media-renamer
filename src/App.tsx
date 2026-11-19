@@ -1643,7 +1643,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeDebugDemo || activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
+    if (activeMediaTab !== 'shows' || !provider?.configured || show || query.trim() || paths.length === 0) return;
     const inferred = inferShowQuery(paths);
     if (!inferred) {
       addDebug('warning', 'Could not infer a show name', 'No supported episode marker or Show/Season/Episode folder structure was found.');
@@ -1652,10 +1652,10 @@ export default function App() {
     addDebug('info', `Inferred show query: ${inferred}`, `Derived from ${paths.length} imported file${paths.length === 1 ? '' : 's'}.`);
     autoSelectResult.current = true;
     setQuery(inferred);
-  }, [activeDebugDemo, activeMediaTab, addDebug, paths, provider?.configured, query, show]);
+  }, [activeMediaTab, addDebug, paths, provider?.configured, query, show]);
 
   useEffect(() => {
-    if (activeDebugDemo || activeMediaTab !== 'movies' || !provider?.configured || paths.length === 0) return;
+    if (activeMediaTab !== 'movies' || !provider?.configured || paths.length === 0) return;
     const eligiblePaths = paths.filter((path) => classifyMediaFile(path) !== 'shows');
     const sequence = ++movieBatchSequence.current;
     let cancelled = false;
@@ -1730,7 +1730,7 @@ export default function App() {
     });
     return () => { cancelled = true; };
   // Movie match updates are intentionally excluded: this run owns the paths present when it starts.
-  }, [activeDebugDemo, activeMediaTab, addDebug, movieDetectionAttempt, movieVideoRoles, paths, provider?.configured]);
+  }, [activeMediaTab, addDebug, movieDetectionAttempt, movieVideoRoles, paths, provider?.configured]);
 
   useEffect(() => {
     setMovieMatches((current) => {
@@ -2327,47 +2327,31 @@ export default function App() {
   function loadDebugDemo() {
     if (parsedDebugDemo.errors.length || !parsedDebugDemo.items.length) return;
     clearBatch();
-    const demoPaths = parsedDebugDemo.items.map((item, index) => `/Media Renamer Demo/${String(index + 1).padStart(2, '0')}-${item.sourceName}`);
+    const demoPaths = parsedDebugDemo.items.map((item, index) => `/Media Renamer Demo/Row ${String(index + 1).padStart(2, '0')}/${item.sourceName}`);
     const companionsByVideo: CompanionScan['byVideo'] = {};
-    const tagsByPath: Record<string, MediaTechnicalTags> = {};
     for (const [index, path] of demoPaths.entries()) {
       const item = parsedDebugDemo.items[index];
-      tagsByPath[path] = { resolution: '1080p', videoCodec: 'H.264', audioCodec: 'AAC', channels: '5.1' };
       companionsByVideo[path] = Array.from({ length: item.sidecars }, (_, sidecarIndex) => ({
-        path: `/Media Renamer Demo/${String(index + 1).padStart(2, '0')}-${item.sourceName.replace(/\.[^.]+$/, '')}.${sidecarIndex ? `commentary-${sidecarIndex + 1}` : 'en'}.srt`,
+        path: `/Media Renamer Demo/Row ${String(index + 1).padStart(2, '0')}/${item.sourceName.replace(/\.[^.]+$/, '')}.${sidecarIndex ? `commentary-${sidecarIndex + 1}` : 'en'}.srt`,
         suffix: sidecarIndex ? `.commentary-${sidecarIndex + 1}.srt` : '.en.srt',
         kind: 'subtitle' as const,
       }));
     }
     setActiveMediaTab(debugDemoKind);
     setPaths(demoPaths);
-    setTechnicalTags(tagsByPath);
+    setTechnicalTags({});
     setProbeStates(Object.fromEntries(demoPaths.map((path) => [path, 'complete' as const])));
     setCompanionScan({ byVideo: companionsByVideo, ambiguous: [] });
     setMoveFiles(true);
-    if (debugDemoKind === 'shows') {
-      const demoEpisodes: Episode[] = parsedDebugDemo.items.map((item, index) => ({ id: `debug-episode-${index + 1}`, season: item.season, number: item.episode, title: item.title, overview: 'Editable demonstration metadata. No file exists on disk.' }));
-      const seasons = [...new Set(demoEpisodes.map((episode) => episode.season))].map((number) => ({ number, name: number === 0 ? 'Specials' : `Season ${number}`, episodeCount: demoEpisodes.filter((episode) => episode.season === number).length }));
-      setShow({ id: 'debug-demo-show', tvdbId: '999999', name: 'Debug Demo Show', year: 2024, overview: 'A synthetic show used to exercise Media Renamer without touching the filesystem.', seasons });
-      setEpisodes(demoEpisodes);
-      setMatches(demoPaths.map((path, index) => ({ path, filename: filenameFromPath(path), tags: parseReleaseTags(path), match: { episode: demoEpisodes[index], score: 1, reasons: ['debug demo'] }, alternatives: [], status: 'confident' })));
-      setConfirmedPaths(new Set(demoPaths));
-      setMovieMatches({});
-      setQuery('Debug Demo Show');
-    } else {
-      setShow(undefined);
-      setEpisodes([]);
-      setMatches([]);
-      setQuery('');
-      setMovieMatches(Object.fromEntries(demoPaths.map((path, index) => {
-        const item = parsedDebugDemo.items[index];
-        const movie: MovieSearchResult = { id: `debug-movie-${index + 1}`, name: item.title, year: item.year, overview: 'Editable demonstration metadata. No file exists on disk.', runtimeMinutes: 100 + index };
-        return [path, { path, query: item.title, movie, candidates: [movie], status: 'confident', confidence: 1, reasons: ['debug demo'] } satisfies MovieFileMatch];
-      })));
-    }
+    setShow(undefined);
+    setEpisodes([]);
+    setMatches([]);
+    setConfirmedPaths(new Set());
+    setMovieMatches({});
+    setQuery('');
     setActiveDebugDemo({ mediaKind: debugDemoKind, items: parsedDebugDemo.items, paths: demoPaths, stepMilliseconds: debugDemoStepMilliseconds });
     setPreferencesOpen(false);
-    addDebug('info', `Loaded ${parsedDebugDemo.items.length}-row debug demo`, `${debugDemoKind === 'shows' ? 'TV' : 'Movie'} simulation · ${debugDemoStepMilliseconds} ms per step · no filesystem access`);
+    addDebug('info', `Loaded ${parsedDebugDemo.items.length}-row debug demo`, `${debugDemoKind === 'shows' ? 'TVDB show matching' : 'TMDB movie matching'} will use the fake filenames · ${debugDemoStepMilliseconds} ms per move step · no filesystem access`);
   }
 
   async function executeDebugDemo() {
@@ -3510,7 +3494,7 @@ export default function App() {
           </div>}
           </div>
           <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings debug-demo-builder">
-            <div className="format-heading"><span><h3>Workspace simulation</h3><p>Populate the normal TV or movie workspace with editable demo rows and simulate rename progress without touching disk.</p></span>{activeDebugDemo && <span className="debug-demo-active"><Bug size={13}/>Demo loaded</span>}</div>
+            <div className="format-heading"><span><h3>Workspace simulation</h3><p>Enter fake filenames, then run them through the normal TVDB or TMDB search, matching, editing, and progress UI without touching disk.</p></span>{activeDebugDemo && <span className="debug-demo-active"><Bug size={13}/>Demo loaded</span>}</div>
             <div className="debug-demo-controls">
               <label><span>Workspace</span><select value={debugDemoKind} onChange={(event) => { const kind = event.target.value as DebugDemoMediaKind; setDebugDemoKind(kind); setDebugDemoText(kind === 'shows' ? DEBUG_DEMO_SHOW_SAMPLE : DEBUG_DEMO_MOVIE_SAMPLE); }}><option value="shows">TV shows</option><option value="movies">Movies</option></select></label>
               <label className="debug-demo-speed"><span>Step speed <strong>{debugDemoStepMilliseconds} ms</strong></span><input type="range" min="100" max="3000" step="100" value={debugDemoStepMilliseconds} onChange={(event) => { const milliseconds = Number(event.target.value); setDebugDemoStepMilliseconds(milliseconds); setActiveDebugDemo((current) => current ? { ...current, stepMilliseconds: milliseconds } : current); }}/></label>
@@ -3520,16 +3504,16 @@ export default function App() {
             {parsedDebugDemo.errors.length > 0 && <div className="debug-demo-errors" role="alert">{parsedDebugDemo.errors.map((message) => <span key={message}><AlertCircle size={13}/>{message}</span>)}</div>}
             <div className="debug-demo-legend" aria-label="Demo scenario legend">
               <strong>Legend</strong>
-              <code>source filename | display title | flags</code>
+              <code>fake filename | simulation flags</code>
               <dl>
                 <div><dt><code>success</code></dt><dd>Complete this row normally (the default).</dd></div>
                 <div><dt><code>fail=copying</code></dt><dd>Fail at preparing, copying, flushing, publishing, or removing-source.</dd></div>
                 <div><dt><code>copy</code> / <code>rename</code></dt><dd>Show a staged cross-storage copy or a single atomic rename.</dd></div>
                 <div><dt><code>sidecars=2</code></dt><dd>Add zero to twenty simulated companion subtitle files.</dd></div>
-                <div><dt><code>year=2024</code></dt><dd>Set movie metadata; TV rows take season and episode from SxxExx.</dd></div>
+                <div><dt><code>S02E03</code></dt><dd>TV filenames need episode numbering; the filename is used to find the real show and episode.</dd></div>
                 <div><dt><code># note</code></dt><dd>Add a comment; blank lines are ignored.</dd></div>
               </dl>
-              <small><ShieldCheck size={13}/>Safe simulation: loading and running demo data never creates, renames, copies, or deletes a real file. After loading, use the normal inline filename and metadata editors to make further changes.</small>
+              <small><ShieldCheck size={13}/>Safe simulation: provider searches are real, but loading and running demo data never watches, probes, creates, renames, copies, or deletes a file. After matching, use the normal inline filename and metadata editors to make further changes.</small>
             </div>
           </section>
           <section hidden={preferenceSection !== 'debugging'} className="preference-section developer-settings"><h3>Manual notification tests</h3><p>Send fixed test notifications without renaming files. Your operating system may suppress them according to its notification or focus settings.</p><div className="destination-row standalone"><span><BellRing size={17}/><span><strong>Native system notifications</strong><small>Test each outcome displayed after a rename operation.</small></span></span><span className="destination-actions"><button className="secondary" onClick={() => void testSystemNotification('success')}>Success</button><button className="secondary" onClick={() => void testSystemNotification('stopped')}>Stopped</button><button className="secondary" onClick={() => void testSystemNotification('error')}>Failure</button></span></div>{debugTestResult && <div className={`debug-test-status ${debugTestResult.status}`} role={debugTestResult.status === 'error' ? 'alert' : 'status'}>{debugTestResult.status === 'success' ? <Check size={13}/> : debugTestResult.status === 'warning' ? <TriangleAlert size={13}/> : <AlertCircle size={13}/>}<span>{debugTestResult.message}</span></div>}</section>
