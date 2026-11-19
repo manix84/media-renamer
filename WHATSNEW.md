@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Fixed
+
+- Updated a vulnerable build-time dependency to prevent excessive resource use when processing malicious glob patterns.
+
 ## [0.9.1] - 2026-11-19
 
 ### Fixed
