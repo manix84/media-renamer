@@ -1,5 +1,7 @@
 # Install Media Renamer on Linux
 
+> The canonical cross-platform instructions now live in the [Installation guide](../INSTALLATION.md). The detailed Linux notes below remain as a supplementary reference.
+
 Linux releases include the application runtime; users do not need Node.js, npm, Electron, or the source code. Choose the download based on where Media Renamer should keep its data:
 
 | Download | Installation | Where preferences and extensions are stored | Best for |

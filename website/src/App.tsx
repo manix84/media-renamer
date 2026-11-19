@@ -21,14 +21,14 @@ const REPOSITORY = 'https://github.com/manix84/media-renamer'
 const LATEST_RELEASE = `${REPOSITORY}/releases/latest`
 
 const platformRules: Record<Platform, RegExp> = {
-  Windows: /\.exe$/i,
+  Windows: /\.(msi|exe)$/i,
   macOS: /\.(dmg|zip)$/i,
   Linux: /\.(AppImage|deb|rpm|tar\.gz)$/i,
 }
 
 const platformDescriptions: Record<Platform, string> = {
-  Windows: 'Installer or no-install portable edition',
-  macOS: 'Drag-to-Applications DMG or ZIP archive',
+  Windows: 'Unsigned MSI installer or data-portable edition',
+  macOS: 'Unsigned DMG installer or data-portable ZIP',
   Linux: 'AppImage, Debian, RPM, or USB-portable',
 }
 
@@ -37,10 +37,10 @@ function formatBytes(bytes: number) {
 }
 
 function friendlyAssetName(name: string) {
-  if (/setup\.exe$/i.test(name)) return 'Windows installer'
-  if (/portable\.exe$/i.test(name)) return 'Windows portable'
-  if (/\.dmg$/i.test(name)) return 'macOS disk image'
-  if (/\.zip$/i.test(name)) return 'macOS ZIP'
+  if (/unsigned-installer\.msi$/i.test(name)) return 'Windows installer (unsigned)'
+  if (/unsigned-portable\.exe$/i.test(name)) return 'Windows portable (unsigned)'
+  if (/unsigned-installer\.dmg$/i.test(name)) return 'macOS installer (unsigned)'
+  if (/unsigned-portable\.zip$/i.test(name)) return 'macOS portable (unsigned)'
   if (/\.AppImage$/i.test(name)) return 'Linux AppImage'
   if (/\.deb$/i.test(name)) return 'Debian / Ubuntu / Mint'
   if (/\.rpm$/i.test(name)) return 'Fedora / RHEL / openSUSE'
@@ -215,6 +215,7 @@ function App() {
               </div>
               <div className="download-footer">
                 <span>MIT licensed</span><span>SHA-256 checksums</span><span>Verifiable build provenance</span>
+                <a href={`${REPOSITORY}/blob/main/INSTALLATION.md`}>Installation help <ArrowIcon /></a>
                 {release && <a href={release.html_url}>Release notes <ArrowIcon /></a>}
               </div>
             </div>
@@ -229,11 +230,11 @@ function App() {
             <div className="privacy-points"><span>No account</span><span>No tracking</span><span>Local-first storage</span></div>
           </div>
           <div className="trust-card signing-card">
-            <span className="signpath-wordmark">SIGNPATH <i>FOUNDATION</i></span>
+            <span className="signpath-wordmark">UNSIGNED <i>OPEN SOURCE</i></span>
             <h2>Transparent releases.</h2>
-            <p>Media Renamer is applying for free Windows code signing through SignPath Foundation. Current downloads remain unsigned while approval is pending, and every release includes checksums and GitHub build provenance.</p>
-            <p className="signpath-disclosure">Once approved: Free code signing provided by SignPath.io, certificate by SignPath Foundation.</p>
-            <a href={`${REPOSITORY}/blob/main/docs/code-signing-policy.md`}>Read the code-signing policy <ArrowIcon /></a>
+            <p>Windows and macOS downloads are clearly marked as unsigned. Every release includes checksums and GitHub build provenance so the download can be checked before an operating-system exception is approved.</p>
+            <p className="signpath-disclosure">No paid publisher certificate is currently attached to the Windows or macOS artifacts.</p>
+            <a href={`${REPOSITORY}/blob/main/INSTALLATION.md`}>Read the installation guide <ArrowIcon /></a>
           </div>
         </section>
 
@@ -247,7 +248,7 @@ function App() {
       <footer>
         <div className="section-wrap footer-inner">
           <div><strong>Media Renamer</strong><p>Built by Rob. Free, open source, and focused.</p></div>
-          <div className="footer-links"><a href={REPOSITORY}>GitHub</a><a href={`${REPOSITORY}/blob/main/LICENSE`}>MIT License</a><a href={`${REPOSITORY}/blob/main/PRIVACY.md`}>Privacy</a><a href={`${REPOSITORY}/blob/main/SECURITY.md`}>Security</a><a href={`${REPOSITORY}/releases`}>All releases</a></div>
+          <div className="footer-links"><a href={REPOSITORY}>GitHub</a><a href={`${REPOSITORY}/blob/main/INSTALLATION.md`}>Install</a><a href={`${REPOSITORY}/blob/main/LICENSE`}>MIT License</a><a href={`${REPOSITORY}/blob/main/PRIVACY.md`}>Privacy</a><a href={`${REPOSITORY}/blob/main/SECURITY.md`}>Security</a><a href={`${REPOSITORY}/releases`}>All releases</a></div>
           <p className="provider-note">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
         </div>
       </footer>

@@ -18,6 +18,7 @@
     "package": "npm run build && electron-builder",
     "package:linux": "npm run build && electron-builder --linux AppImage deb rpm --x64 --publish never",
     "package:linux:portable": "npm run build && electron-builder --linux AppImage --x64 --publish never && node scripts/package-linux-portable.mjs",
+    "package:mac:portable": "node scripts/package-macos-portable.mjs",
     "prepare": "node scripts/install-git-hooks.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:check": "node scripts/check-release.mjs",
@@ -81,14 +82,13 @@
       "icon": "assets/app-icon.png",
       "identity": null,
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ]
     },
     "win": {
       "icon": "assets/app-icon.png",
       "target": [
-        "nsis",
+        "msi",
         "portable"
       ]
     },
@@ -105,13 +105,14 @@
         "rpm"
       ]
     },
-    "nsis": {
-      "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}",
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+    "dmg": {
+      "artifactName": "${productName}-${version}-mac-${arch}-unsigned-installer.${ext}"
+    },
+    "msi": {
+      "artifactName": "${productName}-${version}-win-${arch}-unsigned-installer.${ext}"
     },
     "portable": {
-      "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}"
+      "artifactName": "${productName}-${version}-win-${arch}-unsigned-portable.${ext}"
     }
   }
 }

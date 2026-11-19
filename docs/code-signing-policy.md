@@ -2,11 +2,9 @@
 
 ## Status
 
-Windows releases are currently unsigned. Media Renamer intends to apply for free open-source code signing through SignPath Foundation. This policy describes the controls that will apply after acceptance and will be updated when signing becomes active.
+Windows releases are currently unsigned. Media Renamer previously applied for free open-source signing but did not qualify for that programme. No signing provider is currently integrated; this policy will be updated if that changes.
 
-Free code signing provided by SignPath.io, certificate by SignPath Foundation.
-
-macOS releases are not covered by SignPath and remain unsigned because Apple does not provide free Developer ID certificates. Linux releases use published checksums and build provenance rather than an operating-system publisher certificate.
+macOS releases remain unsigned because Apple does not provide free Developer ID certificates. Linux releases use published checksums and build provenance rather than an operating-system publisher certificate.
 
 ## Project and licence
 
@@ -14,7 +12,7 @@ Media Renamer is maintained in the public [`manix84/media-renamer`](https://gith
 
 ## What will be signed
 
-- The official Windows NSIS installer produced by this repository's GitHub Actions release workflow.
+- The official Windows MSI installer produced by this repository's GitHub Actions release workflow.
 - The official Windows portable executable produced by the same workflow.
 - Project-owned Windows executables included in those packages, where the signing configuration permits it.
 
@@ -24,10 +22,10 @@ Only artifacts built from this repository by the trusted release workflow may be
 
 - Release builds originate from the public repository and a versioned commit on `main`.
 - The workflow runs automated tests before packaging.
-- Every signing request must pass SignPath origin verification and its configured release policy.
+- Every future signing request must prove that its artifact originated in the trusted GitHub Actions release workflow.
 - A project approver must review any signing request that requires manual approval.
 - Published artifacts include SHA-256 checksums and GitHub build-provenance attestations.
-- A suspected signing compromise will stop releases while the request, workflow, and affected artifacts are investigated. SignPath will be asked to revoke affected signatures or certificates where appropriate.
+- A suspected signing compromise will stop releases while the request, workflow, and affected artifacts are investigated. The active certificate authority will be asked to revoke affected signatures or certificates where appropriate.
 
 ## Team roles
 

@@ -37,6 +37,7 @@ chmod +x "$app" 2>/dev/null || true
 HOME="$data/home" \\
 XDG_CONFIG_HOME="$data/config" \\
 XDG_CACHE_HOME="$data/cache" \\
+MEDIA_RENAMER_PORTABLE_DATA="$data/app" \\
 APPIMAGE_EXTRACT_AND_RUN=1 \\
 "$app" "$@"
 `;

@@ -22,8 +22,15 @@ import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, s
 import { textEditContextMenu } from './editContextMenu.js';
 import { windowChromeOptions } from './windowChrome.js';
 import { notificationTestContent, renameCompletionNotification, renameFailureNotification, type NotificationTestKind } from './completionNotification.js';
+import { portableDataDirectory } from './portableData.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const portableUserData = portableDataDirectory(process.env, process.platform);
+if (portableUserData) {
+  fs.mkdirSync(portableUserData, { recursive: true });
+  app.setPath('userData', portableUserData);
+  app.setPath('sessionData', path.join(portableUserData, 'session'));
+}
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
 const allowedExternalUrls = new Set([
   'https://github.com/manix84',

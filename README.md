@@ -4,6 +4,8 @@ A confidence-first desktop renamer for TV episodes and movies, designed as a mod
 
 Visit the [Media Renamer website](https://manix84.github.io/media-renamer/) for downloads, platform choices, and release verification guidance.
 
+See [Installation and portable usage](INSTALLATION.md) for Windows, macOS, and Linux instructions, including the expected unsigned-app warnings.
+
 ![Early matching workspace](docs/mockup.svg)
 
 ## Product principles
@@ -342,7 +344,7 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 
 The detailed threat model, acceptance criteria, and non-goals for these items live in [`docs/release-security.md`](docs/release-security.md). The release must work without purchasing or operating a Media Renamer server. A credential embedded in client software can be hardened against casual extraction but cannot be made secret from a determined user controlling the machine.
 
-Current releases are unsigned. See [`docs/installing-unsigned-releases.md`](docs/installing-unsigned-releases.md) for the expected macOS and Windows warnings and instructions for verifying downloads.
+Current Windows and macOS releases are explicitly marked as unsigned. See the [Installation guide](INSTALLATION.md) for the expected warnings, verification steps, and the difference between installed and portable editions.
 
 Media Renamer is released under the [MIT License](LICENSE). Its local-first data practices are documented in the [privacy policy](PRIVACY.md), and the proposed free Windows signing process and maintainer responsibilities are documented in the [code signing policy](docs/code-signing-policy.md).
 
@@ -360,9 +362,9 @@ Provider responses should be normalized immediately. Provider credentials never 
 
 ## Releases
 
-GitHub Actions builds unsigned AppImage, Debian, RPM, and USB-portable packages for Linux, NSIS and portable executables for Windows, and DMG and ZIP packages for macOS.
+GitHub Actions builds AppImage, Debian, RPM, and data-portable packages for Linux; explicitly unsigned MSI installers and portable executables for Windows; and explicitly unsigned DMG installers and data-portable ZIP bundles for macOS.
 
-For Linux, choose the standard AppImage for install-free use with preferences stored on the current computer, the Debian package for Debian/Ubuntu/Mint, the RPM package for Fedora/RHEL/openSUSE, or the USB-portable archive to keep preferences, history, caches, and extensions beside the app so they travel between computers. These are the initial supported distribution families; additional native packages can be added in response to user requests. All variants bundle the application runtime, so users do not need Node.js or Electron. See the [Linux installation guide](docs/linux-installation.md) for the full comparison and instructions.
+All variants bundle the application runtime, so users do not need Node.js or Electron. Installed editions store application data in the operating-system user profile. Portable editions on all three systems keep preferences, history, caches, and extensions beside the app so they can travel together. See the [Installation guide](INSTALLATION.md) for the full comparison and instructions.
 
 Pushes to `main` now build every platform and create or refresh the GitHub Release matching `package.json`. The repository pre-push hook prepares that release before `main` is published: it updates `package.json` and its lockfile, moves **Unreleased** notes into a dated version, and creates a `chore(release): vX.Y.Z` commit. The first push stops so that generated commit can be reviewed; pushing again runs the release workflow.
 

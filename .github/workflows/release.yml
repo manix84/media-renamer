@@ -95,6 +95,11 @@ jobs:
       - name: Create USB-portable Linux bundle
         if: matrix.target == 'linux'
         run: node scripts/package-linux-portable.mjs
+      - name: Create portable macOS bundle
+        if: matrix.target == 'mac'
+        run: node scripts/package-macos-portable.mjs
+      - name: Verify expected release formats
+        run: node scripts/verify-release-artifacts.mjs ${{ matrix.target }}
       - name: Attest release artifacts
         if: github.ref == 'refs/heads/main'
         uses: actions/attest@v4
@@ -107,6 +112,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.exe
+            release/*.msi
       - uses: actions/upload-artifact@v4
         with:
           name: media-renamer-${{ matrix.target }}
@@ -118,6 +124,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.exe
+            release/*.msi
           if-no-files-found: error
 
   publish:
