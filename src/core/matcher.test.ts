@@ -259,6 +259,7 @@ describe('episode matcher', () => {
       { id: 's3e7', season: 3, number: 7, title: 'Expected Title' },
     ], true, .8, 'Show Name');
     expect(result.match?.score).toBe(.45);
+    expect(result.match?.reasons).toContain('filename episode title differs from provider title (0% similarity)');
     expect(result.status).toBe('review');
   });
 

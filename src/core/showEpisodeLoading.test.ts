@@ -9,21 +9,14 @@ const request: ShowEpisodeRequest = {
 };
 
 describe('show episode loading', () => {
-  it('falls back to TMDB when a stale TVDB series has no episode endpoint', async () => {
-    const episode = { id: 'tmdb:1', season: 1, number: 1, title: 'Pilot' };
-    const load = vi.fn()
-      .mockRejectedValueOnce(new Error('TVDB episodes for series 79396 were not found.'))
-      .mockResolvedValueOnce([episode]);
-
-    await expect(loadShowEpisodesWithFallback(request, load)).resolves.toEqual({
-      episodes: [episode],
-      agent: 'tmdb-aired',
-      fallbackReason: 'TVDB episodes for series 79396 were not found.',
-    });
-    expect(load).toHaveBeenNthCalledWith(2, { ...request, agent: 'tmdb-aired', tvdbId: undefined });
+  it('keeps the TVDB S00E14 title instead of substituting the TMDB special', async () => {
+    const episode = { id: 'tvdb:1', season: 0, number: 14, title: 'The Movie' };
+    const load = vi.fn().mockResolvedValue([episode]);
+    await expect(loadShowEpisodesWithFallback(request, load)).resolves.toEqual({ episodes: [episode], agent: 'tvdb-aired', tvdbId: '79396' });
+    expect(load).toHaveBeenCalledWith(request);
   });
 
-  it('does not hide authentication, network, or other TVDB failures', async () => {
+  it('does not silently substitute TMDB when TVDB fails', async () => {
     const load = vi.fn().mockRejectedValue(new Error('TVDB episode request failed (503).'));
     await expect(loadShowEpisodesWithFallback(request, load)).rejects.toThrow('TVDB episode request failed (503).');
     expect(load).toHaveBeenCalledTimes(1);

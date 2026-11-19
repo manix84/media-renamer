@@ -101,7 +101,8 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
   const numbered = numberedEpisodes(filename, episodes, filePath);
   const numberedMatches = numbered?.episodeNumbers.map((number) => episodes.find((episode) => episode.season === numbered.season && episode.number === number));
   const completeNumberedMatch = numberedMatches?.every((episode): episode is Episode => Boolean(episode)) ? numberedMatches as Episode[] : undefined;
-  const numberOnlyEvidence = Boolean(numbered && completeNumberedMatch && ['season', 'folder', 'special', 'cumulative'].includes(numbered.evidence) && !hasEpisodeTitleEvidence(filename, showTitle, numbered.episodeNumbers));
+  const filenameHasEpisodeTitle = hasEpisodeTitleEvidence(filename, showTitle, numbered?.episodeNumbers ?? []);
+  const numberOnlyEvidence = Boolean(numbered && completeNumberedMatch && ['season', 'folder', 'special', 'cumulative'].includes(numbered.evidence) && !filenameHasEpisodeTitle);
   return episodes
     .map((episode) => {
       const reasons: string[] = [];
@@ -126,6 +127,7 @@ export function rankEpisodes(filename: string, episodes: Episode[], useTitle = t
         const similarity = bestTitle?.score ?? 0;
         score += similarity * 0.65;
         if (similarity >= 0.5) reasons.push(`${bestTitle?.title === episode.title ? 'title' : 'alternate title'} ${Math.round(similarity * 100)}%`);
+        else if (filenameHasEpisodeTitle) reasons.push(`filename episode title differs from provider title (${Math.round(similarity * 100)}% similarity)`);
         const embeddedSimilarity = embeddedTitle ? Math.max(...[episode.title, ...(episode.alternateTitles ?? [])].map((title) => titleSimilarity(embeddedTitle, title, showTitle))) : 0;
         score += embeddedSimilarity * 0.3;
         if (embeddedSimilarity >= 0.5) reasons.push(`embedded title ${Math.round(embeddedSimilarity * 100)}%`);

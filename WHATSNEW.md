@@ -4,6 +4,29 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- Optional native system notifications now report completed, stopped, and failed rename operations, and return to Media Renamer when clicked.
+- A new Debugging preferences tab provides manual native-notification and completion-sound tests alongside the local debug console.
+- TVDB Aired is now the default and authoritative source for Plex-oriented TV episode numbering and titles; TMDB remains an explicit fallback option.
+- Unconfirmed match rows now keep their confidence percentage visible and explain the automatic-confirmation threshold and matching evidence that caused review.
+- Long-running moves now identify the active file stage, explain destination flushing and finalisation, and warn when storage stops reporting progress.
+- Per-row operation badges now use the active one-word stage, such as Copying, Flushing, Finalising, or Removing, instead of a generic Moving label.
+- Automatic rename-progress scrolling now centres the active item's compact header instead of its potentially large expanded companion-file list.
+- Active subtitles, artwork, and other sidecars now receive their own highlighted operation stage and percentage instead of appearing as one long parent-file rename.
+- Switching a movie-like miniseries batch to TV now automatically searches for its show when filenames use numbered Part, Pt, CD, or Disc markers.
+- Rename-list preparation and finalisation now appear as batch-level stages beside View progress instead of being attached to the first and last media rows.
+- Rows remain Pending while their filesystem setup is being prepared, becoming active only when rename or copy work actually begins.
+- Long active filenames now wrap safely inside the progress dialog instead of overflowing its stage panel.
+- TV and movie filename templates now start with editable default favourites, support recognisable field-derived names, and can be reapplied, updated, renamed, or deleted; Anime inherits the corresponding regular template until independently customized.
+- The Move files/In place choice now remains unchanged between batches while still returning to Move files after an application restart.
+- Movie rows can now be selected and deselected to show a full-height details sidebar with artwork, description, genres, collection information, and principal cast.
+- Poster enlargement now lives in the movie details sidebar, while movie and show clearart can also be opened at full size; row poster thumbnails no longer open the artwork viewer.
+
+### Fixed
+
+- Packaged macOS builds now load their interface correctly instead of opening an empty window.
+
 ## [0.6.0] - 2026-11-12
 
 ### Added

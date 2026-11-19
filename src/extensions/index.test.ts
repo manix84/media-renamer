@@ -72,6 +72,7 @@ describe('extension destination runtime', () => {
   it('returns only explicitly customized media settings so the host can inherit the rest', () => {
     const context: ExtensionMediaContext = { kind: 'show', id: '1', name: 'Anime', genreIds: [16], originalLanguage: 'ja' };
     expect(resolveExtensionMediaSettings(context, enabled, extensions)).toEqual({ extensionId: animeExtension.id, tabId: 'anime-shows', mediaKind: 'show', baseFolder: '/Anime Shows', folderTemplate: undefined, fileTemplate: undefined });
+    expect(resolveExtensionMediaSettings({ ...context, kind: 'movie' }, enabled, extensions)).toEqual({ extensionId: animeExtension.id, tabId: 'anime-movies', mediaKind: 'movie', baseFolder: '/Anime Movies', folderTemplate: undefined, fileTemplate: undefined });
     const customized = { [animeExtension.id]: { enabled: true, settings: { showFolderTemplate: '{{show.name}}/{{seasonFolder}}', episodeTemplate: '{{show.name}} - {{episode.range}}' } } };
     expect(resolveExtensionMediaSettings(context, customized, extensions)).toMatchObject({ folderTemplate: '{{show.name}}/{{seasonFolder}}', fileTemplate: '{{show.name}} - {{episode.range}}' });
   });

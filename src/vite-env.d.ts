@@ -24,6 +24,7 @@ declare global {
     mediaRenamer?: {
       platform: string;
       getAppVersion(): Promise<string>;
+      showTestNotification(kind: 'success' | 'stopped' | 'error'): Promise<boolean>;
       listExtensions(): Promise<InstalledExtension[]>;
       installExtension(): Promise<InstalledExtension | undefined>;
       uninstallExtension(id: string): Promise<void>;
@@ -35,6 +36,7 @@ declare global {
       loadPreferences(): Promise<{
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
+        completionNotification?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
         confirmBeforeRename?: boolean;
@@ -58,10 +60,13 @@ declare global {
         savedMatchDecisions?: SavedMatchDecision[];
         savedLibraryRoots?: SavedLibraryRoot[];
         savedBatchQueues?: SavedBatchQueue[];
+        savedEpisodeTemplates?: Array<{ id: string; name: string; mediaKind: 'shows' | 'movies'; template: string; updatedAt: number }>;
+        templateFavouritesSeeded?: boolean;
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
         showMetadataAgent?: ShowMetadataAgent;
+        showMetadataAgentDefaultVersion?: number;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
@@ -70,6 +75,7 @@ declare global {
       savePreferences(preferences: {
         autoClearCompletedBatch?: boolean;
         completionChime?: boolean;
+        completionNotification?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
         confirmBeforeRename?: boolean;
@@ -93,10 +99,13 @@ declare global {
         savedMatchDecisions?: SavedMatchDecision[];
         savedLibraryRoots?: SavedLibraryRoot[];
         savedBatchQueues?: SavedBatchQueue[];
+        savedEpisodeTemplates?: Array<{ id: string; name: string; mediaKind: 'shows' | 'movies'; template: string; updatedAt: number }>;
+        templateFavouritesSeeded?: boolean;
         showRules?: ShowRule[];
         renameLogFolder?: string;
         showFolderTemplate?: string;
         showMetadataAgent?: ShowMetadataAgent;
+        showMetadataAgentDefaultVersion?: number;
         themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
         themePreference?: 'system' | 'light' | 'dark';
         titleMatching?: boolean;
@@ -115,12 +124,12 @@ declare global {
       discoverCompanions(paths: string[]): Promise<CompanionScan>;
       preflightRenamePlan(items: Array<{ sourcePath: string; targetPath: string }>): Promise<RenamePlanIssue[]>;
       resolveRenameCollisions(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>): Promise<Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>>;
-      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean }): Promise<RenameOperationRecord>;
+      executeRenamePlan(groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean; completionNotification?: boolean }): Promise<RenameOperationRecord>;
       controlRename(control: 'stop' | 'undo'): Promise<boolean>;
-      getRenameStatus(): Promise<{ running: false } | { running: true; startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; paths: string[]; control?: 'stop' | 'undo'; progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number } }>;
+      getRenameStatus(): Promise<{ running: false } | { running: true; startedAt: number; mediaKind: 'movies' | 'shows'; moved: boolean; paths: string[]; control?: 'stop' | 'undo'; progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: { phase: 'preparing' | 'renaming' | 'copying' | 'flushing' | 'publishing' | 'removing-source'; sourcePath: string; targetPath: string; fraction: number; bytesCopied?: number; totalBytes?: number }; batchPhase?: 'preparing' | 'processing' | 'finalising'; updatedAt?: number } }>;
       getLastRenameOperation(): Promise<RenameOperationRecord | undefined>;
       undoRenameOperation(operationId: string): Promise<RenameOperationRecord>;
-      onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => void): () => void;
+      onRenameProgress(listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: { phase: 'preparing' | 'renaming' | 'copying' | 'flushing' | 'publishing' | 'removing-source'; sourcePath: string; targetPath: string; fraction: number; bytesCopied?: number; totalBytes?: number }; batchPhase?: 'preparing' | 'processing' | 'finalising'; updatedAt?: number }) => void): () => void;
       onRenameFinished(listener: (finished: { result?: RenameOperationRecord; moved?: boolean; error?: string }) => void): () => void;
       exportRenamePlan(plan: unknown): Promise<string | undefined>;
       providerStatus(): Promise<ProviderStatus>;

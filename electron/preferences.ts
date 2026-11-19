@@ -5,11 +5,13 @@ export type SavedMatchDecision = { showId: string; filenameKey: string; episodeI
 export type ShowRule = { showId: string; titleMatching: boolean; confidenceThreshold: number; updatedAt: number };
 export type SavedLibraryRoot = { id: string; kind: 'shows' | 'movies'; name: string; path: string; updatedAt: number };
 export type SavedBatchQueue = { id: string; name: string; mediaType: 'shows' | 'movies'; paths: string[]; updatedAt: number };
+export type SavedEpisodeTemplate = { id: string; name: string; mediaKind: 'shows' | 'movies'; template: string; updatedAt: number };
 export type ExtensionPreferences = Record<string, { enabled: boolean; settings: Record<string, string>; grantedCapabilities?: string[] }>;
 
 export type PersistedPreferences = {
   autoClearCompletedBatch?: boolean;
   completionChime?: boolean;
+  completionNotification?: boolean;
   completionReport?: boolean;
   completionReportAutoClose?: boolean;
   confirmBeforeRename?: boolean;
@@ -33,10 +35,13 @@ export type PersistedPreferences = {
   savedMatchDecisions?: SavedMatchDecision[];
   savedLibraryRoots?: SavedLibraryRoot[];
   savedBatchQueues?: SavedBatchQueue[];
+  savedEpisodeTemplates?: SavedEpisodeTemplate[];
+  templateFavouritesSeeded?: boolean;
   showRules?: ShowRule[];
   renameLogFolder?: string;
   showFolderTemplate?: string;
   showMetadataAgent?: 'tmdb-aired' | 'tvdb-aired';
+  showMetadataAgentDefaultVersion?: number;
   themePalette?: 'classic' | 'ocean' | 'forest' | 'rose' | 'amber' | 'valentines' | 'pride' | 'bonfire' | 'new-year' | 'spring' | 'summer' | 'autumn' | 'winter' | 'halloween' | 'christmas';
   themePreference?: 'system' | 'light' | 'dark';
   titleMatching?: boolean;
@@ -59,6 +64,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.removeEmptySourceParents === 'boolean') result.removeEmptySourceParents = source.removeEmptySourceParents;
   if (typeof source.autoClearCompletedBatch === 'boolean') result.autoClearCompletedBatch = source.autoClearCompletedBatch;
   if (typeof source.completionChime === 'boolean') result.completionChime = source.completionChime;
+  if (typeof source.completionNotification === 'boolean') result.completionNotification = source.completionNotification;
   if (typeof source.completionReport === 'boolean') result.completionReport = source.completionReport;
   if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
   if (typeof source.confirmBeforeRename === 'boolean') result.confirmBeforeRename = source.confirmBeforeRename;
@@ -69,10 +75,12 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.developerMode === 'boolean') result.developerMode = source.developerMode;
   if (typeof source.exportNfo === 'boolean') result.exportNfo = source.exportNfo;
   if (typeof source.exportPlexArtwork === 'boolean') result.exportPlexArtwork = source.exportPlexArtwork;
+  if (typeof source.templateFavouritesSeeded === 'boolean') result.templateFavouritesSeeded = source.templateFavouritesSeeded;
   if (source.themePreference === 'system' || source.themePreference === 'light' || source.themePreference === 'dark') result.themePreference = source.themePreference;
   if (source.themePalette === 'classic' || source.themePalette === 'ocean' || source.themePalette === 'forest' || source.themePalette === 'rose' || source.themePalette === 'amber' || source.themePalette === 'valentines' || source.themePalette === 'pride' || source.themePalette === 'bonfire' || source.themePalette === 'new-year' || source.themePalette === 'spring' || source.themePalette === 'summer' || source.themePalette === 'autumn' || source.themePalette === 'winter' || source.themePalette === 'halloween' || source.themePalette === 'christmas') result.themePalette = source.themePalette;
   if (typeof source.titleMatching === 'boolean') result.titleMatching = source.titleMatching;
   if (source.showMetadataAgent === 'tmdb-aired' || source.showMetadataAgent === 'tvdb-aired') result.showMetadataAgent = source.showMetadataAgent;
+  if (typeof source.showMetadataAgentDefaultVersion === 'number' && Number.isInteger(source.showMetadataAgentDefaultVersion) && source.showMetadataAgentDefaultVersion >= 1 && source.showMetadataAgentDefaultVersion <= 100) result.showMetadataAgentDefaultVersion = source.showMetadataAgentDefaultVersion;
   if (source.extensions && typeof source.extensions === 'object' && !Array.isArray(source.extensions)) {
     result.extensions = Object.fromEntries(Object.entries(source.extensions as Record<string, unknown>).slice(0, 100).flatMap(([id, value]) => {
       if (!/^[a-z0-9][a-z0-9.-]{0,199}$/i.test(id) || !value || typeof value !== 'object' || Array.isArray(value)) return [];
@@ -104,7 +112,8 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
       const item = value as Record<string, unknown>;
       if (typeof item.id !== 'string' || !item.id || item.id.length > 200
         || (item.kind !== 'shows' && item.kind !== 'movies')
-        || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 200
+        || typeof item.name !== 'string' || item.name.length > 200
+        || (item.mediaKind !== undefined && item.mediaKind !== 'shows' && item.mediaKind !== 'movies')
         || typeof item.path !== 'string' || !item.path || item.path.length > 4096
         || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
       return [{ id: item.id, kind: item.kind as SavedLibraryRoot['kind'], name: item.name.trim(), path: item.path, updatedAt: item.updatedAt }];
@@ -121,6 +130,17 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
         || !item.paths.every((entry) => typeof entry === 'string' && entry.length > 0 && entry.length <= 4096)
         || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
       return [{ id: item.id, name: item.name.trim(), mediaType: item.mediaType as SavedBatchQueue['mediaType'], paths: [...new Set(item.paths as string[])], updatedAt: item.updatedAt }];
+    }).slice(0, 100);
+  }
+  if (Array.isArray(source.savedEpisodeTemplates)) {
+    result.savedEpisodeTemplates = source.savedEpisodeTemplates.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const item = value as Record<string, unknown>;
+      if (typeof item.id !== 'string' || !item.id || item.id.length > 200
+        || typeof item.name !== 'string' || item.name.length > 200
+        || typeof item.template !== 'string' || !item.template || item.template.length > 32_768
+        || typeof item.updatedAt !== 'number' || !Number.isFinite(item.updatedAt)) return [];
+      return [{ id: item.id, name: item.name.trim(), mediaKind: (item.mediaKind ?? 'shows') as SavedEpisodeTemplate['mediaKind'], template: item.template, updatedAt: item.updatedAt }];
     }).slice(0, 100);
   }
   if (Array.isArray(source.showRules)) {

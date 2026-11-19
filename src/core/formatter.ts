@@ -3,12 +3,24 @@ import { normalizeMovieEditionName } from './releaseTags';
 
 export const PREVIOUS_DEFAULT_EPISODE_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}';
 export const PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE = `${PREVIOUS_DEFAULT_EPISODE_TEMPLATE}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
+export const PREVIOUS_LAYOUT_DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} -
+  {{episode.range}} -
+  {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
 export const PREVIOUS_DEFAULT_MOVIE_FOLDER_TEMPLATE = '{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}';
 export const PREVIOUS_DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
 export const PREVIOUS_EDITION_DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}{{#technical}} [{{technical}}]{{/technical}}{{#movie.tmdbId}} {tmdb-{{movie.tmdbId}}}{{/movie.tmdbId}}`;
-export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}} -
-  {{episode.range}} -
-  {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}{{#technical}} [{{technical}}]{{/technical}}{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}`;
+export const DEFAULT_EPISODE_TEMPLATE = `{{show.name}}
+{{#show.year}} ({{show.year}}){{/show.year}}
+-
+{{episode.range}}
+-
+{{#episodes}}
+  {{^first}}, {{/first}}
+  {{title}}
+{{/episodes}}
+{{#technical}} [{{technical}}]{{/technical}}
+{{#show.tvdbId}} {tvdb-{{show.tvdbId}}}{{/show.tvdbId}}
+{{#release.edition}} {edition-{{release.edition}}}{{/release.edition}}`;
 export const DEFAULT_SHOW_FOLDER_TEMPLATE = '{{show.name}}{{#show.year}} ({{show.year}}){{/show.year}}';
 export const DEFAULT_MOVIE_FOLDER_TEMPLATE = `{{movie.name}}{{#movie.year}} ({{movie.year}}){{/movie.year}}{{#movie.edition}} {edition-{{movie.edition}}}{{/movie.edition}}`;
 export const DEFAULT_MOVIE_TEMPLATE = `{{movie.name}}

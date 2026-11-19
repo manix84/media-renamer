@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof i
 contextBridge.exposeInMainWorld('mediaRenamer', {
   platform: process.platform,
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+  showTestNotification: (kind: 'success' | 'stopped' | 'error'): Promise<boolean> => ipcRenderer.invoke('debug:test-notification', kind),
   loadPreferences: () => ipcRenderer.invoke('preferences:get'),
   savePreferences: (preferences: unknown) => ipcRenderer.invoke('preferences:set', preferences),
   listExtensions: () => ipcRenderer.invoke('extensions:list'),
@@ -30,13 +31,13 @@ contextBridge.exposeInMainWorld('mediaRenamer', {
   discoverCompanions: (paths: string[]) => ipcRenderer.invoke('media:companions', paths),
   preflightRenamePlan: (items: Array<{ sourcePath: string; targetPath: string }>) => ipcRenderer.invoke('rename:preflight', items),
   resolveRenameCollisions: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>) => ipcRenderer.invoke('rename:resolve-collisions', groups),
-  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean }) => ipcRenderer.invoke('rename:execute', groups, options),
+  executeRenamePlan: (groups: Array<{ items: Array<{ sourcePath: string; targetPath: string }>; progressGroupIndex?: number }>, options?: { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; mediaKind: 'movies' | 'shows'; moveFiles?: boolean; completionNotification?: boolean }) => ipcRenderer.invoke('rename:execute', groups, options),
   controlRename: (control: 'stop' | 'undo'): Promise<boolean> => ipcRenderer.invoke('rename:control', control),
   getRenameStatus: () => ipcRenderer.invoke('rename:status'),
   getLastRenameOperation: () => ipcRenderer.invoke('rename:last-operation'),
   undoRenameOperation: (operationId: string) => ipcRenderer.invoke('rename:undo', operationId),
-  onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number }) => listener(progress);
+  onRenameProgress: (listener: (progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: { phase: 'preparing' | 'renaming' | 'copying' | 'flushing' | 'publishing' | 'removing-source'; sourcePath: string; targetPath: string; fraction: number; bytesCopied?: number; totalBytes?: number }; batchPhase?: 'preparing' | 'processing' | 'finalising'; updatedAt?: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: { phase: 'preparing' | 'renaming' | 'copying' | 'flushing' | 'publishing' | 'removing-source'; sourcePath: string; targetPath: string; fraction: number; bytesCopied?: number; totalBytes?: number }; batchPhase?: 'preparing' | 'processing' | 'finalising'; updatedAt?: number }) => listener(progress);
     ipcRenderer.on('rename:progress', handler);
     return () => ipcRenderer.removeListener('rename:progress', handler);
   },

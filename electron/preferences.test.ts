@@ -12,7 +12,7 @@ describe('persistent preferences', () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'media-renamer-preferences-'));
     temporaryDirectories.push(root);
     const filePath = path.join(root, 'preferences.json');
-    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', releaseAliasText: 'videoCodec = AVC => H.264', extensions: { 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Media/Anime Shows', movieBaseFolder: '/Media/Anime Movies' } } }, savedLibraryRoots: [{ id: 'shows:/Media/TV', kind: 'shows' as const, name: 'TV', path: '/Media/TV', updatedAt: 3456 }], savedBatchQueues: [{ id: 'queue-1', name: 'Weekly imports', mediaType: 'shows' as const, paths: ['/Downloads/a.mkv'], updatedAt: 4567 }], savedMatchDecisions: [{ showId: 'tvdb:11', filenameKey: 'episode 03', episodeIds: ['episode-3'], updatedAt: 1234 }], showRules: [{ showId: 'tvdb:11', titleMatching: false, confidenceThreshold: 91, updatedAt: 2345 }], matchConfidenceThreshold: 76, clearSourceJunk: true, removeEmptySourceParents: true, autoClearCompletedBatch: true, completionChime: true, completionReport: false, completionReportAutoClose: false, confirmBeforeRename: false, showRenameProgressModal: false, autoScrollRenameProgress: true, createExternalRenameLog: true, developerMode: true, exportNfo: true, exportPlexArtwork: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, languagePreference: 'fr' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false };
+    const preferences = { tvBaseFolder: '/Media/TV', showFolderTemplate: '{{show.name}}/{{seasonFolder}}', releaseAliasText: 'videoCodec = AVC => H.264', extensions: { 'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Media/Anime Shows', movieBaseFolder: '/Media/Anime Movies' } } }, savedLibraryRoots: [{ id: 'shows:/Media/TV', kind: 'shows' as const, name: 'TV', path: '/Media/TV', updatedAt: 3456 }], savedBatchQueues: [{ id: 'queue-1', name: 'Weekly imports', mediaType: 'shows' as const, paths: ['/Downloads/a.mkv'], updatedAt: 4567 }], savedEpisodeTemplates: [{ id: 'template-1', name: 'Plex compact', mediaKind: 'shows' as const, template: '{{show.name}} - {{episode.range}}', updatedAt: 5678 }], savedMatchDecisions: [{ showId: 'tvdb:11', filenameKey: 'episode 03', episodeIds: ['episode-3'], updatedAt: 1234 }], showRules: [{ showId: 'tvdb:11', titleMatching: false, confidenceThreshold: 91, updatedAt: 2345 }], matchConfidenceThreshold: 76, clearSourceJunk: true, removeEmptySourceParents: true, autoClearCompletedBatch: true, completionChime: true, completionNotification: true, completionReport: false, completionReportAutoClose: false, confirmBeforeRename: false, showRenameProgressModal: false, autoScrollRenameProgress: true, createExternalRenameLog: true, developerMode: true, exportNfo: true, exportPlexArtwork: true, renameLogFolder: '/Media/Logs', fileViewMode: 'compact' as const, languagePreference: 'fr' as const, themePreference: 'dark' as const, themePalette: 'ocean' as const, titleMatching: false, showMetadataAgent: 'tvdb-aired' as const, showMetadataAgentDefaultVersion: 2 };
     await writePreferences(filePath, preferences);
     await expect(readPreferences(filePath)).resolves.toEqual(preferences);
   });
@@ -25,6 +25,12 @@ describe('persistent preferences', () => {
     expect(normalizePreferences({ showMetadataAgent: 'tmdb-aired' })).toEqual({ showMetadataAgent: 'tmdb-aired' });
     expect(normalizePreferences({ showMetadataAgent: 'tvdb-aired' })).toEqual({ showMetadataAgent: 'tvdb-aired' });
     expect(normalizePreferences({ showMetadataAgent: 'unknown' })).toEqual({});
+  });
+
+  it('preserves blank favourite names for automatic display labels', () => {
+    expect(normalizePreferences({ savedEpisodeTemplates: [{ id: 'template-1', name: '   ', template: '{{show.name}} - {{episode.range}}', updatedAt: 1234 }] }).savedEpisodeTemplates).toEqual([
+      { id: 'template-1', name: '', mediaKind: 'shows', template: '{{show.name}} - {{episode.range}}', updatedAt: 1234 },
+    ]);
   });
 
   it('keeps metadata exports disabled unless explicitly enabled', () => {

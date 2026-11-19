@@ -20,11 +20,14 @@ describe('rename execution', () => {
     const contents = Buffer.alloc(512 * 1024, 42);
     await fs.promises.writeFile(source, contents);
     const progress: number[] = [];
+    const phases: string[] = [];
 
-    await copyFileWithProgress(source, target, (fraction) => progress.push(fraction));
+    await copyFileWithProgress(source, target, (fraction) => progress.push(fraction), (detail) => phases.push(detail.phase));
 
     expect(progress.at(-1)).toBe(1);
     expect(progress.some((fraction) => fraction > 0 && fraction < 1)).toBe(true);
+    expect(phases).toContain('copying');
+    expect(phases.at(-1)).toBe('flushing');
     expect(await fs.promises.readFile(target)).toEqual(contents);
   });
 
@@ -73,6 +76,23 @@ describe('rename execution', () => {
     expect(undone.status).toBe('undone');
     await expect(fs.promises.readFile(source, 'utf8')).resolves.toBe('video');
     await expect(fs.promises.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('reports preparation and finalisation separately from file work', async () => {
+    const root = await temporaryDirectory();
+    const source = path.join(root, 'incoming', 'Old.mkv');
+    const target = path.join(root, 'library', 'Show', 'New.mkv');
+    await fs.promises.mkdir(path.dirname(source), { recursive: true });
+    await fs.promises.writeFile(source, 'video');
+    const progress: Array<{ filePhase?: string; batchPhase?: string }> = [];
+
+    await executeRenamePlan([{ sourcePath: source, targetPath: target }], path.join(root, 'history'), (_completed, _total, _operation, file, batchPhase) => {
+      progress.push({ filePhase: file?.phase, batchPhase });
+    });
+
+    expect(progress[0]).toEqual({ filePhase: undefined, batchPhase: 'preparing' });
+    expect(progress.some((entry) => entry.filePhase && entry.batchPhase === 'processing')).toBe(true);
+    expect(progress.at(-1)).toEqual({ filePhase: undefined, batchPhase: 'finalising' });
   });
 
   it('moves files without requiring hard-link support', async () => {
@@ -192,13 +212,14 @@ describe('rename execution', () => {
     const executed = await executeRenamePlan([
       { sourcePath: firstSource, targetPath: firstTarget },
       { sourcePath: secondSource, targetPath: secondTarget },
-    ], path.join(root, 'history'), (completed, _total, operation) => {
+    ], path.join(root, 'history'), (completed, _total, operation, file) => {
+      if (file) return;
       phases.push(`${operation}:${completed}`);
       if (operation === 'rename' && completed === 1) control = 'undo';
     }, { control: () => control });
 
     expect(executed.operation.status).toBe('undone');
-    expect(phases).toEqual(['rename:1', 'undo:1']);
+    expect(phases).toEqual(['rename:0', 'rename:1', 'undo:1']);
     await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
     await expect(fs.promises.readFile(secondSource, 'utf8')).resolves.toBe('two');
     await expect(fs.promises.stat(firstTarget)).rejects.toMatchObject({ code: 'ENOENT' });

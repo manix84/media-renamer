@@ -1,6 +1,7 @@
 import { parseEpisodeCode, parseFolderEpisode, parseSeasonFolder, parseSpecialEpisode, parseStandaloneEpisode } from './episodeCode';
 
 const standaloneEpisodePattern = /(?:^|[\s._-])ep(?:isode)?\.?[\s._-]*\d{1,4}(?=$|[\s._-])/i;
+const numberedPartPattern = /(?:^|[\s._-])(?:part|pt|cd|disc|disk)\.?[\s._-]*\d{1,3}(?=$|[\s._-])/i;
 
 function filenameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath;
@@ -36,7 +37,7 @@ function folderShowCandidate(filePath: string): string | undefined {
 export function inferShowQuery(paths: string[]): string | undefined {
   const candidates = paths.map((filePath) => {
     const filename = filenameFromPath(filePath).replace(/\.[^.]+$/, '');
-    const marker = parseEpisodeCode(filename)?.index ?? parseSpecialEpisode(filename)?.index ?? standaloneEpisodePattern.exec(filename)?.index ?? parseStandaloneEpisode(filename)?.index ?? -1;
+    const marker = parseEpisodeCode(filename)?.index ?? parseSpecialEpisode(filename)?.index ?? standaloneEpisodePattern.exec(filename)?.index ?? parseStandaloneEpisode(filename)?.index ?? numberedPartPattern.exec(filename)?.index ?? -1;
     if (marker < 1) return folderShowCandidate(filePath);
     return cleanTitle(filename.slice(0, marker));
   }).filter((candidate): candidate is string => Boolean(candidate));

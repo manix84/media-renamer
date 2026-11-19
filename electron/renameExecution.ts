@@ -23,6 +23,9 @@ export type RenameOperation = {
 
 export type RenameControl = 'stop' | 'undo';
 export type RenameExecutionOptions = { clearSourceJunk?: boolean; removeEmptySourceParents?: boolean; createExternalLog?: boolean; externalLogDirectory?: string; control?: () => RenameControl | undefined };
+export type RenameFilePhase = 'preparing' | 'renaming' | 'copying' | 'flushing' | 'publishing' | 'removing-source';
+export type RenameFileProgress = { phase: RenameFilePhase; sourcePath: string; targetPath: string; fraction: number; bytesCopied?: number; totalBytes?: number };
+export type RenameBatchPhase = 'preparing' | 'processing' | 'finalising';
 
 const subtitleExtensionPattern = /\.(?:srt|ass|ssa|sub|vtt)$/i;
 const sourceJunkPatterns = [
@@ -134,7 +137,7 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
   return resolved;
 }
 
-export async function copyFileWithProgress(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+export async function copyFileWithProgress(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void, onDetail?: (detail: { phase: 'copying' | 'flushing'; bytesCopied: number; totalBytes: number }) => void): Promise<void> {
   const source = await fs.promises.stat(sourcePath);
   let copied = 0;
   let lastReportedAt = 0;
@@ -145,21 +148,28 @@ export async function copyFileWithProgress(sourcePath: string, targetPath: strin
     const now = Date.now();
     if (now - lastReportedAt < 50 && copied < source.size) return;
     lastReportedAt = now;
-    onProgress?.(source.size > 0 ? Math.min(1, copied / source.size) : 1);
+    const fraction = source.size > 0 ? Math.min(1, copied / source.size) : 1;
+    onProgress?.(fraction);
+    onDetail?.({ phase: 'copying', bytesCopied: copied, totalBytes: source.size });
   });
+  readStream.once('end', () => onDetail?.({ phase: 'flushing', bytesCopied: source.size, totalBytes: source.size }));
   await pipeline(readStream, writeStream);
   onProgress?.(1);
 }
 
-async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
   let published = false;
   try {
-    await copyFileWithProgress(sourcePath, temporaryPath, onProgress);
+    await copyFileWithProgress(sourcePath, temporaryPath, (fraction) => {
+      if (fraction < 1) onProgress?.({ phase: 'copying', sourcePath, targetPath, fraction: Math.min(.99, fraction) });
+    }, (detail) => onProgress?.({ ...detail, sourcePath, targetPath, fraction: detail.phase === 'flushing' ? .99 : Math.min(.99, detail.totalBytes > 0 ? detail.bytesCopied / detail.totalBytes : .99) }));
     if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
+    onProgress?.({ phase: 'publishing', sourcePath, targetPath, fraction: .995 });
     await fs.promises.rename(temporaryPath, targetPath);
     published = true;
+    onProgress?.({ phase: 'removing-source', sourcePath, targetPath, fraction: .999 });
     try { await fs.promises.unlink(sourcePath); }
     catch (unlinkError) { await fs.promises.rm(targetPath, { force: true }).catch(() => undefined); throw unlinkError; }
   } catch (copyError) {
@@ -169,12 +179,14 @@ async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgr
   }
 }
 
-async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void): Promise<void> {
+async function moveFile(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void): Promise<void> {
   if (sourcePath === targetPath) return;
+  onProgress?.({ phase: 'preparing', sourcePath, targetPath, fraction: 0 });
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   const caseOnly = sourcePath.toLocaleLowerCase() === targetPath.toLocaleLowerCase();
   const intermediatePath = caseOnly ? path.join(path.dirname(sourcePath), `.media-renamer-${crypto.randomUUID()}.tmp`) : undefined;
   if (intermediatePath) {
+    onProgress?.({ phase: 'renaming', sourcePath, targetPath, fraction: .5 });
     await fs.promises.rename(sourcePath, intermediatePath);
     let published = false;
     try {
@@ -186,11 +198,14 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (fr
       await fs.promises.rename(intermediatePath, sourcePath).catch(() => undefined);
       throw error;
     }
+    onProgress?.({ phase: 'renaming', sourcePath, targetPath, fraction: .999 });
     return;
   }
   try {
     if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
+    onProgress?.({ phase: 'renaming', sourcePath, targetPath, fraction: .5 });
     await fs.promises.rename(sourcePath, targetPath);
+    onProgress?.({ phase: 'renaming', sourcePath, targetPath, fraction: .999 });
   }
   catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
@@ -323,9 +338,10 @@ async function clearSourceJunk(items: RenamePreflightItem[]): Promise<{ files: s
   return { files, directories, warnings };
 }
 
-export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number, operation?: 'rename' | 'undo') => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
+export async function executeRenamePlan(value: unknown, historyDirectory: string, onProgress?: (completed: number, total: number, operation?: 'rename' | 'undo', file?: RenameFileProgress, batchPhase?: RenameBatchPhase) => void, options: RenameExecutionOptions = {}): Promise<{ operation: RenameOperation; logPath: string }> {
   const items = renamePreflightItems(value).filter((item) => item.sourcePath !== item.targetPath);
   if (!items.length) throw new Error('The rename plan has no file operations.');
+  onProgress?.(0, items.length, 'rename', undefined, 'preparing');
   const issues = await preflightRenameItems(items);
   if (issues.length) throw new Error(`Rename preflight failed: ${issues[0].message}`);
   const completed: RenamePreflightItem[] = [];
@@ -334,9 +350,9 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     for (const item of items) {
       control = options.control?.();
       if (control) break;
-      await moveFile(item.sourcePath, item.targetPath, (fraction) => onProgress?.(completed.length + fraction, items.length, 'rename'));
+      await moveFile(item.sourcePath, item.targetPath, (file) => onProgress?.(completed.length + file.fraction, items.length, 'rename', file, 'processing'));
       completed.push(item);
-      onProgress?.(completed.length, items.length, 'rename');
+      onProgress?.(completed.length, items.length, 'rename', undefined, 'processing');
       control = options.control?.();
       if (control) break;
     }
@@ -366,6 +382,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     if (rollbackErrors.length) throw new Error(`Undo was requested, but some completed renames could not be restored: ${rollbackErrors.join('; ')}`);
   }
   const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : 'completed';
+  if (status === 'completed') onProgress?.(completed.length, items.length, 'rename', undefined, 'finalising');
   const junkCleanup = status === 'completed' && options.clearSourceJunk ? await clearSourceJunk(items) : { files: [], directories: [], warnings: [] };
   const emptyCleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
   const cleanup = { removed: [...new Set([...junkCleanup.directories, ...emptyCleanup.removed])], warnings: [...junkCleanup.warnings, ...emptyCleanup.warnings] };

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ import { expandMediaPaths, isImportableVideoFile, isVideoFile, VIDEO_FILE_EXTENS
 import { probeMedia } from './mediaProbe.js';
 import { fetchArtworkDataUrl, stageGeneratedAssets } from './generatedAssets.js';
 import { preflightRenameItems } from './renamePreflight.js';
-import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation, type RenameOperation } from './renameExecution.js';
+import { executeRenamePlan, readLatestRenameOperation, renameGroupProgress, resolveRenameCollisions, undoRenameOperation, type RenameBatchPhase, type RenameFileProgress, type RenameOperation } from './renameExecution.js';
 import { discoverMediaCompanions } from './mediaCompanions.js';
 import { normalizePreferences, readPreferences, writePreferences, type PersistedPreferences } from './preferences.js';
 import { MediaFileMonitor, type WatchedFileChange } from './fileMonitor.js';
@@ -21,6 +21,7 @@ import { ExtensionSecretVault } from './extensionSecrets.js';
 import { publishRenameStatistics, readRenameStatistics, recordCompletedRename, summarizeRenameStatistics } from './renameStatistics.js';
 import { textEditContextMenu } from './editContextMenu.js';
 import { windowChromeOptions } from './windowChrome.js';
+import { notificationTestContent, renameCompletionNotification, renameFailureNotification, type NotificationTestKind } from './completionNotification.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appIconPath = path.join(app.getAppPath(), 'assets', 'app-icon.png');
@@ -44,7 +45,7 @@ let persistedPreferences: PersistedPreferences | undefined;
 let preferenceWrite = Promise.resolve();
 let renameRunning = false;
 let activeRenameControl: 'stop' | 'undo' | undefined;
-type RenameProgressState = { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number };
+type RenameProgressState = { operation: 'rename' | 'undo'; completed: number; total: number; groupCompleted?: number; groupTotal?: number; groupIndex?: number; groupsTotal?: number; file?: RenameFileProgress; batchPhase?: RenameBatchPhase; updatedAt?: number };
 type ActiveRenameState = {
   startedAt: number;
   mediaKind: 'movies' | 'shows';
@@ -128,7 +129,7 @@ const SEARCH_CACHE_AGE = 6 * 60 * 60 * 1000;
 const SHOW_SEARCH_CACHE_VERSION = 3;
 const DETAILS_CACHE_AGE = 7 * 24 * 60 * 60 * 1000;
 // v5 keeps light-background logo selection in TMDB's quality order.
-const DETAILS_CACHE_VERSION = 5;
+const DETAILS_CACHE_VERSION = 6;
 const EPISODE_CACHE_AGE = 30 * 24 * 60 * 60 * 1000;
 const EPISODE_CACHE_VERSION = 6;
 
@@ -241,6 +242,24 @@ function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
   if (!app.isPackaged) void window.loadURL(devUrl);
   else void window.loadFile(path.join(here, '../dist/index.html'));
+}
+
+function showCompletionNotification(content: { title: string; body: string }): boolean {
+  if (!Notification.isSupported()) return false;
+  try {
+    const notification = new Notification({ ...content, icon: appIconPath });
+    notification.on('click', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+      mainWindow?.show();
+      mainWindow?.focus();
+    });
+    notification.show();
+    return true;
+  } catch (error) {
+    debugEntries = [...debugEntries.slice(-499), { id: ++debugSequence, timestamp: Date.now(), level: 'warning', message: 'System notification could not be shown', detail: error instanceof Error ? error.message : String(error) }];
+    publishDebugEntries();
+    return false;
+  }
 }
 
 function createDebugWindow() {
@@ -361,6 +380,10 @@ ipcMain.on('debug:append', (_event, value: unknown) => {
 
 ipcMain.handle('metadata:status', () => ({ configured: Boolean(localEnv('TMDB_ACCESS_TOKEN')) || (app.isPackaged && hasTmdbHelper(process.resourcesPath)), tvdbConfigured: Boolean(localEnv('TVDB_API_KEY')) }));
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.handle('debug:test-notification', (_event, kind: unknown) => {
+  if (kind !== 'success' && kind !== 'stopped' && kind !== 'error') throw new Error('Invalid notification test.');
+  return showCompletionNotification(notificationTestContent(kind as NotificationTestKind));
+});
 ipcMain.handle('preferences:get', () => loadPreferences());
 ipcMain.handle('preferences:set', async (_event, value: unknown) => {
   const next = normalizePreferences(value);
@@ -427,13 +450,14 @@ ipcMain.handle('rename:resolve-collisions', (_event, groups: unknown) => resolve
 ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown) => {
   if (renameRunning) throw new Error('A rename operation is already running.');
   if (options !== undefined && (!options || typeof options !== 'object')) throw new Error('Invalid rename options.');
-  const renameOptions = options as { clearSourceJunk?: unknown; removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown; mediaKind?: unknown; moveFiles?: unknown } | undefined;
+  const renameOptions = options as { clearSourceJunk?: unknown; removeEmptySourceParents?: unknown; createExternalLog?: unknown; externalLogDirectory?: unknown; mediaKind?: unknown; moveFiles?: unknown; completionNotification?: unknown } | undefined;
   if (renameOptions?.clearSourceJunk !== undefined && typeof renameOptions.clearSourceJunk !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.removeEmptySourceParents !== undefined && typeof renameOptions.removeEmptySourceParents !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.createExternalLog !== undefined && typeof renameOptions.createExternalLog !== 'boolean') throw new Error('Invalid rename options.');
   if (renameOptions?.externalLogDirectory !== undefined && (typeof renameOptions.externalLogDirectory !== 'string' || !path.isAbsolute(renameOptions.externalLogDirectory))) throw new Error('Invalid rename log directory.');
   if (renameOptions?.mediaKind !== 'movies' && renameOptions?.mediaKind !== 'shows') throw new Error('Invalid rename media kind.');
   if (renameOptions?.moveFiles !== undefined && typeof renameOptions.moveFiles !== 'boolean') throw new Error('Invalid rename options.');
+  if (renameOptions?.completionNotification !== undefined && typeof renameOptions.completionNotification !== 'boolean') throw new Error('Invalid rename options.');
   renameRunning = true;
   activeRenameControl = undefined;
   mediaFileMonitor.close();
@@ -456,13 +480,13 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       startedAt: Date.now(),
       mediaKind: renameOptions.mediaKind,
       moved: renameOptions.moveFiles ?? false,
-      progress: { operation: 'rename', completed: 0, total: items.filter((item) => item.sourcePath !== item.targetPath).length, ...renameGroupProgress(groupSizes, 0) },
+      progress: { operation: 'rename', completed: 0, total: items.filter((item) => item.sourcePath !== item.targetPath).length, groupsTotal: groupSizes.length, batchPhase: 'preparing', updatedAt: Date.now() },
       recoveryItems: items
         .filter((item) => isVideoFile(item.sourcePath) || isVideoFile(item.targetPath))
         .map(({ sourcePath, targetPath }) => ({ sourcePath, targetPath })),
     };
-    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename') => {
-      const progress = { operation, completed, total, ...(operation === 'rename' ? renameGroupProgress(groupSizes, completed) : {}) };
+    executed = await executeRenamePlan(items, renameHistoryDirectory(), (completed, total, operation = 'rename', file, batchPhase) => {
+      const progress = { operation, completed, total, ...(operation === 'rename' && batchPhase === 'processing' ? renameGroupProgress(groupSizes, completed) : { groupsTotal: groupSizes.length }), ...(file ? { file } : {}), ...(batchPhase ? { batchPhase } : {}), updatedAt: Date.now() };
       if (activeRenameState) activeRenameState.progress = progress;
       if (!event.sender.isDestroyed()) event.sender.send('rename:progress', progress);
     }, {
@@ -495,6 +519,9 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       const replacements = new Map(executed.operation.status === 'undone' ? [] : executed.operation.items.map((item) => [item.sourcePath, item.targetPath]));
       watchedMediaPaths = watchedMediaPaths.map((filePath) => replacements.get(filePath) ?? filePath);
     }
+    if (renameOptions?.completionNotification) showCompletionNotification(executed
+      ? renameCompletionNotification(executed.operation, renameOptions.moveFiles ?? false)
+      : renameFailureNotification(failure ?? 'The rename operation ended unexpectedly.'));
     resumeMediaFileMonitoring();
   }
 });

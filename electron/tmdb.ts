@@ -57,6 +57,8 @@ export interface TmdbMovieSearchResult {
   genreIds?: number[];
   originalLanguage?: string;
   originCountries?: string[];
+  genreNames?: string[];
+  cast?: Array<{ id: string; name: string; character?: string; profileUrl?: string }>;
 }
 
 type RawGenre = { id: number; name?: string };
@@ -91,6 +93,7 @@ type RawMovie = {
 
 type RawExternalIds = { tvdb_id?: number | null; imdb_id?: string | null };
 type RawImage = { file_path: string; iso_639_1?: string | null; vote_average?: number; width?: number };
+type RawCastMember = { id: number; name: string; character?: string | null; profile_path?: string | null; order?: number };
 
 type RawSeason = {
   season_number: number;
@@ -286,14 +289,21 @@ export class TmdbClient {
   }
 
   async getMovie(movieId: string, mediaType: 'movie' | 'tv' = 'movie'): Promise<TmdbMovieSearchResult> {
-    const data = await this.request<(RawMovie | RawShow) & { external_ids?: RawExternalIds; images?: { logos?: RawImage[] } }>(
+    const data = await this.request<(RawMovie | RawShow) & { external_ids?: RawExternalIds; images?: { logos?: RawImage[] }; credits?: { cast?: RawCastMember[] } }>(
       `/${mediaType}/${encodeURIComponent(movieId)}`,
-      new URLSearchParams({ append_to_response: 'external_ids,images', include_image_language: 'en,null' }),
+      new URLSearchParams({ append_to_response: 'external_ids,images,credits', include_image_language: 'en,null' }),
     );
     const logos = await this.preferredLogos(data.images?.logos);
     return {
       ...(mediaType === 'tv' ? normalizeMovieLikeShow(data as RawShow) : { ...normalizeMovie(data as RawMovie), mediaType: 'movie' as const }),
       imdbId: data.external_ids?.imdb_id && /^tt\d+$/i.test(data.external_ids.imdb_id) ? data.external_ids.imdb_id.toLowerCase() : undefined,
+      genreNames: data.genres?.map((genre) => genre.name).filter((name): name is string => Boolean(name)),
+      cast: data.credits?.cast?.slice().sort((left, right) => (left.order ?? 999) - (right.order ?? 999)).slice(0, 8).map((member) => ({
+        id: String(member.id),
+        name: member.name,
+        ...(member.character ? { character: member.character } : {}),
+        ...(member.profile_path ? { profileUrl: `${IMAGE_ROOT}${member.profile_path}` } : {}),
+      })),
       ...logos,
     };
   }

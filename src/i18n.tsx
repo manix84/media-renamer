@@ -34,6 +34,7 @@ const en = {
   'prefs.clearJunk': 'Clear source junk after moving', 'prefs.clearJunkHelp': 'Delete loose text adverts, plaintext release-report NFOs, screenshot folders, recognized promotions, and empty subtitles so source folders can be removed; this cannot be undone',
   'prefs.autoClear': 'Clear completed batches automatically', 'prefs.autoClearHelp': 'Remove the finished batch from the workspace while keeping Undo available',
   'prefs.completionChime': 'Play a sound when finished', 'prefs.completionChimeHelp': 'Plays a distinct success or error sound after each rename operation',
+  'prefs.completionNotification': 'Show a system notification when finished', 'prefs.completionNotificationHelp': 'Uses your operating system notifications for completed, stopped, or failed rename operations',
   'prefs.completionReport': 'Show a completion report', 'prefs.completionReportHelp': 'Summarise processed files, removed folders, warnings, and logs',
   'prefs.completionReportAutoClose': 'Close completion reports automatically', 'prefs.completionReportAutoCloseHelp': 'Dismiss the completion report after 30 seconds unless you close it or add more media first',
   'prefs.confirmBeforeRename': 'Confirm before renaming', 'prefs.confirmBeforeRenameHelp': 'Show a final summary and require approval before any files are renamed or moved',

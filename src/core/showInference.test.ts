@@ -26,6 +26,14 @@ describe('show-name inference', () => {
     expect(inferShowQuery(['/media/Mummies Alive - Episode 03 - Pack to the Future.mp4'])).toBe('Mummies Alive');
   });
 
+  it('extracts a miniseries title from movie-like numbered parts', () => {
+    expect(inferShowQuery([
+      '/media/The Color of Magic 2008 Part 1 1080p BluRay.mkv',
+      '/media/The Color of Magic 2008 Part 2 1080p BluRay.mkv',
+    ])).toBe('The Color of Magic 2008');
+    expect(inferShowQuery(['/media/Example.Miniseries.Disc.01.mkv'])).toBe('Example Miniseries');
+  });
+
   it('extracts an anime title before a dash-delimited bare episode number', () => {
     expect(inferShowQuery(["/anime/[Doomdos] - Marika's Love Meter Malfunction - 07 [Uncensored] [Dub] [1080p OV WEB-DL].mkv"]))
       .toBe("Marika's Love Meter Malfunction");

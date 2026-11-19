@@ -61,6 +61,15 @@ export interface MovieSearchResult extends MediaClassificationMetadata {
   squareUrl?: string;
   bannerUrl?: string;
   collection?: MovieCollection;
+  genreNames?: string[];
+  cast?: MovieCastMember[];
+}
+
+export interface MovieCastMember {
+  id: string;
+  name: string;
+  character?: string;
+  profileUrl?: string;
 }
 
 export interface MovieCollection {

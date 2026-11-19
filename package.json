@@ -14,7 +14,7 @@
     "dev:electron": "npm run dev",
     "electron:watch": "node scripts/dev-electron.mjs",
     "build:electron": "tsc -p electron/tsconfig.json",
-    "build": "tsc -b && vite build && npm run build:electron",
+    "build": "tsc -b && vite build && node scripts/verify-renderer-build.mjs && npm run build:electron",
     "package": "npm run build && electron-builder",
     "package:linux": "npm run build && electron-builder --linux AppImage deb rpm --x64 --publish never",
     "package:linux:portable": "npm run build && electron-builder --linux AppImage --x64 --publish never && node scripts/package-linux-portable.mjs",
