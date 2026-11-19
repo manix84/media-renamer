@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { mdiAppleFinder, mdiMicrosoftWindows, mdiPenguin } from '@mdi/js'
 
 type ReleaseAsset = {
   name: string
@@ -70,6 +71,16 @@ function DownloadIcon() {
 
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+}
+
+const platformIconPaths: Record<Platform, string> = {
+  Windows: mdiMicrosoftWindows,
+  macOS: mdiAppleFinder,
+  Linux: mdiPenguin,
+}
+
+function PlatformIcon({ platform }: { platform: Platform }) {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={platformIconPaths[platform]}/></svg>
 }
 
 function ThemeIcon({ theme }: { theme: ThemePreference }) {
@@ -214,7 +225,7 @@ function App() {
             </div>
             <div className="download-card">
               <div className="download-card-heading">
-                <div className="platform-mark">{activePlatform === 'Windows' ? '⊞' : activePlatform === 'macOS' ? '⌘' : '◆'}</div>
+                <div className="platform-mark"><PlatformIcon platform={activePlatform}/></div>
                 <div><h3>{activePlatform}</h3><p>{platformDescriptions[activePlatform]}</p></div>
                 <span className="release-version">{release?.tag_name ?? (releaseError ? 'Latest release' : 'Checking…')}</span>
               </div>
