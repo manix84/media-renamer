@@ -9,6 +9,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Windows releases now provide an explicitly unsigned MSI installer, while Windows, macOS, and Linux each provide a data-portable edition that keeps preferences, history, caches, and extensions beside the application.
 - A cross-platform installation guide clearly separates installed and portable usage, documents expected unsigned Windows and macOS warnings, and explains checksum and build-provenance verification.
 
+### Fixed
+
+- Show and movie destination settings no longer expose unintended remembered-destination dropdowns beside the folder picker.
+
 ## [0.7.0] - 2026-11-19
 
 ### Added
