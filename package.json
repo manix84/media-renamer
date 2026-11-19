@@ -51,6 +51,11 @@
     "vitest": "latest",
     "wait-on": "latest"
   },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "^11.0.1"
+    }
+  },
   "build": {
     "afterPack": "scripts/adhoc-sign-macos.mjs",
     "beforePack": "scripts/verify-tmdb-helper.mjs",
