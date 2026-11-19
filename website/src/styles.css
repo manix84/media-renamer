@@ -120,6 +120,12 @@ svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-widt
 .download-card-heading h3 { margin: 0; font-size: 1.12rem; }
 .download-card-heading p { margin: 5px 0 0; color: #9fa8b6; font-size: .78rem; }
 .release-version { margin-left: auto; padding: 5px 9px; border: 1px solid #ffffff18; border-radius: 999px; color: #b9c0cb; font: .64rem 'DM Mono'; }
+.asset-edition + .asset-edition { border-top: 1px solid #ffffff1a; }
+.asset-edition-heading { min-height: 70px; padding: 15px 28px; display: flex; align-items: center; justify-content: space-between; gap: 24px; background: #111a29aa; }
+.asset-edition-heading > span:first-child { min-width: 0; }
+.asset-edition-heading strong { font-size: .82rem; letter-spacing: .025em; text-transform: uppercase; }
+.asset-edition-heading small { max-width: 690px; margin-top: 5px; color: #929cab; font: .7rem/1.45 Inter, sans-serif; }
+.asset-edition-heading > span:last-child { flex: 0 0 auto; color: #8792a2; font: .63rem 'DM Mono'; }
 .asset-list a { min-height: 77px; padding: 15px 28px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid #ffffff0e; transition: background .18s ease; }
 .asset-list a:hover { background: #ffffff07; }
 .asset-list a:active { background: #ffffff0d; }
@@ -128,6 +134,7 @@ svg { width: 1.1em; height: 1.1em; fill: none; stroke: currentColor; stroke-widt
 .asset-list small { margin-top: 5px; color: #8f99a9; font: .63rem 'DM Mono'; }
 .asset-meta { display: flex; align-items: center; gap: 15px; color: #aeb6c3; font: .68rem 'DM Mono'; white-space: nowrap; }
 .asset-meta svg { color: #e39261; font-size: 1.2rem; }
+.asset-unavailable { min-height: 77px; padding: 15px 28px; display: flex; align-items: center; color: #aeb6c3; border-bottom: 1px solid #ffffff0e; }
 .download-footer { padding: 16px 28px; display: flex; align-items: center; gap: 23px; color: #8f99a9; font-size: .67rem; }
 .download-footer > span::before { content: '✓'; margin-right: 6px; color: #66a78d; }
 .download-footer a { margin-left: auto; display: flex; align-items: center; gap: 7px; color: #dbe0e7; }
@@ -195,6 +202,9 @@ footer { color: #abb2be; background: #0d1420; }
   .download-card-heading { align-items: flex-start; padding: 20px; }
   .release-version { display: none; }
   .asset-list a { padding: 16px 20px; align-items: flex-start; }
+  .asset-edition-heading { padding: 15px 20px; align-items: flex-start; }
+  .asset-edition-heading > span:last-child { display: none; }
+  .asset-unavailable { padding: 16px 20px; }
   .asset-list small { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .download-footer { padding: 18px 20px; flex-wrap: wrap; gap: 10px 18px; }
   .download-footer a { width: 100%; margin: 8px 0 0; }

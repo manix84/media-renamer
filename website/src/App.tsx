@@ -14,6 +14,7 @@ type Release = {
 }
 
 type Platform = 'Windows' | 'macOS' | 'Linux'
+type DownloadEdition = 'install' | 'portable'
 type ThemePreference = 'auto' | 'light' | 'dark'
 type ResolvedTheme = Exclude<ThemePreference, 'auto'>
 
@@ -37,15 +38,26 @@ function formatBytes(bytes: number) {
 }
 
 function friendlyAssetName(name: string) {
-  if (/unsigned-installer\.msi$/i.test(name)) return 'Windows installer (unsigned)'
-  if (/unsigned-portable\.exe$/i.test(name)) return 'Windows portable (unsigned)'
-  if (/unsigned-installer\.dmg$/i.test(name)) return 'macOS installer (unsigned)'
-  if (/unsigned-portable\.zip$/i.test(name)) return 'macOS portable (unsigned)'
-  if (/\.AppImage$/i.test(name)) return 'Linux AppImage'
-  if (/\.deb$/i.test(name)) return 'Debian / Ubuntu / Mint'
-  if (/\.rpm$/i.test(name)) return 'Fedora / RHEL / openSUSE'
-  if (/portable\.tar\.gz$/i.test(name)) return 'Linux USB-portable'
+  const architecture = /(?:^|-)(arm64)(?:-|\.)/i.test(name) ? 'Apple silicon' : /(?:^|-)(x64|x86_64|amd64)(?:-|\.)/i.test(name) ? '64-bit' : undefined
+  const suffix = architecture ? ` · ${architecture}` : ''
+  if (/unsigned-installer\.msi$/i.test(name)) return `Windows MSI installer · unsigned${suffix}`
+  if (/unsigned-portable\.exe$/i.test(name)) return `Windows portable · unsigned${suffix}`
+  if (/unsigned-installer\.dmg$/i.test(name)) return `macOS DMG installer · unsigned${suffix}`
+  if (/unsigned-portable\.zip$/i.test(name)) return `macOS portable · unsigned${suffix}`
+  if (/\.AppImage$/i.test(name)) return `Linux AppImage${suffix}`
+  if (/\.deb$/i.test(name)) return `Debian / Ubuntu / Mint${suffix}`
+  if (/\.rpm$/i.test(name)) return `Fedora / RHEL / openSUSE${suffix}`
+  if (/portable\.tar\.gz$/i.test(name)) return `Linux data-portable bundle${suffix}`
   return name
+}
+
+function downloadEdition(name: string): DownloadEdition {
+  return /(?:unsigned-)?portable\.(?:exe|zip)$|portable\.tar\.gz$/i.test(name) ? 'portable' : 'install'
+}
+
+const editionCopy: Record<DownloadEdition, { title: string; description: string }> = {
+  install: { title: 'Install', description: 'For regular use on this computer. Settings are kept in your operating-system profile.' },
+  portable: { title: 'Portable', description: 'Keep the supplied launcher, application, and data folder together when moving between computers.' },
 }
 
 function ArrowIcon() {
@@ -118,6 +130,10 @@ function App() {
     () => release?.assets.filter((asset) => platformRules[activePlatform].test(asset.name)) ?? [],
     [activePlatform, release],
   )
+  const assetsByEdition = useMemo(() => ({
+    install: assets.filter((asset) => downloadEdition(asset.name) === 'install'),
+    portable: assets.filter((asset) => downloadEdition(asset.name) === 'portable'),
+  }), [assets])
 
   return (
     <div className="site-shell">
@@ -203,11 +219,16 @@ function App() {
                 <span className="release-version">{release?.tag_name ?? (releaseError ? 'Latest release' : 'Checking…')}</span>
               </div>
               <div className="asset-list">
-                {assets.map((asset) => (
-                  <a key={asset.name} href={asset.browser_download_url}>
-                    <span><strong>{friendlyAssetName(asset.name)}</strong><small>{asset.name}</small></span>
-                    <span className="asset-meta">{formatBytes(asset.size)} <DownloadIcon /></span>
-                  </a>
+                {release && (['install', 'portable'] as DownloadEdition[]).map((edition) => (
+                  <section className="asset-edition" key={edition} aria-labelledby={`${edition}-downloads`}>
+                    <div className="asset-edition-heading"><span><strong id={`${edition}-downloads`}>{editionCopy[edition].title}</strong><small>{editionCopy[edition].description}</small></span><span>{assetsByEdition[edition].length} option{assetsByEdition[edition].length === 1 ? '' : 's'}</span></div>
+                    {assetsByEdition[edition].length ? assetsByEdition[edition].map((asset) => (
+                      <a key={asset.name} href={asset.browser_download_url}>
+                        <span><strong>{friendlyAssetName(asset.name)}</strong><small>{asset.name}</small></span>
+                        <span className="asset-meta">{formatBytes(asset.size)} <DownloadIcon /></span>
+                      </a>
+                    )) : <div className="asset-unavailable"><span><strong>No {edition} download in this release</strong><small>Check all releases or choose another platform.</small></span></div>}
+                  </section>
                 ))}
                 {!release && (
                   <a href={LATEST_RELEASE}><span><strong>{releaseError ? 'Open the latest GitHub release' : 'Loading release files…'}</strong><small>{releaseError ? 'GitHub API unavailable—downloads remain available.' : 'Fetching current filenames and sizes.'}</small></span><span className="asset-meta"><ArrowIcon /></span></a>
