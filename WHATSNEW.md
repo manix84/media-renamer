@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-19
+
 ### Added
 
 - Windows releases now provide an explicitly unsigned MSI installer, while Windows, macOS, and Linux each provide a data-portable edition that keeps preferences, history, caches, and extensions beside the application.
@@ -129,7 +131,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/manix84/media-renamer/releases/tag/v0.8.0
 [0.7.0]: https://github.com/manix84/media-renamer/releases/tag/v0.7.0
 [0.6.0]: https://github.com/manix84/media-renamer/releases/tag/v0.6.0
 [0.5.0]: https://github.com/manix84/media-renamer/releases/tag/v0.5.0
