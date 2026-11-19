@@ -504,7 +504,7 @@ ipcMain.handle('rename:execute', async (event, groups: unknown, options: unknown
       control: () => activeRenameControl,
     });
     lastRename = executed;
-    if (executed.operation.status === 'completed') void recordCompletedRename(renameStatisticsFilePath(), renameOptions.mediaKind, executed.operation.items.map((item) => item.targetPath))
+    if (executed.operation.status !== 'undone' && executed.operation.items.length) void recordCompletedRename(renameStatisticsFilePath(), renameOptions.mediaKind, executed.operation.items.map((item) => item.targetPath))
       .then((summary) => publishStatisticsToEnabledExtensions(summary))
       .catch((error) => {
         debugEntries = [...debugEntries.slice(-499), { id: ++debugSequence, timestamp: Date.now(), level: 'warning', message: 'Rename statistics could not be recorded or published', detail: error instanceof Error ? error.message : String(error) }];

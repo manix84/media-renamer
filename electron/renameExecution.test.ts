@@ -10,7 +10,10 @@ async function temporaryDirectory() {
   temporaryDirectories.push(directory);
   return directory;
 }
-afterEach(async () => Promise.all(temporaryDirectories.splice(0).map((directory) => fs.promises.rm(directory, { recursive: true, force: true }))));
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await Promise.all(temporaryDirectories.splice(0).map((directory) => fs.promises.rm(directory, { recursive: true, force: true })));
+});
 
 describe('rename execution', () => {
   it('reports incremental byte progress while copying a file', async () => {
@@ -190,6 +193,69 @@ describe('rename execution', () => {
 
     expect(executed.operation.status).toBe('stopped');
     expect(executed.operation.items).toHaveLength(1);
+    await expect(fs.promises.readFile(firstTarget, 'utf8')).resolves.toBe('one');
+    await expect(fs.promises.readFile(secondSource, 'utf8')).resolves.toBe('two');
+    await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const undone = await undoRenameOperation(executed.operation, executed.logPath);
+    expect(undone.status).toBe('undone');
+    await expect(fs.promises.readFile(firstSource, 'utf8')).resolves.toBe('one');
+  });
+
+  it('aborts the current cross-device copy and keeps earlier completed files', async () => {
+    const root = await temporaryDirectory();
+    const firstSource = path.join(root, 'incoming', 'One.mkv');
+    const secondSource = path.join(root, 'incoming', 'Two.mkv');
+    const firstTarget = path.join(root, 'library', 'One.mkv');
+    const secondTarget = path.join(root, 'library', 'Two.mkv');
+    await fs.promises.mkdir(path.dirname(firstSource), { recursive: true });
+    await fs.promises.writeFile(firstSource, 'one');
+    await fs.promises.writeFile(secondSource, Buffer.alloc(4 * 1024 * 1024, 2));
+    const realRename = fs.promises.rename.bind(fs.promises);
+    vi.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
+      if (oldPath === secondSource && newPath === secondTarget) throw Object.assign(new Error('cross-device move'), { code: 'EXDEV' });
+      return realRename(oldPath, newPath);
+    });
+    let control: 'stop' | undefined;
+
+    const executed = await executeRenamePlan([
+      { sourcePath: firstSource, targetPath: firstTarget },
+      { sourcePath: secondSource, targetPath: secondTarget },
+    ], path.join(root, 'history'), (_completed, _total, _operation, file) => {
+      if (file?.sourcePath === secondSource && file.phase === 'copying') control = 'stop';
+    }, { control: () => control });
+
+    expect(executed.operation.status).toBe('stopped');
+    expect(executed.operation.items).toEqual([{ sourcePath: firstSource, targetPath: firstTarget }]);
+    await expect(fs.promises.readFile(firstTarget, 'utf8')).resolves.toBe('one');
+    await expect(fs.promises.stat(firstSource)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.stat(secondSource)).resolves.toBeDefined();
+    await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(fs.promises.readdir(path.dirname(secondTarget))).resolves.not.toEqual(expect.arrayContaining([expect.stringMatching(/^\.media-renamer-.*\.tmp$/)]));
+  });
+
+  it('keeps completed files when a later rename fails and leaves them undoable', async () => {
+    const root = await temporaryDirectory();
+    const firstSource = path.join(root, 'incoming', 'One.mkv');
+    const secondSource = path.join(root, 'incoming', 'Two.mkv');
+    const firstTarget = path.join(root, 'library', 'One.mkv');
+    const secondTarget = path.join(root, 'library', 'Two.mkv');
+    await fs.promises.mkdir(path.dirname(firstSource), { recursive: true });
+    await Promise.all([fs.promises.writeFile(firstSource, 'one'), fs.promises.writeFile(secondSource, 'two')]);
+    const realRename = fs.promises.rename.bind(fs.promises);
+    vi.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
+      if (oldPath === secondSource && newPath === secondTarget) throw Object.assign(new Error('Destination became unavailable.'), { code: 'EACCES' });
+      return realRename(oldPath, newPath);
+    });
+
+    const executed = await executeRenamePlan([
+      { sourcePath: firstSource, targetPath: firstTarget },
+      { sourcePath: secondSource, targetPath: secondTarget },
+    ], path.join(root, 'history'));
+
+    expect(executed.operation.status).toBe('failed');
+    expect(executed.operation.failure).toBe('Destination became unavailable.');
+    expect(executed.operation.items).toEqual([{ sourcePath: firstSource, targetPath: firstTarget }]);
     await expect(fs.promises.readFile(firstTarget, 'utf8')).resolves.toBe('one');
     await expect(fs.promises.readFile(secondSource, 'utf8')).resolves.toBe('two');
     await expect(fs.promises.stat(secondTarget)).rejects.toMatchObject({ code: 'ENOENT' });

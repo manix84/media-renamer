@@ -12,7 +12,8 @@ export type RenameOperation = {
   createdAt: string;
   completedAt: string;
   undoneAt?: string;
-  status: 'completed' | 'stopped' | 'undone';
+  status: 'completed' | 'stopped' | 'failed' | 'undone';
+  failure?: string;
   items: RenamePreflightItem[];
   removedSourceJunkFiles?: string[];
   removedSourceDirectories?: string[];
@@ -137,13 +138,21 @@ export async function resolveRenameCollisions(value: unknown): Promise<RenameCol
   return resolved;
 }
 
-export async function copyFileWithProgress(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void, onDetail?: (detail: { phase: 'copying' | 'flushing'; bytesCopied: number; totalBytes: number }) => void): Promise<void> {
+class RenameInterruptedError extends Error {
+  constructor() { super('Rename operation interrupted.'); this.name = 'RenameInterruptedError'; }
+}
+
+export async function copyFileWithProgress(sourcePath: string, targetPath: string, onProgress?: (fraction: number) => void, onDetail?: (detail: { phase: 'copying' | 'flushing'; bytesCopied: number; totalBytes: number }) => void, shouldCancel?: () => boolean): Promise<void> {
   const source = await fs.promises.stat(sourcePath);
   let copied = 0;
   let lastReportedAt = 0;
+  const abortController = new AbortController();
+  const cancel = () => { if (shouldCancel?.()) abortController.abort(); };
+  const cancellationTimer = shouldCancel ? setInterval(cancel, 25) : undefined;
   const readStream = fs.createReadStream(sourcePath);
   const writeStream = fs.createWriteStream(targetPath, { flags: 'wx', mode: source.mode });
   readStream.on('data', (chunk: Buffer) => {
+    if (shouldCancel?.()) { abortController.abort(); return; }
     copied += chunk.length;
     const now = Date.now();
     if (now - lastReportedAt < 50 && copied < source.size) return;
@@ -151,20 +160,28 @@ export async function copyFileWithProgress(sourcePath: string, targetPath: strin
     const fraction = source.size > 0 ? Math.min(1, copied / source.size) : 1;
     onProgress?.(fraction);
     onDetail?.({ phase: 'copying', bytesCopied: copied, totalBytes: source.size });
+    if (shouldCancel?.()) abortController.abort();
   });
   readStream.once('end', () => onDetail?.({ phase: 'flushing', bytesCopied: source.size, totalBytes: source.size }));
-  await pipeline(readStream, writeStream);
+  try { await pipeline(readStream, writeStream, { signal: abortController.signal }); }
+  catch (error) {
+    if (abortController.signal.aborted && shouldCancel?.()) throw new RenameInterruptedError();
+    throw error;
+  } finally {
+    if (cancellationTimer) clearInterval(cancellationTimer);
+  }
   onProgress?.(1);
 }
 
-async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void): Promise<void> {
+async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void, shouldCancel?: () => boolean): Promise<void> {
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
   const temporaryPath = path.join(path.dirname(targetPath), `.media-renamer-${crypto.randomUUID()}.tmp`);
   let published = false;
   try {
     await copyFileWithProgress(sourcePath, temporaryPath, (fraction) => {
       if (fraction < 1) onProgress?.({ phase: 'copying', sourcePath, targetPath, fraction: Math.min(.99, fraction) });
-    }, (detail) => onProgress?.({ ...detail, sourcePath, targetPath, fraction: detail.phase === 'flushing' ? .99 : Math.min(.99, detail.totalBytes > 0 ? detail.bytesCopied / detail.totalBytes : .99) }));
+    }, (detail) => onProgress?.({ ...detail, sourcePath, targetPath, fraction: detail.phase === 'flushing' ? .99 : Math.min(.99, detail.totalBytes > 0 ? detail.bytesCopied / detail.totalBytes : .99) }), shouldCancel);
+    if (shouldCancel?.()) throw new RenameInterruptedError();
     if (await exists(targetPath)) throw Object.assign(new Error(`The destination file already exists: ${targetPath}`), { code: 'EEXIST' });
     onProgress?.({ phase: 'publishing', sourcePath, targetPath, fraction: .995 });
     await fs.promises.rename(temporaryPath, targetPath);
@@ -179,7 +196,7 @@ async function copyAcrossDevices(sourcePath: string, targetPath: string, onProgr
   }
 }
 
-async function moveFile(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void): Promise<void> {
+async function moveFile(sourcePath: string, targetPath: string, onProgress?: (progress: RenameFileProgress) => void, shouldCancel?: () => boolean): Promise<void> {
   if (sourcePath === targetPath) return;
   onProgress?.({ phase: 'preparing', sourcePath, targetPath, fraction: 0 });
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
@@ -210,11 +227,11 @@ async function moveFile(sourcePath: string, targetPath: string, onProgress?: (pr
   catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT' && await exists(sourcePath)) {
-      await copyAcrossDevices(sourcePath, targetPath, onProgress);
+      await copyAcrossDevices(sourcePath, targetPath, onProgress, shouldCancel);
       return;
     }
     if (code !== 'EXDEV') throw error;
-    await copyAcrossDevices(sourcePath, targetPath, onProgress);
+    await copyAcrossDevices(sourcePath, targetPath, onProgress, shouldCancel);
   }
 }
 
@@ -346,26 +363,20 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
   if (issues.length) throw new Error(`Rename preflight failed: ${issues[0].message}`);
   const completed: RenamePreflightItem[] = [];
   let control: RenameControl | undefined;
+  let failure: string | undefined;
   try {
     for (const item of items) {
       control = options.control?.();
       if (control) break;
-      await moveFile(item.sourcePath, item.targetPath, (file) => onProgress?.(completed.length + file.fraction, items.length, 'rename', file, 'processing'));
+      await moveFile(item.sourcePath, item.targetPath, (file) => onProgress?.(completed.length + file.fraction, items.length, 'rename', file, 'processing'), () => Boolean(options.control?.()));
       completed.push(item);
       onProgress?.(completed.length, items.length, 'rename', undefined, 'processing');
       control = options.control?.();
       if (control) break;
     }
   } catch (error) {
-    const rollbackErrors: string[] = [];
-    for (const item of completed.reverse()) {
-      try { await moveFile(item.targetPath, item.sourcePath); }
-      catch (rollbackError) { rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError)); }
-    }
-    const detail = rollbackErrors.length
-      ? ` Rollback also failed: ${rollbackErrors.join('; ')}`
-      : completed.length ? ' Completed moves were rolled back.' : ' No files were moved.';
-    throw new Error(`${error instanceof Error ? error.message : String(error)}${detail}`);
+    control = options.control?.();
+    if (!(error instanceof RenameInterruptedError && control)) failure = error instanceof Error ? error.message : String(error);
   }
   if (control === 'undo') {
     const rollbackErrors: string[] = [];
@@ -381,7 +392,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     }
     if (rollbackErrors.length) throw new Error(`Undo was requested, but some completed renames could not be restored: ${rollbackErrors.join('; ')}`);
   }
-  const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : 'completed';
+  const status = control === 'undo' ? 'undone' : control === 'stop' ? 'stopped' : failure ? 'failed' : 'completed';
   if (status === 'completed') onProgress?.(completed.length, items.length, 'rename', undefined, 'finalising');
   const junkCleanup = status === 'completed' && options.clearSourceJunk ? await clearSourceJunk(items) : { files: [], directories: [], warnings: [] };
   const emptyCleanup = status === 'completed' && options.removeEmptySourceParents ? await removeEmptySourceParents(items) : { removed: [], warnings: [] };
@@ -394,6 +405,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     completedAt: now,
     status,
     items: completed,
+    ...(failure ? { failure } : {}),
     ...(status === 'undone' ? { undoneAt: now } : {}),
     ...(junkCleanup.files.length ? { removedSourceJunkFiles: junkCleanup.files } : {}),
     ...(cleanup.removed.length ? { removedSourceDirectories: cleanup.removed } : {}),
@@ -411,8 +423,7 @@ export async function executeRenamePlan(value: unknown, historyDirectory: string
     }
     return { operation, logPath };
   } catch (error) {
-    if (status !== 'undone') for (const item of [...completed].reverse()) await moveFile(item.targetPath, item.sourcePath).catch(() => undefined);
-    throw new Error(`Could not write the operation log; renamed files were rolled back. ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Could not write the operation log. Completed files were kept at their renamed paths, but automatic undo is unavailable. ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -434,7 +445,7 @@ export function renameGroupProgress(groupSizes: number[], completed: number): Re
 }
 
 export async function undoRenameOperation(operation: RenameOperation, logPath: string, onProgress?: (completed: number, total: number) => void): Promise<RenameOperation> {
-  if (operation.status !== 'completed' && operation.status !== 'stopped') throw new Error('This rename operation has already been undone.');
+  if (operation.status !== 'completed' && operation.status !== 'stopped' && operation.status !== 'failed') throw new Error('This rename operation has already been undone.');
   for (const item of operation.items) {
     if (!(await exists(item.targetPath))) throw new Error(`Cannot undo because a renamed file is missing: ${item.targetPath}`);
     if (await exists(item.sourcePath)) throw new Error(`Cannot undo because the original path is occupied: ${item.sourcePath}`);
@@ -472,7 +483,7 @@ export async function readLatestRenameOperation(historyDirectory: string): Promi
     const logPath = path.join(historyDirectory, name);
     try {
       const value = JSON.parse(await fs.promises.readFile(logPath, 'utf8')) as Partial<RenameOperation>;
-      if (value.version !== 1 || typeof value.id !== 'string' || typeof value.createdAt !== 'string' || typeof value.completedAt !== 'string' || (value.status !== 'completed' && value.status !== 'stopped' && value.status !== 'undone')) continue;
+      if (value.version !== 1 || typeof value.id !== 'string' || typeof value.createdAt !== 'string' || typeof value.completedAt !== 'string' || (value.status !== 'completed' && value.status !== 'stopped' && value.status !== 'failed' && value.status !== 'undone')) continue;
       const items = renamePreflightItems(value.items);
       return { operation: { ...value, items } as RenameOperation, logPath };
     } catch {

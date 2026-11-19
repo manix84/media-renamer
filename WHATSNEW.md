@@ -4,6 +4,10 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Fixed
+
+- Stopping a cross-device move now cancels the active copy immediately, removes its partial temporary file, and preserves every file that already completed; later per-file failures likewise keep successful renames in place instead of rolling the batch back.
+
 ## [0.8.0] - 2026-11-19
 
 ### Added

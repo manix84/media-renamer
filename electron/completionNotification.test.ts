@@ -22,6 +22,15 @@ describe('native completion notification copy', () => {
     expect(renameCompletionNotification(operation('undone', 1), false)).toEqual({ title: 'Rename undone', body: '1 file restored to its original location.' });
   });
 
+  it('explains that completed files are kept after a later failure', () => {
+    const failed = operation('failed', 2);
+    failed.failure = 'Destination became unavailable.';
+    expect(renameCompletionNotification(failed, true)).toEqual({
+      title: 'Rename failed',
+      body: '2 files completed and were kept. Destination became unavailable.',
+    });
+  });
+
   it('keeps failure detail in the notification', () => {
     expect(renameFailureNotification('Destination is unavailable.')).toEqual({ title: 'Rename failed', body: 'Destination is unavailable.' });
   });

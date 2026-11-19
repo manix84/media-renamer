@@ -14,6 +14,10 @@ export function renameCompletionNotification(operation: RenameOperation, moved: 
     title: 'Rename undone',
     body: `${files} restored to ${count === 1 ? 'its' : 'their'} original location${count === 1 ? '' : 's'}.`,
   };
+  if (operation.status === 'failed') return {
+    title: 'Rename failed',
+    body: `${files} completed and were kept. ${operation.failure ?? 'A later file could not be processed.'}`,
+  };
   return {
     title: 'Rename stopped',
     body: `${files} completed before the operation stopped.`,

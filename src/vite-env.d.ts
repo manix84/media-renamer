@@ -7,7 +7,8 @@ import type { InstalledExtension } from './extensions/types';
 type RenameOperationRecord = {
   operation: {
     id: string;
-    status: 'completed' | 'stopped' | 'undone';
+    status: 'completed' | 'stopped' | 'failed' | 'undone';
+    failure?: string;
     items: Array<{ sourcePath: string; targetPath: string }>;
     removedSourceJunkFiles?: string[];
     removedSourceDirectories?: string[];
