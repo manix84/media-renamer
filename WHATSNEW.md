@@ -12,7 +12,7 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 ### Fixed
 
 - Show and movie destination settings no longer expose unintended remembered-destination dropdowns beside the folder picker.
-- Favourite template rows now show an explicit Rename label instead of hiding naming behind an icon-only action.
+- Favourite template rows now show an explicit Rename action that opens an inline name editor; Enter saves, Escape cancels, and an empty value restores the automatic name.
 
 ## [0.7.0] - 2026-11-19
 

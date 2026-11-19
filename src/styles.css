@@ -207,6 +207,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .favourite-template-actions .icon-button { width: 25px; height: 25px; }
 .favourite-template-actions .icon-button[title="Rename favourite"] { width: auto; padding: 5px 8px; font-size: 8px; }
 .favourite-template-actions .icon-button[title="Rename favourite"]::after { content: "Rename"; }
+.favourite-template-inline-name { min-width: 0; width: 100%; display: flex; align-items: center; gap: 6px; }
+.favourite-template-inline-name > svg { flex: 0 0 auto; color: var(--accent-text); }
+.favourite-template-inline-name input { min-width: 0; height: 27px; padding: 4px 7px; flex: 1; border: 1px solid var(--accent); border-radius: 5px; outline: 0; background: #0c1119; color: #d8dfeb; font: inherit; font-size: 9px; box-shadow: 0 0 0 3px var(--accent-soft); }
+.favourite-template-inline-name input::placeholder { color: #69758a; }
+.favourite-template-inline-name .icon-button { width: 25px; height: 25px; padding: 0; justify-content: center; }
+.favourite-template-inline-name .icon-button.save { color: #52c990; }
 .format-preview { min-width: 0; margin-top: 9px; padding-top: 9px; border-top: 1px solid #272e3c; display: flex; align-items: baseline; gap: 9px; font-size: 10px; }
 .format-preview span { flex: 0 0 auto; color: #687287; text-transform: uppercase; letter-spacing: .08em; font-size: 8px; font-weight: 760; }
 .format-preview strong { min-width: 0; overflow: hidden; color: #cdd4e2; font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
@@ -784,6 +790,7 @@ footer > div:last-child { display: flex; gap: 9px; } .legend { display: inline-b
 [data-theme="light"] .favourite-template-heading strong, [data-theme="light"] .favourite-template-apply { color: #435066; }
 [data-theme="light"] .favourite-template-heading small, [data-theme="light"] .favourite-template-empty, [data-theme="light"] .favourite-template-apply small { color: #68758a; }
 [data-theme="light"] .favourite-template-list > div { border-color: #dfe3ea; background: #fff; }
+[data-theme="light"] .favourite-template-inline-name input { background: #fff; color: #2d384c; }
 [data-theme="light"] .template-editor { border-color: #ccd3df; background: #fff; }
 [data-theme="light"] .template-editor .cm-editor { color: #334058; } [data-theme="light"] .template-editor .cm-content { caret-color: #172033; }
 [data-theme="light"] .template-editor .cm-cursor, [data-theme="light"] .template-editor .cm-dropCursor { border-left-color: #172033; }
