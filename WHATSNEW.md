@@ -4,6 +4,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-20
+
 ### Added
 
 - Episode review now shows discrete rows and supports Ctrl/Cmd and Shift selection when one media file contains multiple episodes.
@@ -165,7 +167,8 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 - Provider credentials remain in the Electron main process.
 - Filesystem operations and extension manifests are validated at the application boundary.
 
-[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/manix84/media-renamer/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/manix84/media-renamer/releases/tag/v0.10.0
 [0.9.2]: https://github.com/manix84/media-renamer/releases/tag/v0.9.2
 [0.9.1]: https://github.com/manix84/media-renamer/releases/tag/v0.9.1
 [0.9.0]: https://github.com/manix84/media-renamer/releases/tag/v0.9.0
