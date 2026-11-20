@@ -22,7 +22,7 @@ import { matchReviewExplanation } from './core/matchPresentation';
 import { renameFilePhaseLabel, renameFileProgressPresentation, type RenameFileProgressView } from './core/renameProgressPresentation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
-import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, splitEpisodeReviewCandidates } from './core/splitEpisodes';
+import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, splitEpisodeReviewCandidates, updateEpisodeReviewSelection } from './core/splitEpisodes';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
 import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, ReleaseTags, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
@@ -575,6 +575,7 @@ export default function App() {
   const [reviewingPath, setReviewingPath] = useState<string>();
   const [reviewSearch, setReviewSearch] = useState('');
   const [reviewCandidate, setReviewCandidate] = useState<MatchCandidate>();
+  const [reviewSelectionAnchor, setReviewSelectionAnchor] = useState<string>();
   const [pinnedPreviewPath, setPinnedPreviewPath] = useState<string>();
   const [linkedSelection, setLinkedSelection] = useState<{ episodeIds: string[]; paths: string[]; source: 'episode' | 'file'; sourceId: string }>();
   const [selectedMoviePath, setSelectedMoviePath] = useState<string>();
@@ -2786,6 +2787,17 @@ export default function App() {
     setReviewingPath(path);
     setReviewSearch('');
     setReviewCandidate(item?.match);
+    setReviewSelectionAnchor(item?.match ? candidateEpisodes(item.match)[0]?.id : undefined);
+  }
+
+  function selectReviewEpisode(event: React.MouseEvent<HTMLButtonElement>, candidate: MatchCandidate, index: number) {
+    const result = updateEpisodeReviewSelection(reviewCandidate, reviewCandidates, candidate.episode.id, {
+      toggle: event.metaKey || event.ctrlKey,
+      range: event.shiftKey,
+      anchorId: reviewSelectionAnchor ?? reviewCandidates[index]?.episode.id,
+    });
+    setReviewCandidate(result.candidate);
+    setReviewSelectionAnchor(result.anchorId);
   }
 
   function confirmMatchReview(candidate = reviewCandidate) {
@@ -3323,10 +3335,10 @@ export default function App() {
           <label className="review-search"><Search size={15}/><input value={reviewSearch} onChange={(event) => setReviewSearch(event.target.value)} placeholder="Search by S03E12 or episode title" autoFocus/></label>
           <div className="review-results-heading"><strong>{reviewSearch.trim() ? 'Search results' : suggestedCandidates.length ? 'Suggested matches' : 'All episodes'}</strong><small>{reviewCandidates.length} episode{reviewCandidates.length === 1 ? '' : 's'}</small></div>
           <div className="review-candidates">
-            {reviewCandidates.map((candidate) => {
-              const selected = reviewCandidate ? candidateKey(reviewCandidate) === candidateKey(candidate) : false;
+            {reviewCandidates.map((candidate, index) => {
+              const selected = reviewCandidate ? candidateEpisodes(reviewCandidate).some((episode) => episode.id === candidate.episode.id) : false;
               const manual = candidate.reasons.includes('manually selected');
-              return <button key={candidateKey(candidate)} className={selected ? 'selected' : ''} title="Double-click to confirm this episode" onClick={() => setReviewCandidate(candidate)} onDoubleClick={() => confirmMatchReview(candidate)}>
+              return <button key={candidateKey(candidate)} className={selected ? 'selected' : ''} title="Click to select; Cmd/Ctrl-click toggles and Shift-click selects a range" onClick={(event) => selectReviewEpisode(event, candidate, index)} onDoubleClick={() => confirmMatchReview(candidate)}>
                 <span className="candidate-code">{candidateLabel(candidate)}</span>
                 <span><strong>{candidateTitle(candidate)}</strong><small>{manual ? 'Manual selection' : candidate.reasons.join(' · ') || 'No matching evidence'}</small></span>
                 <span className="candidate-score">{manual ? 'Manual' : `${Math.round(candidate.score * 100)}%`}</span>
@@ -3335,7 +3347,7 @@ export default function App() {
             })}
             {reviewCandidates.length === 0 && <div className="review-empty">{reviewSearch.trim() ? 'No episodes match that search.' : 'No episodes are available for this show.'}</div>}
           </div>
-          <div className="review-footer"><span><FileCheck2 size={15}/> Double-click an episode to confirm it immediately.</span><button className="primary" disabled={!reviewCandidate} onClick={() => confirmMatchReview()}>Confirm match</button></div>
+          <div className="review-footer"><span><FileCheck2 size={15}/> Cmd/Ctrl-click to add episodes · Shift-click for a range.</span><button className="primary" disabled={!reviewCandidate} onClick={() => confirmMatchReview()}>Confirm {reviewCandidate ? candidateEpisodes(reviewCandidate).length : 0} episode{reviewCandidate && candidateEpisodes(reviewCandidate).length === 1 ? '' : 's'}</button></div>
         </aside>
       </div>}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, sharedSplitEpisodeTitle, splitEpisodeReviewCandidates } from './splitEpisodes';
+import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, sharedSplitEpisodeTitle, splitEpisodeReviewCandidates, updateEpisodeReviewSelection } from './splitEpisodes';
 
 const pair = [
   { id: 'e21', season: 2, number: 21, title: 'Mouth of the Snake (1)' },
@@ -35,11 +35,20 @@ describe('split episode titles', () => {
     expect(episodesForFilename([pair[1]], pair)).toEqual([{ ...pair[1], title: 'Mouth of the Snake' }]);
   });
 
-  it('offers each episode separately before the combined selection', () => {
+  it('offers grouped matches only as individual episode rows', () => {
     const candidate = { episode: pair[0], episodes: pair, score: .95, reasons: ['2 episode numbers'] };
     const choices = splitEpisodeReviewCandidates(candidate);
-    expect(choices.map((choice) => choice.episodes?.map((episode) => episode.id) ?? [choice.episode.id])).toEqual([['e21'], ['e22'], ['e21', 'e22']]);
-    expect(choices.slice(0, 2).map(displayEpisodeTitle)).toEqual(['Mouth of the Snake', 'Mouth of the Snake']);
-    expect(displayEpisodeTitle(choices[2])).toBe('Mouth of the Snake');
+    expect(choices.map((choice) => [choice.episode.id])).toEqual([['e21'], ['e22']]);
+    expect(choices.map(displayEpisodeTitle)).toEqual(['Mouth of the Snake', 'Mouth of the Snake']);
+  });
+
+  it('supports toggle and range selection across individual episode rows', () => {
+    const visible = [1, 2, 3, 4].map((number) => ({ episode: { id: `e${number}`, season: 4, number, title: `Episode ${number}` }, score: 1, reasons: [] }));
+    const first = updateEpisodeReviewSelection(undefined, visible, 'e1', { toggle: false, range: false });
+    const toggled = updateEpisodeReviewSelection(first.candidate, visible, 'e3', { toggle: true, range: false, anchorId: first.anchorId });
+    const ranged = updateEpisodeReviewSelection(undefined, visible, 'e3', { toggle: false, range: true, anchorId: 'e1' });
+
+    expect(toggled.candidate?.episodes?.map(({ id }) => id)).toEqual(['e1', 'e3']);
+    expect(ranged.candidate?.episodes?.map(({ id }) => id)).toEqual(['e1', 'e2', 'e3']);
   });
 });

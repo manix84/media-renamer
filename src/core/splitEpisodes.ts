@@ -38,12 +38,13 @@ export function episodesForFilename(selected: Episode[], catalog: Episode[]): Ep
 
 export function splitEpisodeReviewCandidates(candidate: MatchCandidate): MatchCandidate[] {
   const selected = candidate.episodes?.length ? candidate.episodes : [candidate.episode];
+  if (selected.length === 1) return [candidate];
   const sharedTitle = sharedSplitEpisodeTitle(selected);
-  if (!sharedTitle) return [candidate];
-  return [
-    ...selected.map((episode) => ({ episode: { ...episode, title: sharedTitle }, score: candidate.score, reasons: [...candidate.reasons, 'single episode from split-title pair'] })),
-    candidate,
-  ];
+  return selected.map((episode) => ({
+    episode: sharedTitle ? { ...episode, title: sharedTitle } : episode,
+    score: candidate.score,
+    reasons: [...candidate.reasons, 'single episode from grouped match'],
+  }));
 }
 
 export function displayEpisodeTitle(candidate: MatchCandidate): string {
@@ -58,4 +59,36 @@ export function searchEpisodeReviewCandidates(episodes: Episode[], query: string
     .filter((episode) => `s${String(episode.season).padStart(2, '0')}e${String(episode.number).padStart(2, '0')} ${episode.title}`.toLocaleLowerCase().includes(search))
     .slice(0, 100)
     .map((episode) => ({ episode, score: 1, reasons: ['manually selected'] }));
+}
+
+export function updateEpisodeReviewSelection(
+  current: MatchCandidate | undefined,
+  visible: MatchCandidate[],
+  clickedId: string,
+  options: { toggle: boolean; range: boolean; anchorId?: string },
+): { candidate?: MatchCandidate; anchorId: string } {
+  const visibleEpisodes = visible.map(({ episode }) => episode);
+  const clickedIndex = visibleEpisodes.findIndex(({ id }) => id === clickedId);
+  if (clickedIndex < 0) return { candidate: current, anchorId: options.anchorId ?? clickedId };
+  const currentIds = new Set(current ? (current.episodes?.length ? current.episodes : [current.episode]).map(({ id }) => id) : []);
+  let selectedIds: Set<string>;
+  if (options.range) {
+    const anchorIndex = Math.max(0, visibleEpisodes.findIndex(({ id }) => id === options.anchorId));
+    const rangeIds = visibleEpisodes.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1).map(({ id }) => id);
+    selectedIds = options.toggle ? new Set([...currentIds, ...rangeIds]) : new Set(rangeIds);
+  } else if (options.toggle) {
+    selectedIds = new Set(currentIds);
+    if (selectedIds.has(clickedId)) selectedIds.delete(clickedId);
+    else selectedIds.add(clickedId);
+  } else selectedIds = new Set([clickedId]);
+  const selected = visibleEpisodes.filter(({ id }) => selectedIds.has(id));
+  return {
+    candidate: selected.length ? {
+      episode: selected[0],
+      episodes: selected.length > 1 ? selected : undefined,
+      score: 1,
+      reasons: ['manually selected'],
+    } : undefined,
+    anchorId: options.range && options.anchorId ? options.anchorId : clickedId,
+  };
 }
