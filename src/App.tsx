@@ -22,7 +22,7 @@ import { matchReviewExplanation } from './core/matchPresentation';
 import { renameFilePhaseLabel, renameFileProgressPresentation, type RenameFileProgressView } from './core/renameProgressPresentation';
 import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
-import { displayEpisodeTitle, episodesForFilename, splitEpisodeReviewCandidates } from './core/splitEpisodes';
+import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, splitEpisodeReviewCandidates } from './core/splitEpisodes';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
 import type { CompanionScan, Episode, ExtensionPreferences, FileMatch, MatchCandidate, MediaTechnicalTags, MovieSearchResult, ProviderStatus, ReleaseTags, RenamePlanIssue, SavedBatchQueue, SavedLibraryRoot, SavedMatchDecision, ShowDetails, ShowMetadataAgent, ShowRule, ShowSearchResult, Source } from './core/types';
 import { movieBatchFilterMatches, type MovieBatchFilter } from './core/movieBatch';
@@ -837,7 +837,7 @@ export default function App() {
     const search = reviewSearch.trim().toLocaleLowerCase();
     if (!search && suggestedCandidates.length) return suggestedCandidates;
     if (!search) return episodes.map((episode) => ({ episode, score: 1, reasons: ['manually selected'] }));
-    return episodes.filter((episode) => `${episodeCode(episode)} ${episode.title}`.toLocaleLowerCase().includes(search)).slice(0, 100).map((episode) => suggestedCandidates.find((candidate) => candidate.episode.id === episode.id) ?? { episode, score: 1, reasons: ['manually selected'] });
+    return searchEpisodeReviewCandidates(episodes, search);
   }, [episodes, reviewSearch, suggestedCandidates]);
   const formatError = templateError(episodeTemplate);
   const parsedDebugDemo = useMemo(() => parseDebugDemo(debugDemoText, debugDemoKind), [debugDemoKind, debugDemoText]);

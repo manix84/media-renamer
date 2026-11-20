@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayEpisodeTitle, episodesForFilename, sharedSplitEpisodeTitle, splitEpisodeReviewCandidates } from './splitEpisodes';
+import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, sharedSplitEpisodeTitle, splitEpisodeReviewCandidates } from './splitEpisodes';
 
 const pair = [
   { id: 'e21', season: 2, number: 21, title: 'Mouth of the Snake (1)' },
@@ -7,6 +7,21 @@ const pair = [
 ];
 
 describe('split episode titles', () => {
+  it('keeps an episode-code search as one manually selected episode', () => {
+    const episodes = Array.from({ length: 20 }, (_, index) => ({
+      id: `e${index + 1}`,
+      season: 4,
+      number: index + 1,
+      title: index === 0 ? '20 Hours in America (1)' : `Episode ${index + 1}`,
+    }));
+
+    expect(searchEpisodeReviewCandidates(episodes, 'S04E01')).toEqual([{
+      episode: episodes[0],
+      score: 1,
+      reasons: ['manually selected'],
+    }]);
+  });
+
   it('recognises adjacent episodes with matching titles and distinct trailing part markers', () => {
     expect(sharedSplitEpisodeTitle(pair)).toBe('Mouth of the Snake');
     expect(sharedSplitEpisodeTitle([{ ...pair[0], title: 'One' }, { ...pair[1], title: 'Two' }])).toBeUndefined();

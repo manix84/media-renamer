@@ -50,3 +50,12 @@ export function displayEpisodeTitle(candidate: MatchCandidate): string {
   const selected = candidate.episodes?.length ? candidate.episodes : [candidate.episode];
   return sharedSplitEpisodeTitle(selected) ?? selected.map((episode) => episode.title).join(', ');
 }
+
+export function searchEpisodeReviewCandidates(episodes: Episode[], query: string): MatchCandidate[] {
+  const search = query.trim().toLocaleLowerCase();
+  if (!search) return [];
+  return episodes
+    .filter((episode) => `s${String(episode.season).padStart(2, '0')}e${String(episode.number).padStart(2, '0')} ${episode.title}`.toLocaleLowerCase().includes(search))
+    .slice(0, 100)
+    .map((episode) => ({ episode, score: 1, reasons: ['manually selected'] }));
+}
