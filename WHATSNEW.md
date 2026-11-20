@@ -4,6 +4,16 @@ This file is the source of truth for user-facing release notes. Add noteworthy c
 
 ## [Unreleased]
 
+### Added
+
+- Episode review now shows discrete rows and supports Ctrl/Cmd and Shift selection when one media file contains multiple episodes.
+- Multi-episode filenames can compact matching part titles while preserving the complete episode range, with an option to retain provider titles unchanged.
+- The project now has a shorter, screenshot-led README and focused guides for every Preferences section.
+
+### Fixed
+
+- TV show numbering and titles now consistently use TVDB Aired ordering so generated filenames remain aligned with Plex libraries configured the same way.
+
 ## [0.9.2] - 2026-11-19
 
 ### Fixed
