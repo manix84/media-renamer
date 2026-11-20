@@ -60,7 +60,7 @@ This first scaffold includes:
 - a resizable debug console that docks left, right, or bottom, or pops into an independent window, while explaining provider activity, imports, and accepted, review, or rejected match decisions; and
 - automated coverage for matching, formatting, metadata providers and caching, file monitoring, preflight, rename execution, rollback, and undo.
 
-The UI uses TMDB by default for search, artwork, movies, show cross-references, and TV episode ordering. Users with eligible TVDB credentials can opt into TVDB's English aired-order episode numbers and titles for Plex-oriented sorting under **Preferences → Libraries & naming → Shows**. AniList remains available to approved anime extensions.
+The UI uses TMDB for search, artwork, movies, and show cross-references. TV episode numbering and titles always use TVDB's aired order so generated filenames stay aligned with Plex libraries that use TVDB ordering. AniList remains available to approved anime extensions.
 
 ## Run it
 
@@ -74,7 +74,7 @@ npm run dev
 
 `npm run dev:electron` is also available as an explicit alias for the complete desktop development stack. Both commands compile the Electron main/preload code, start Vite, and launch the app. Changes under `electron/` automatically recompile and restart Electron so the renderer and preload bridge cannot drift out of sync.
 
-Development builds currently read provider credentials from `.env`. Add a TMDB v4 API Read Access Token before starting the app; TVDB is optional and required only when its advanced episode agent is selected:
+Development builds currently read provider credentials from `.env`. Add a TMDB v4 API Read Access Token and an eligible TVDB API key before starting the app:
 
 ```dotenv
 TMDB_ACCESS_TOKEN=your_long_read_access_token_here
@@ -87,9 +87,11 @@ Create or retrieve the token under your TMDB account's **Settings → API** page
 
 Published builds use the repository Actions secret `TMDB_ACCESS_TOKEN`. Each platform job compiles that credential into a stripped native helper using a fresh split representation, verifies that the finished binary does not contain the literal token, and packages the helper outside the application archive. The helper accepts only the TMDB v3 routes used by Media Renamer, fixes the destination to `https://api.themoviedb.org`, and returns JSON without exposing the bearer token to Electron's JavaScript or renderer IPC. Local development continues to read `TMDB_ACCESS_TOKEN` from `.env`; release artifacts never package that file.
 
+Packaged builds read user-supplied TVDB credentials from a `.env` file in the application data folder. In portable editions this is the adjacent data folder (`data/.env` on macOS, `data/app/.env` on Linux, and `Media Renamer data/.env` on Windows). Installed editions use the normal per-user Media Renamer application-data folder. The file uses the same `TVDB_API_KEY` and optional `TVDB_SUBSCRIBER_PIN` fields shown above and is never included in release artifacts.
+
 Search accepts show names, TMDB IDs such as `tmdb-1396`, and TVDB IDs such as `tvdb-482771`. TVDB IDs are resolved to the corresponding TMDB record for artwork and show details, while episode numbering and names come directly from TVDB.
 
-The application includes TMDB's approved logo and required notice under **Preferences → General → Metadata credits**: “This product uses the TMDB API but is not endorsed or certified by TMDB.” Media Renamer does not distribute a shared TVDB subscriber PIN; optional TVDB use requires the user's own eligible credentials.
+The application includes TMDB's approved logo and required notice under **Preferences → General → Metadata credits**: “This product uses the TMDB API but is not endorsed or certified by TMDB.” Media Renamer does not distribute a shared TVDB subscriber PIN; show sorting requires the user's own eligible TVDB credentials.
 
 ## Local metadata cache
 
@@ -325,7 +327,7 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 ### Milestone 9 — release readiness (in progress)
 
 - [x] automated unsigned Linux, Windows, and macOS packages with tag-driven GitHub Releases
-- [ ] make TMDB the zero-configuration default provider for released builds, retain AniList where applicable, and keep TVDB optional rather than distributing a shared subscriber PIN
+- [ ] keep TMDB zero-configuration for search and artwork, retain AniList where applicable, and require user-supplied TVDB credentials for canonical show ordering rather than distributing a shared subscriber PIN
 - [ ] inject a dedicated, revocable TMDB application token only during trusted platform builds; keep it out of source, JavaScript, renderer IPC, logs, crash reports, and unpacked resources
 - [ ] move credential reconstruction and fixed-origin TMDB requests into a stripped native helper with a narrow command allowlist and normalized responses
 - [ ] randomize the token representation for each release, split reconstruction material, minify production code, and omit source maps while documenting that client-side protection delays rather than prevents determined extraction
@@ -338,7 +340,7 @@ Error reporting must be entirely optional, disabled by default, and initiated fo
 - [ ] signed and notarized macOS build
 - [ ] signed Windows build
 - [ ] update channel with release notes and safe migrations
-- [ ] zero-configuration provider validation plus optional advanced TVDB setup
+- [ ] guided validation and secure setup for user-supplied TVDB credentials
 - [ ] keyboard, screen-reader, contrast, and reduced-motion audit
 - [ ] large-batch performance, interruption-recovery, and cross-platform integration testing
 

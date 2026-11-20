@@ -1221,8 +1221,21 @@ export default function App() {
       setPreferencesHydrated(true);
       return;
     }
-    void window.mediaRenamer.loadPreferences().then((saved) => {
+    void Promise.all([
+      window.mediaRenamer.loadPreferences(),
+      window.mediaRenamer.providerStatus().catch((reason) => {
+        const message = errorMessage(reason);
+        setError(message);
+        addDebug('error', 'Could not read provider status', message);
+        return undefined;
+      }),
+    ]).then(([saved, status]) => {
       if (!active) return;
+      if (status) {
+        setProvider(status);
+        addDebug(status.configured ? 'success' : 'warning', status.configured ? 'TMDB provider configured' : 'TMDB provider is not configured');
+        addDebug(status.tvdbConfigured ? 'success' : 'warning', status.tvdbConfigured ? 'TVDB provider configured' : 'TVDB provider is not configured');
+      }
       if (saved.episodeTemplate !== undefined) setEpisodeTemplate(saved.episodeTemplate === PREVIOUS_DEFAULT_EPISODE_TEMPLATE || saved.episodeTemplate === PREVIOUS_TVDB_DEFAULT_EPISODE_TEMPLATE || saved.episodeTemplate === PREVIOUS_LAYOUT_DEFAULT_EPISODE_TEMPLATE ? DEFAULT_EPISODE_TEMPLATE : saved.episodeTemplate);
       if (saved.extensions !== undefined) setExtensionPreferences(saved.extensions);
       if (saved.fileViewMode !== undefined) setFileViewMode(saved.fileViewMode);
@@ -1620,18 +1633,6 @@ export default function App() {
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [preferencesOpen, templateRenameTarget, refreshConfirmation, clearConfirmation, confirmAllOpen, renameConfirmationOpen, undoConfirmationOpen, renameReport, renaming, undoing, batchMetadataOpen, posterPreview, reviewingPath, movieReviewPath, pinnedPreviewPath]);
-
-  useEffect(() => {
-    window.mediaRenamer?.providerStatus().then((status) => {
-      setProvider(status);
-      addDebug(status.configured ? 'success' : 'warning', status.configured ? 'TMDB provider configured' : 'TMDB provider is not configured');
-      addDebug(status.tvdbConfigured ? 'success' : 'warning', status.tvdbConfigured ? 'TVDB provider configured' : 'TVDB provider is not configured');
-    }).catch((reason) => {
-      const message = errorMessage(reason);
-      setError(message);
-      addDebug('error', 'Could not read provider status', message);
-    });
-  }, [addDebug]);
 
   useEffect(() => {
     let active = true;
@@ -2945,7 +2946,7 @@ export default function App() {
         </section>
 
         <AnimatedPresence show={Boolean(provider && !provider.configured)} className="notice-presence"><div className="notice"><AlertCircle size={17}/><span><strong>TMDB access token needed.</strong> Add <code>TMDB_ACCESS_TOKEN=…</code> to <code>.env</code>, then restart the app.</span></div></AnimatedPresence>
-        <AnimatedPresence show={Boolean(activeMediaTab === 'shows' && showMetadataAgent === 'tvdb-aired' && provider && !provider.tvdbConfigured)} className="notice-presence"><div className="notice"><AlertCircle size={17}/><span><strong>TVDB Aired is unavailable in this build.</strong> Choose TMDB Aired in Shows preferences to continue.</span></div></AnimatedPresence>
+        <AnimatedPresence show={Boolean(activeMediaTab === 'shows' && provider && !provider.tvdbConfigured)} className="notice-presence"><div className="notice"><AlertCircle size={17}/><span><strong>TVDB credentials are required for show sorting.</strong> Configure an eligible TVDB API key so episode numbers always match Plex TVDB ordering.</span></div></AnimatedPresence>
         <AnimatedPresence show={Boolean(error)} className="notice-presence"><div className="notice error"><AlertCircle size={17}/><span>{error}</span></div></AnimatedPresence>
 
         <section className="workflow">
@@ -3449,7 +3450,7 @@ export default function App() {
               </section>
             </div>;
           })() : preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
-            <section className="preference-section"><h3>Metadata agent</h3><p>TMDB Aired is the default and works in published builds. TVDB Aired is an optional advanced agent for custom or development builds with eligible credentials.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>{showMetadataAgent === 'tvdb-aired' ? 'TVDB supplies Plex-oriented episode numbering and titles; TMDB continues to supply search and artwork.' : 'TMDB supplies episode numbering and titles without requiring separate TVDB credentials.'}</small></span><select value={showMetadataAgent} aria-label="Show metadata agent" onChange={(event) => { const agent = event.target.value as ShowMetadataAgent; setShowMetadataAgent(agent); addDebug('info', `${agent === 'tmdb-aired' ? 'TMDB' : 'TVDB'} selected for show episodes`, 'The selection applies the next time a show is loaded.'); }}><option value="tmdb-aired">TMDB Aired (default)</option><option value="tvdb-aired" disabled={Boolean(provider && !provider.tvdbConfigured)}>TVDB Aired{provider && !provider.tvdbConfigured ? ' (credentials required)' : ''}</option></select></label></div>{showMetadataAgent === 'tvdb-aired' && provider && !provider.tvdbConfigured && <div className="notice"><AlertCircle size={17}/><span><strong>TVDB credentials are not configured.</strong> Switch to TMDB Aired, or use a custom or development build configured for TVDB.</span></div>}</section>
+            <section className="preference-section"><h3>Episode order</h3><p>Show numbering and titles always use TVDB Aired so generated filenames match Plex libraries that use TVDB ordering. TMDB continues to supply search, artwork, and supplementary metadata.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired is fixed to prevent silent season and episode shifts between providers.</small></span><select value="tvdb-aired" aria-label="Show episode order" disabled><option value="tvdb-aired">TVDB Aired (Plex-compatible)</option></select></label></div>{provider && !provider.tvdbConfigured && <div className="notice"><AlertCircle size={17}/><span><strong>TVDB credentials are not configured.</strong> Add an eligible TVDB API key before sorting shows.</span></div>}</section>
             <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label>{showMatchDecisionId && <div className="destination-row standalone"><span><strong>Rule for {show?.name}</strong><small>{activeShowRule ? `Title matching ${activeShowRule.titleMatching ? 'on' : 'off'} · ${activeShowRule.confidenceThreshold}% confirmation` : 'Use the current matching settings whenever this show is selected.'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => setShowRules((current) => [...current.filter((rule) => rule.showId !== showMatchDecisionId), { showId: showMatchDecisionId, titleMatching, confidenceThreshold: matchConfidenceThreshold, updatedAt: Date.now() }])}>{activeShowRule ? 'Update rule' : 'Save rule'}</button>{activeShowRule && <button className="icon-button" aria-label={`Remove rule for ${show?.name}`} title="Use global matching settings" onClick={() => setShowRules((current) => current.filter((rule) => rule.showId !== showMatchDecisionId))}><X size={14}/></button>}</span></div>}</section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>

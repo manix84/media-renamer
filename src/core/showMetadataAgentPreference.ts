@@ -1,14 +1,12 @@
 import type { ShowMetadataAgent } from './types';
 
-export const SHOW_METADATA_AGENT_DEFAULT_VERSION = 3;
-export const DEFAULT_SHOW_METADATA_AGENT: ShowMetadataAgent = 'tmdb-aired';
+export const SHOW_METADATA_AGENT_DEFAULT_VERSION = 4;
+export const DEFAULT_SHOW_METADATA_AGENT: ShowMetadataAgent = 'tvdb-aired';
 
 export function resolveShowMetadataAgentPreference(saved: {
   showMetadataAgent?: ShowMetadataAgent;
   showMetadataAgentDefaultVersion?: number;
 }): ShowMetadataAgent {
-  if (saved.showMetadataAgentDefaultVersion === SHOW_METADATA_AGENT_DEFAULT_VERSION && saved.showMetadataAgent) {
-    return saved.showMetadataAgent;
-  }
+  void saved;
   return DEFAULT_SHOW_METADATA_AGENT;
 }

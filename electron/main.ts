@@ -150,13 +150,15 @@ async function latestRename() {
 
 function localEnv(name: string): string | undefined {
   if (process.env[name]) return process.env[name];
-  try {
-    const env = fs.readFileSync(path.join(app.getAppPath(), '.env'), 'utf8');
-    const line = env.split(/\r?\n/).find((entry) => entry.trimStart().startsWith(`${name}=`));
-    return line?.split('=').slice(1).join('=').trim().replace(/^(['"])(.*)\1$/, '$2') || undefined;
-  } catch {
-    return undefined;
+  for (const filePath of [path.join(app.getPath('userData'), '.env'), path.join(app.getAppPath(), '.env')]) {
+    try {
+      const env = fs.readFileSync(filePath, 'utf8');
+      const line = env.split(/\r?\n/).find((entry) => entry.trimStart().startsWith(`${name}=`));
+      const value = line?.split('=').slice(1).join('=').trim().replace(/^(['"])(.*)\1$/, '$2');
+      if (value) return value;
+    } catch { /* Try the next supported environment file. */ }
   }
+  return undefined;
 }
 
 async function tmdbLogoLuminance(value: string): Promise<number | undefined> {
@@ -195,7 +197,7 @@ let tvdbClient: TvdbClient | undefined;
 const aniListClient = new AniListClient();
 function tvdb(): TvdbClient {
   const apiKey = localEnv('TVDB_API_KEY');
-  if (!apiKey) throw new Error('TVDB is not configured. Add TVDB_API_KEY to .env to load Plex-compatible episode ordering.');
+  if (!apiKey) throw new Error('TVDB is not configured. Add TVDB_API_KEY to the app data folder’s .env file, then restart Media Renamer.');
   return tvdbClient ??= new TvdbClient(apiKey, localEnv('TVDB_SUBSCRIBER_PIN'));
 }
 
