@@ -14,6 +14,7 @@ export type PersistedPreferences = {
   completionNotification?: boolean;
   completionReport?: boolean;
   completionReportAutoClose?: boolean;
+  compactMultiEpisodeNames?: boolean;
   confirmBeforeRename?: boolean;
   showRenameProgressModal?: boolean;
   autoScrollRenameProgress?: boolean;
@@ -67,6 +68,7 @@ export function normalizePreferences(value: unknown): PersistedPreferences {
   if (typeof source.completionNotification === 'boolean') result.completionNotification = source.completionNotification;
   if (typeof source.completionReport === 'boolean') result.completionReport = source.completionReport;
   if (typeof source.completionReportAutoClose === 'boolean') result.completionReportAutoClose = source.completionReportAutoClose;
+  if (typeof source.compactMultiEpisodeNames === 'boolean') result.compactMultiEpisodeNames = source.compactMultiEpisodeNames;
   if (typeof source.confirmBeforeRename === 'boolean') result.confirmBeforeRename = source.confirmBeforeRename;
   if (typeof source.showRenameProgressModal === 'boolean') result.showRenameProgressModal = source.showRenameProgressModal;
   if (typeof source.autoScrollRenameProgress === 'boolean') result.autoScrollRenameProgress = source.autoScrollRenameProgress;

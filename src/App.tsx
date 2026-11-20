@@ -457,6 +457,7 @@ export default function App() {
   const [showMetadataAgent, setShowMetadataAgent] = useState<ShowMetadataAgent>(DEFAULT_SHOW_METADATA_AGENT);
   const [paths, setPaths] = useState<string[]>([]);
   const [titleMatching, setTitleMatching] = useState(true);
+  const [compactMultiEpisodeNames, setCompactMultiEpisodeNames] = useState(true);
   const [matchConfidenceThreshold, setMatchConfidenceThreshold] = useState(() => {
     const saved = Number(localStorage.getItem('media-renamer-match-confidence-threshold'));
     return Number.isFinite(saved) && saved >= 50 && saved <= 100 ? Math.round(saved) : 80;
@@ -935,7 +936,7 @@ export default function App() {
       number: Number(episode.number),
       title: episode.title.trim(),
     } satisfies Episode)) : matchedEpisodes;
-    const filenameEpisodes = episodesForFilename(effectiveEpisodes, episodes);
+    const filenameEpisodes = episodesForFilename(effectiveEpisodes, compactMultiEpisodeNames);
     const detectedTags = parseReleaseTags(path, releaseAliases);
     const movieEdition = activeMediaTab === 'movies' && movieForPath ? parseMovieEdition(path, movieForPath.name, movieForPath.year, releaseAliases) : undefined;
     const baseTags = detectedTags ? {
@@ -1008,7 +1009,7 @@ export default function App() {
       matchStatus: activeMediaTab === 'movies' ? movieMatches[path]?.status === 'confident' ? 'confident' : movieMatches[path]?.status === 'review' ? 'review' : 'pending' : confirmedPaths.has(path) ? 'confident' : item?.status ?? 'pending',
       confidence: activeMediaTab === 'movies' ? movieMatches[path]?.confidence ?? 0 : item?.match?.score ?? 0,
     };
-  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, batchReleaseOverrides, companionScan.byVideo, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, filenameOverrides, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
+  })), [activeMediaTab, aiUpscaleOverride, ambiguousCompanionsByVideo, batchReleaseOverrides, companionScan.byVideo, compactMultiEpisodeNames, confirmedPaths, deferredMoviePaths, episodeTemplate, extensionPreferences, filenameOverrides, folderFormatError, formatError, installedExtensions, matchesByPath, metadataOverrides, moveFiles, movieBaseFolder, movieFolderFormatError, movieFolderTemplate, movieFormatError, movieMatches, movieTemplate, movieVideoRoles, paths, releaseAliases, show, showFolderTemplate, sourceOverride, technicalTags, tvBaseFolder]);
   const renameGroups = useMemo(() => renamePlan.items.flatMap((item) => item.targetPath ? [{ items: [item, ...item.companions].flatMap((entry) => entry.targetPath ? [{ sourcePath: entry.sourcePath, targetPath: entry.targetPath }] : []) }] : []), [renamePlan]);
   const preflightPlan = useMemo(() => {
     const filesystemBySource = new Map<string, RenamePlanIssue[]>();
@@ -1269,6 +1270,7 @@ export default function App() {
       if (saved.showFolderTemplate !== undefined) setShowFolderTemplate(saved.showFolderTemplate);
       setShowMetadataAgent(resolveShowMetadataAgentPreference(saved));
       if (saved.titleMatching !== undefined) setTitleMatching(saved.titleMatching);
+      if (saved.compactMultiEpisodeNames !== undefined) setCompactMultiEpisodeNames(saved.compactMultiEpisodeNames);
       if (saved.tvBaseFolder !== undefined) setTvBaseFolder(saved.tvBaseFolder);
     }).catch((reason) => addDebug('warning', 'Could not load saved preferences', errorMessage(reason))).finally(() => {
       if (active) setPreferencesHydrated(true);
@@ -1362,9 +1364,10 @@ export default function App() {
       showMetadataAgent,
       showMetadataAgentDefaultVersion: SHOW_METADATA_AGENT_DEFAULT_VERSION,
       titleMatching,
+      compactMultiEpisodeNames,
       tvBaseFolder,
     }).catch((reason) => addDebug('warning', 'Could not save preferences', errorMessage(reason)));
-  }, [addDebug, autoClearCompletedBatch, autoScrollRenameProgress, clearSourceJunk, completionChime, completionNotification, completionReport, completionReportAutoClose, confirmBeforeRename, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedEpisodeTemplates, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showMetadataAgent, showRenameProgressModal, showRules, titleMatching, tvBaseFolder]);
+  }, [addDebug, autoClearCompletedBatch, autoScrollRenameProgress, clearSourceJunk, compactMultiEpisodeNames, completionChime, completionNotification, completionReport, completionReportAutoClose, confirmBeforeRename, createExternalRenameLog, developerMode, episodeTemplate, exportNfo, exportPlexArtwork, extensionPreferences, fileViewMode, matchConfidenceThreshold, movieBaseFolder, movieFolderTemplate, movieTemplate, preferencesHydrated, releaseAliasText, removeEmptySourceParents, renameLogFolder, savedBatchQueues, savedEpisodeTemplates, savedLibraryRoots, savedMatchDecisions, showFolderTemplate, showMetadataAgent, showRenameProgressModal, showRules, titleMatching, tvBaseFolder]);
 
   useEffect(() => {
     void window.mediaRenamer?.getAppVersion().then((version) => {
@@ -3464,6 +3467,7 @@ export default function App() {
           })() : preferenceMediaTab === 'shows' ? <div className="preference-media-panel" role="tabpanel" aria-label="Shows settings">
             <section className="preference-section"><h3>Episode order</h3><p>Show numbering and titles always use TVDB Aired so generated filenames match Plex libraries that use TVDB ordering. TMDB continues to supply search, artwork, and supplementary metadata.</p><div className="metadata-overrides"><label><span><strong>Show episodes</strong><small>TVDB Aired is fixed to prevent silent season and episode shifts between providers.</small></span><select value="tvdb-aired" aria-label="Show episode order" disabled><option value="tvdb-aired">TVDB Aired (Plex-compatible)</option></select></label></div>{provider && !provider.tvdbConfigured && <div className="notice"><AlertCircle size={17}/><span><strong>TVDB credentials are not configured.</strong> Add an eligible TVDB API key before sorting shows.</span></div>}</section>
             <section className="preference-section"><h3>Episode matching</h3><label className="preference-toggle"><span><Sparkles size={17}/><span><strong>Match episode names</strong><small>Best effort when numbering and titles disagree</small></span></span><input type="checkbox" checked={titleMatching} onChange={(event) => { setTitleMatching(event.target.checked); addDebug('info', `Episode-title matching ${event.target.checked ? 'enabled' : 'disabled'}`); }}/></label><label className="confidence-threshold"><span><strong>Automatic confirmation</strong><small>Matches at or above this confidence are accepted without review.</small></span><output>{matchConfidenceThreshold}%</output><input type="range" min="50" max="100" step="1" value={matchConfidenceThreshold} aria-label="Automatic match confirmation threshold" aria-valuetext={`${matchConfidenceThreshold}% confidence`} onChange={(event) => setMatchConfidenceThreshold(Number(event.target.value))}/><span className="confidence-range"><small>50%</small><small>100%</small></span></label>{showMatchDecisionId && <div className="destination-row standalone"><span><strong>Rule for {show?.name}</strong><small>{activeShowRule ? `Title matching ${activeShowRule.titleMatching ? 'on' : 'off'} · ${activeShowRule.confidenceThreshold}% confirmation` : 'Use the current matching settings whenever this show is selected.'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => setShowRules((current) => [...current.filter((rule) => rule.showId !== showMatchDecisionId), { showId: showMatchDecisionId, titleMatching, confidenceThreshold: matchConfidenceThreshold, updatedAt: Date.now() }])}>{activeShowRule ? 'Update rule' : 'Save rule'}</button>{activeShowRule && <button className="icon-button" aria-label={`Remove rule for ${show?.name}`} title="Use global matching settings" onClick={() => setShowRules((current) => current.filter((rule) => rule.showId !== showMatchDecisionId))}><X size={14}/></button>}</span></div>}</section>
+            <section className="preference-section"><h3>Episode naming</h3><label className="preference-toggle"><span><ListChecks size={17}/><span><strong>Compact multi-episode names</strong><small>Remove part markers and consolidate matching titles when one file contains multiple episodes.</small></span></span><input type="checkbox" checked={compactMultiEpisodeNames} onChange={(event) => setCompactMultiEpisodeNames(event.target.checked)}/></label></section>
             <section className={`preference-section destination-settings ${folderFormatError ? 'invalid' : ''}`}><h3>Show destination</h3><p>Optionally move renamed episodes into a show folder beneath a dedicated TV library.</p>
               <div className="destination-row"><span><strong>TV base folder</strong><small>{tvBaseFolder || 'Create the show folder beside each source'}</small></span><span className="destination-actions"><button className="secondary" onClick={() => void chooseBaseFolder('TV')}><FolderTree size={14}/>{tvBaseFolder ? 'Change' : 'Choose'}</button>{tvBaseFolder && <button className="icon-button" aria-label="Clear TV base folder" title="Create the show folder beside each source" onClick={() => setTvBaseFolder('')}><X size={14}/></button>}</span></div>
               <div className="folder-template-field"><span><strong>Show folder pattern</strong><small>Use seasonFolder for “Season 5” and “Specials” automatically.</small></span><TemplateEditor value={showFolderTemplate} onChange={setShowFolderTemplate} ariaLabel="Show folder pattern"/></div>

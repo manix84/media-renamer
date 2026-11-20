@@ -133,7 +133,7 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
   return {
     show: { name: show, year, tvdbId },
     episode: { range: episodeRange(episodes) },
-    episodes: episodes.map((episode, index) => ({
+    episodes: episodes.filter((episode) => episode.title).map((episode, index, titledEpisodes) => ({
       season: episode.season,
       number: episode.number,
       seasonPadded: String(episode.season).padStart(2, '0'),
@@ -141,7 +141,7 @@ function templateContext(show: string, year: number | undefined, tvdbId: string 
       code: `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`,
       title: episode.title,
       first: index === 0,
-      last: index === episodes.length - 1,
+      last: index === titledEpisodes.length - 1,
     })),
     technical,
     audio: audioContext(tags),

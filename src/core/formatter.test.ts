@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COLLISION_INCREMENT_RESERVE_BYTES, DEFAULT_EPISODE_TEMPLATE, DEFAULT_MOVIE_FOLDER_TEMPLATE, DEFAULT_MOVIE_TEMPLATE, DEFAULT_SHOW_FOLDER_TEMPLATE, FILESYSTEM_FILENAME_BYTES, formatEpisode, formatEpisodeFilename, formatMovie, formatMovieFilename, formatMovieFolder, formatShowFolder, movieFolderTemplateError, movieTemplateError, showFolderTemplateError, templateError } from './formatter';
+import { episodesForFilename } from './splitEpisodes';
 import type { Episode, ReleaseTags } from './types';
 
 const tags: ReleaseTags = { source: 'WEB-DL', resolution: '1080p', videoCodec: 'H.264', flags: [], audioCodec: 'AAC', channels: '2.0' };
@@ -22,6 +23,24 @@ describe('episode filename templates', () => {
   it('repeats an episode section for merged episodes', () => {
     expect(formatEpisode(DEFAULT_EPISODE_TEMPLATE, 'Show Name', undefined, episodes, tags))
       .toBe('Show Name - S01E01-E02 - Episode 1, Episode 2 [1080p WEB-DL H.264 AAC 2.0]');
+  });
+
+  it('compacts matching part titles without losing the multi-episode range', () => {
+    const parts = episodes.map((episode, index) => ({ ...episode, title: `Episode Name Part ${index + 1}` }));
+    expect(formatEpisode('{{show.name}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}', 'Show Name', undefined, episodesForFilename(parts), tags))
+      .toBe('Show Name - S01E01-E02 - Episode Name');
+  });
+
+  it('keeps distinct compacted titles in a multi-episode filename', () => {
+    const parts = [{ ...episodes[0], title: 'Episode Name (1)' }, { ...episodes[1], title: 'My Show (2)' }];
+    expect(formatEpisode('{{show.name}} - {{episode.range}} - {{#episodes}}{{^first}}, {{/first}}{{title}}{{/episodes}}', 'Show Name', undefined, episodesForFilename(parts), tags))
+      .toBe('Show Name - S01E01-E02 - Episode Name, My Show');
+  });
+
+  it('keeps a part marker in a single-episode filename', () => {
+    const part = { ...episodes[0], title: 'Episode Name (1)' };
+    expect(formatEpisode('{{show.name}} - {{episode.range}} - {{#episodes}}{{title}}{{/episodes}}', 'Show Name', undefined, episodesForFilename([part]), tags))
+      .toBe('Show Name - S01E01 - Episode Name (1)');
   });
 
   it('omits the TVDB block when the show has no TVDB cross-reference', () => {

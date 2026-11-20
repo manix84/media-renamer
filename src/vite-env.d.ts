@@ -40,6 +40,7 @@ declare global {
         completionNotification?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        compactMultiEpisodeNames?: boolean;
         confirmBeforeRename?: boolean;
         showRenameProgressModal?: boolean;
         autoScrollRenameProgress?: boolean;
@@ -79,6 +80,7 @@ declare global {
         completionNotification?: boolean;
         completionReport?: boolean;
         completionReportAutoClose?: boolean;
+        compactMultiEpisodeNames?: boolean;
         confirmBeforeRename?: boolean;
         showRenameProgressModal?: boolean;
         autoScrollRenameProgress?: boolean;

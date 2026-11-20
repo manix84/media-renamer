@@ -39,6 +39,10 @@ describe('persistent preferences', () => {
     expect(preferences.exportPlexArtwork).toBeUndefined();
   });
 
+  it('persists the multi-episode name compaction flag', () => {
+    expect(normalizePreferences({ compactMultiEpisodeNames: false })).toEqual({ compactMultiEpisodeNames: false });
+  });
+
   it('sanitizes extension IDs, setting keys, and values', () => {
     expect(normalizePreferences({ extensions: {
       'media-renamer.anime': { enabled: true, settings: { showBaseFolder: '/Anime', invalid_value: 12 }, grantedCapabilities: ['network.metadata', 'network.metadata', 'bad capability', 42] },

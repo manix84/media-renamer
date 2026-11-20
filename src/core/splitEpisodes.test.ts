@@ -27,19 +27,48 @@ describe('split episode titles', () => {
     expect(sharedSplitEpisodeTitle([{ ...pair[0], title: 'One' }, { ...pair[1], title: 'Two' }])).toBeUndefined();
   });
 
-  it('formats a combined selection with only its first episode and the shared title', () => {
-    expect(episodesForFilename(pair, pair)).toEqual([{ ...pair[0], title: 'Mouth of the Snake' }]);
+  it('keeps the full episode range while consolidating matching part titles', () => {
+    expect(episodesForFilename(pair)).toEqual([{ ...pair[0], title: 'Mouth of the Snake' }, { ...pair[1], title: '' }]);
   });
 
-  it('cleans either single selection when its split sibling exists', () => {
-    expect(episodesForFilename([pair[1]], pair)).toEqual([{ ...pair[1], title: 'Mouth of the Snake' }]);
+  it('keeps the part marker for a file containing only one episode', () => {
+    expect(episodesForFilename([pair[1]])).toEqual([pair[1]]);
+  });
+
+  it('removes part markers from distinct titles without consolidating them', () => {
+    const distinct = [{ ...pair[0], title: 'Episode Name (1)' }, { ...pair[1], title: 'My Show (2)' }];
+    expect(episodesForFilename(distinct)).toEqual([{ ...distinct[0], title: 'Episode Name' }, { ...distinct[1], title: 'My Show' }]);
+  });
+
+  it('consolidates identical titles even when they have no part marker', () => {
+    const identical = pair.map((episode) => ({ ...episode, title: 'Episode Name' }));
+    expect(episodesForFilename(identical)).toEqual([{ ...identical[0], title: 'Episode Name' }, { ...identical[1], title: '' }]);
+  });
+
+  it('recognises common best-effort part marker variants', () => {
+    for (const titles of [
+      ['Story Part #1', 'Story Part #2'],
+      ['Story Pt. I', 'Story Pt. II'],
+      ['Story (Part 1)', 'Story (Part 2)'],
+      ['Story [1]', 'Story [2]'],
+      ['Story (1 of 2)', 'Story (2 of 2)'],
+      ['Story #1', 'Story #2'],
+    ]) {
+      expect(episodesForFilename(pair.map((episode, index) => ({ ...episode, title: titles[index] })))).toEqual([
+        { ...pair[0], title: 'Story' }, { ...pair[1], title: '' },
+      ]);
+    }
+  });
+
+  it('leaves raw provider titles untouched when compaction is disabled', () => {
+    expect(episodesForFilename(pair, false)).toEqual(pair);
   });
 
   it('offers grouped matches only as individual episode rows', () => {
     const candidate = { episode: pair[0], episodes: pair, score: .95, reasons: ['2 episode numbers'] };
     const choices = splitEpisodeReviewCandidates(candidate);
     expect(choices.map((choice) => [choice.episode.id])).toEqual([['e21'], ['e22']]);
-    expect(choices.map(displayEpisodeTitle)).toEqual(['Mouth of the Snake', 'Mouth of the Snake']);
+    expect(choices.map(displayEpisodeTitle)).toEqual(['Mouth of the Snake (1)', 'Mouth of the Snake (2)']);
   });
 
   it('supports toggle and range selection across individual episode rows', () => {
