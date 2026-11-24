@@ -13,6 +13,10 @@ export interface MovieFileMatch {
   error?: string;
 }
 
+export function pendingMovieDetectionPaths(paths: string[], matches: Record<string, MovieFileMatch>): string[] {
+  return paths.filter((path) => !matches[path] || matches[path].status === 'detecting');
+}
+
 function normalizedTitle(value: string): string {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }

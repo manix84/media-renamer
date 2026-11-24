@@ -20,7 +20,7 @@ import { optionalMetadataNumber, validateMediaMetadata, type MediaMetadataOverri
 import { movieMatchConfirmationState, tvMatchConfirmationState } from './core/matchConfirmation';
 import { matchReviewExplanation } from './core/matchPresentation';
 import { renameFilePhaseLabel, renameFileProgressPresentation, type RenameFileProgressView } from './core/renameProgressPresentation';
-import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, type MovieFileMatch } from './core/movieMatching';
+import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, pendingMovieDetectionPaths, type MovieFileMatch } from './core/movieMatching';
 import { applySavedMatchDecision, saveMatchDecision, showDecisionId } from './core/savedMatchDecisions';
 import { displayEpisodeTitle, episodesForFilename, searchEpisodeReviewCandidates, splitEpisodeReviewCandidates, updateEpisodeReviewSelection } from './core/splitEpisodes';
 import { episodeNfo, movieNfo, parentDirectory, plexArtworkAssets, plexMovieArtworkAssets, plexSeasonArtworkAsset, plexShowDirectories, showNfo, siblingPath, type PlexGeneratedAsset } from './core/plexSidecars';
@@ -1667,7 +1667,7 @@ export default function App() {
       const existing = current[path];
       return [path, existing ?? { path, query: inferMovieQuery([path], new Date().getFullYear(), movieVideoRoles) ?? '', candidates: [], status: 'detecting', confidence: 0, reasons: [] }];
     })));
-    const pending = eligiblePaths.filter((path) => !movieMatches[path]);
+    const pending = pendingMovieDetectionPaths(eligiblePaths, movieMatches);
     if (!pending.length) return;
     setWork({ operation: 'Importing', completed: 0, total: pending.length });
     addDebug('info', `Detecting ${pending.length} movie${pending.length === 1 ? '' : 's'}`, 'Inferring a separate TMDB search from each imported filename.');
@@ -1722,7 +1722,9 @@ export default function App() {
           }
         }
         if (cancelled || movieBatchSequence.current !== sequence) return;
-        setMovieMatches((current) => ({ ...current, [path]: match }));
+        setMovieMatches((current) => current[path] && current[path].status !== 'detecting'
+          ? current
+          : { ...current, [path]: match });
         completed += 1;
         setWork({ operation: 'Importing', completed, total: pending.length });
         const destination = match.movie ? `${match.movie.name}${match.movie.year ? ` (${match.movie.year})` : ''}` : 'no match';
@@ -2006,11 +2008,11 @@ export default function App() {
 
   function openMovieMatchReview(path: string) {
     const match = movieMatches[path];
-    if (!match || match.status === 'detecting') return;
+    const inferred = inferMovieQuery([path], new Date().getFullYear(), movieVideoRoles) ?? filenameFromPath(path).replace(/\.[^.]+$/, '').replace(/[._-]+/g, ' ');
     setMovieReviewPath(path);
-    setMovieReviewQuery(match.query);
-    setMovieReviewResults(match.candidates);
-    setMovieReviewSelection(match.movie ? movieResultKey(match.movie) : match.candidates[0] ? movieResultKey(match.candidates[0]) : undefined);
+    setMovieReviewQuery(match?.query || inferred);
+    setMovieReviewResults(match?.candidates ?? []);
+    setMovieReviewSelection(match?.movie ? movieResultKey(match.movie) : match?.candidates[0] ? movieResultKey(match.candidates[0]) : undefined);
     setMovieReviewError(undefined);
   }
 
@@ -3038,8 +3040,8 @@ export default function App() {
                 const plannedCompanions = planItemsByPath.get(path)?.companions ?? [];
                 const activeFormatError = activeMediaTab === 'movies' ? movieFormatError : formatError;
                 const activeFolderError = activeMediaTab === 'movies' ? movieFolderFormatError : folderFormatError;
-                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : 'No suggested name';
                 const status = activeMediaTab === 'movies' ? deferredToTv ? 'deferred' : movieFileMatch?.status ?? 'detecting' : item?.status ?? 'pending';
+                const output = plannedTargetName ? extension ? plannedTargetName.slice(0, -extension.length) : plannedTargetName : activeFormatError ? 'Fix the filename template' : moveFiles && activeFolderError ? `Fix the ${activeMediaTab === 'movies' ? 'movie' : 'show'} folder pattern` : status === 'detecting' ? 'Searching TMDB…' : 'No suggested name';
                 const confirmed = confirmedPaths.has(path);
                 const movieVideoRole = movieVideoRoles[path];
                 const roleTag = movieVideoRole?.kind === 'multipart' ? `Part ${movieVideoRole.part}` : movieVideoRole?.kind === 'extra' ? movieVideoRole.extraType === 'behindthescenes' ? 'Behind the scenes' : movieVideoRole.extraType[0].toUpperCase() + movieVideoRole.extraType.slice(1) : movieVideoRole?.kind === 'sample' ? 'Sample' : undefined;
@@ -3066,7 +3068,7 @@ export default function App() {
                 const extensionBadges = resolveExtensionBadges(extensionContext, extensionPreferences, installedExtensions);
                 const extensionWarnings = resolveExtensionWarnings(extensionContext, extensionPreferences, installedExtensions);
                 const planIssues = planIssuesByPath.get(path) ?? [];
-                const blockingIssue = planIssues.find((issue) => issue.severity === 'error');
+                const blockingIssue = status === 'detecting' ? undefined : planIssues.find((issue) => issue.severity === 'error');
                 const matchExplanation = item?.match?.reasons.length ? `Matched by ${item.match.reasons.join(' + ')}` : undefined;
                 const displayedConfidence = activeMediaTab === 'movies'
                   ? movieFileMatch?.movie ? movieFileMatch.confidence : undefined
@@ -3074,7 +3076,7 @@ export default function App() {
                 const reviewExplanation = status === 'review' && displayedConfidence !== undefined
                   ? matchReviewExplanation(displayedConfidence, activeMediaTab === 'movies' ? movieFileMatch?.reasons ?? [] : item?.match?.reasons ?? [], activeMediaTab === 'shows' ? effectiveConfidenceThreshold : undefined)
                   : undefined;
-                const visiblePlanIssues = reviewExplanation ? planIssues.filter((issue) => issue.code !== 'review-required') : planIssues;
+                const visiblePlanIssues = status === 'detecting' ? [] : reviewExplanation ? planIssues.filter((issue) => issue.code !== 'review-required') : planIssues;
                 const unchanged = unchangedPathSet.has(path);
                 const fullProposedName = deferredToTv ? 'Deferred to TV mode' : plannedTargetName ?? (item ? output : `Waiting for ${activeMediaTab === 'movies' ? 'movie' : 'show'} metadata`);
                 const previewPinned = pinnedPreviewPath === path;
@@ -3107,7 +3109,7 @@ export default function App() {
                   if (!confirmationHeld) return;
                   setHeldConfirmationPaths((current) => { const next = new Set(current); next.delete(path); return next; });
                 }}>
-                  <div data-row-scroll-anchor className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : unchanged ? 'unchanged' : confirmed ? 'confirmed' : status}`}>{inspecting ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
+                  <div data-row-scroll-anchor className={`status-dot ${inspecting ? 'inspecting' : blockingIssue ? 'unmatched' : unchanged ? 'unchanged' : confirmed ? 'confirmed' : status}`}>{inspecting || status === 'detecting' ? <LoaderCircle className="spin"/> : blockingIssue ? <X/> : confirmed || status === 'confident' ? <Check/> : status === 'review' ? '!' : status === 'unmatched' ? <X/> : status === 'deferred' ? <Tv/> : '…'}</div>
                   {activeMediaTab === 'movies' && (movieFileMatch?.movie?.posterUrl ? <span className="movie-row-poster" aria-hidden="true"><img src={movieFileMatch.movie.posterUrl} alt=""/></span> : <span className="movie-row-poster" aria-hidden="true"><Film size={18}/></span>)}
                   <div className="file-content" tabIndex={0} role="button" aria-pressed={activeMediaTab === 'movies' ? selectedMoviePath === path : undefined} aria-expanded={fileViewMode === 'detailed' ? undefined : previewPinned} aria-label={activeMediaTab === 'shows' ? `Highlight matched episodes for ${filename}` : movieFileMatch?.movie ? `${selectedMoviePath === path ? 'Deselect' : 'Show details for'} ${movieFileMatch.movie.name}` : fileViewMode === 'detailed' ? `Movie details unavailable for ${filename}` : `Show complete filenames for ${filename}`} onClick={() => { if (activeMediaTab === 'shows') selectLinkedEpisodes(path); else selectMovie(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (activeMediaTab === 'shows') selectLinkedEpisodes(path); else selectMovie(path); if (fileViewMode !== 'detailed') setPinnedPreviewPath((current) => current === path ? undefined : path); } }}>
                     {activeMediaTab === 'movies' && movieFileMatch?.movie && <div className="movie-row-identity">{movieFileMatch.movie.logoUrl ? <ContrastAwareLogo className="movie-row-logo" src={resolvedTheme === 'light' ? movieFileMatch.movie.lightBackgroundLogoUrl ?? movieFileMatch.movie.logoUrl : movieFileMatch.movie.logoUrl} alt={movieFileMatch.movie.name} theme={resolvedTheme}/> : <strong>{movieFileMatch.movie.name}</strong>}<span>{movieFileMatch.movie.year ?? 'Year unknown'} · TMDB {movieFileMatch.movie.id}</span></div>}
@@ -3144,7 +3146,7 @@ export default function App() {
                       <button className="row-edit" aria-label={`Edit metadata for ${filename}`} title="Edit metadata" disabled={activeMediaTab === 'movies' ? !movieFileMatch?.movie : !item?.match || !show} onClick={() => openMetadataEditor(path)}><FilePenLine size={14}/></button>
                       {activeMediaTab === 'shows' && !keepReviewActionsFixed && <button className="row-review" aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}
                       {activeMediaTab === 'movies' && deferredToTv && <button className="row-review required" aria-label={`Treat ${filename} as a movie and choose its match`} title="Treat as movie and choose match" onClick={() => forceMovieMatchReview(path)}><Film size={14}/></button>}
-                      {activeMediaTab === 'movies' && !deferredToTv && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Match movie for ${filename}`} title="Match movie" disabled={!movieFileMatch || movieFileMatch.status === 'detecting'} onClick={() => openMovieMatchReview(path)}><ListChecks size={14}/></button>}
+                      {activeMediaTab === 'movies' && !deferredToTv && <button className={`row-review ${movieReviewRequired ? 'required' : ''}`} aria-label={`Match movie for ${filename}`} title="Match movie" onClick={() => openMovieMatchReview(path)}><ListChecks size={14}/></button>}
                     </div>
                     {(matchingRequired && item?.match) || movieConfirmationRequired ? <button className="row-confirm" aria-label={`Confirm suggested ${activeMediaTab === 'movies' ? 'movie' : 'episode'} match for ${filename}`} title="Confirm suggested match" onClick={() => confirmSuggestedMatch(path)}><Check size={14}/></button> : confirmationHeld ? <span className="row-confirm confirmed" aria-label={`Confirmed episode match for ${filename}`} title="Episode match confirmed"><Check size={14}/></span> : null}
                     {keepReviewActionsFixed && <button className={`row-review ${matchingRequired ? 'required' : ''}`} aria-label={`Review episode match for ${filename}`} title="Review episode match" disabled={!item} onClick={() => openMatchReview(path)}><ListChecks size={14}/></button>}

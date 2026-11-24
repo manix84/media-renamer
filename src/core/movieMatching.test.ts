@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie } from './movieMatching';
+import { chooseMovieMatch, confirmSuggestedMovie, manuallySelectMovie, pendingMovieDetectionPaths } from './movieMatching';
 
 const movie = (id: string, name: string, year?: number, runtimeMinutes?: number) => ({ id, name, year, runtimeMinutes, overview: '' });
 
 describe('movie batch matching', () => {
+  it('requeues unfinished movies when detection restarts', () => {
+    const detecting = { path: '/Pending.mkv', query: 'Pending', candidates: [], status: 'detecting' as const, confidence: 0, reasons: [] };
+    const matched = chooseMovieMatch('/Ready.mkv', 'Ready (2024)', [movie('1', 'Ready', 2024)]);
+
+    expect(pendingMovieDetectionPaths(['/Pending.mkv', '/Ready.mkv', '/New.mkv'], {
+      '/Pending.mkv': detecting,
+      '/Ready.mkv': matched,
+    })).toEqual(['/Pending.mkv', '/New.mkv']);
+  });
+
   it('accepts an exact title and year', () => {
     const match = chooseMovieMatch('/Mercury.mkv', 'Mercury Rising (1998)', [movie('8838', 'Mercury Rising', 1998)]);
     expect(match).toMatchObject({ status: 'confident', confidence: 1, movie: { id: '8838' }, reasons: ['title', 'year'] });
